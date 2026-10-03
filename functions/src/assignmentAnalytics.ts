@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/assignmentAnalytics.ts
 // ─── Assignment completion analytics (course / module / batch / division) ──
 //
@@ -385,7 +388,7 @@ export const getAssignmentAnalytics = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const staff = await resolveAssignmentStaff(uid, request.auth?.token || {})
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     // Faculty see their own assignments; everyone else sees the college. Both
     // queries use indexes that already ship in firestore.indexes.json

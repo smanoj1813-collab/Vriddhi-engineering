@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // src/routes/questions.ts
 import express from 'express'
 import admin from 'firebase-admin'
@@ -15,7 +18,7 @@ if (!admin.apps.length) {
   })
 }
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 
 // ─── POST /api/questions ─── (Create question)
 router.post('/', async (req, res) => {

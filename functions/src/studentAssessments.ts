@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -80,7 +83,7 @@ function parseRequiredDate(value: unknown, field: string): Date {
 }
 
 async function resolveStudent(uid: string, token: Record<string, unknown>): Promise<StudentIdentity> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -124,7 +127,7 @@ function requireAssessmentManager(staff: StaffIdentity): void {
 }
 
 async function resolveStaff(uid: string, token: Record<string, unknown>): Promise<StaffIdentity> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const collegeId = String(token.collegeId || user?.collegeId || '')
@@ -232,7 +235,7 @@ export function buildFrozenQuestionChunks(questions: ServerQuestion[]): FrozenQu
 }
 
 async function loadFrozenQuestionChunks(testId: string): Promise<ReturnType<typeof publicQuestion>[] | null> {
-  const snapshot = await admin.firestore()
+  const snapshot = await getFirestore(admin.app(), 'default')
     .collection('scheduledTests').doc(testId).collection('questionChunks')
     .orderBy('ordinal').get()
   if (snapshot.empty) return null
@@ -247,7 +250,7 @@ async function writeFrozenQuestionChunks(
   testId: string,
   questions: ServerQuestion[]
 ): Promise<void> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const chunks = buildFrozenQuestionChunks(questions)
   if (chunks.length === 0) return
   const batch = db.batch()
@@ -267,7 +270,7 @@ async function loadTestQuestions(
   testId: string,
   test: admin.firestore.DocumentData
 ): Promise<ServerQuestion[]> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const snapshot = await db
     .collection('scheduledTests')
     .doc(testId)
@@ -390,7 +393,7 @@ async function resolveOwnTest(
   student: StudentIdentity
 ): Promise<{ testId: string; testRef: FirebaseFirestore.DocumentReference; test: admin.firestore.DocumentData }> {
   if (!routeId || routeId.includes('/')) throw new HttpsError('invalid-argument', 'A valid test ID is required')
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   let testRef = db.collection('scheduledTests').doc(routeId)
   let testDoc = await testRef.get()
   if (!testDoc.exists) {
@@ -410,7 +413,7 @@ async function resolveOwnTest(
 }
 
 function rowRef(testId: string, studentId: string): FirebaseFirestore.DocumentReference {
-  return admin.firestore().collection('studentAssessments').doc(`${testId}_${studentId}`)
+  return getFirestore(admin.app(), 'default').collection('studentAssessments').doc(`${testId}_${studentId}`)
 }
 
 /**
@@ -569,7 +572,7 @@ async function readAnswerIndex(
     return inline as Record<string, AnswerIndexEntry>
   }
   if (row.answerIndexRef) {
-    const sub = await admin.firestore()
+    const sub = await getFirestore(admin.app(), 'default')
       .collection('studentAssessments')
       .doc(assessmentId)
       .collection('meta')
@@ -596,7 +599,7 @@ async function healAnswerIndex(
   index: Record<string, AnswerIndexEntry>
 ): Promise<void> {
   if (!isPlainObject(index) || Object.keys(index).length === 0) return
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   if (Buffer.byteLength(JSON.stringify(index), 'utf8') > MAX_ANSWER_INDEX_BYTES) {
     await db
       .collection('studentAssessments')
@@ -726,7 +729,7 @@ export const getMyStudentTests = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const student = await resolveStudent(uid, request.auth?.token || {})
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const [tests, rows] = await Promise.all([
       db.collection('scheduledTests')
         .where('collegeId', '==', student.collegeId)
@@ -853,7 +856,7 @@ export const startMyStudentTest = onCall(
         })
       }
     }
-    const result = await admin.firestore().runTransaction(async (transaction) => {
+    const result = await getFirestore(admin.app(), 'default').runTransaction(async (transaction) => {
       const [freshTest, existingRow] = await Promise.all([
         transaction.get(resolved.testRef),
         transaction.get(assessmentRef),
@@ -1061,7 +1064,7 @@ export const autosaveMyStudentTest = onCall(
     const costTrace = traceRequested(request.data)
     const assessmentId = String(request.data?.studentAssessmentId || '')
     if (!assessmentId || assessmentId.includes('/')) throw new HttpsError('invalid-argument', 'Invalid attempt ID')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const assessmentRef = db.collection('studentAssessments').doc(assessmentId)
     const assessment = await assessmentRef.get()
     const row = assessment.data()
@@ -1199,7 +1202,7 @@ export const submitMyStudentTest = onCall(
     const graded = gradeAssessmentPaper(questions, answers)
     const assessmentRef = rowRef(resolved.testId, student.id)
 
-    const result = await admin.firestore().runTransaction(async (transaction) => {
+    const result = await getFirestore(admin.app(), 'default').runTransaction(async (transaction) => {
       const [attempt, freshTestDoc] = await Promise.all([
         transaction.get(assessmentRef),
         transaction.get(resolved.testRef),
@@ -1347,13 +1350,13 @@ export const logMyStudentTestEvent = onCall(
     if (Buffer.byteLength(serializedDetails, 'utf8') > MAX_PROCTOR_DETAILS_BYTES) {
       throw new HttpsError('invalid-argument', 'Event details are too large')
     }
-    const attempt = await admin.firestore().collection('studentAssessments').doc(assessmentId).get()
+    const attempt = await getFirestore(admin.app(), 'default').collection('studentAssessments').doc(assessmentId).get()
     const row = attempt.data()
     if (!attempt.exists || !row) {
       throw new HttpsError('permission-denied', 'Active attempt not found')
     }
     await assertAttemptOwnership(uid, request.auth?.token || {}, row)
-    await admin.firestore().collection('proctoringLogs').add({
+    await getFirestore(admin.app(), 'default').collection('proctoringLogs').add({
       collegeId: String(row.collegeId || ''),
       testId: String(row.testId || ''),
       studentAssessmentId: assessmentId,
@@ -1492,7 +1495,7 @@ export const listManagedAssessmentTests = onCall(
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
     // Every assessment manager (faculty, hod, principal, admin) sees the
     // college-wide list — "My tests" is shared, not creator-only.
-    const snapshot = await admin.firestore().collection('scheduledTests')
+    const snapshot = await getFirestore(admin.app(), 'default').collection('scheduledTests')
       .where('collegeId', '==', collegeId)
       .orderBy('createdAt', 'desc').limit(200)
       .get()
@@ -1556,7 +1559,7 @@ export async function resolvePaperSchedulableQuestions(paper: admin.firestore.Do
     : Array.isArray(paper.questionIds) ? paper.questionIds : []
   if (questionIds.length === 0 || questionIds.length > MAX_QUESTIONS) return []
 
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const refs = questionIds.map((id: unknown) => db.collection('questions').doc(String(id)))
   const out: ServerQuestion[] = []
   for (let i = 0; i < refs.length; i += 100) {
@@ -1591,7 +1594,7 @@ export const checkPaperScheduling = onCall(
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
     if (!paperId || paperId.includes('/')) throw new HttpsError('invalid-argument', 'paperId is required')
 
-    const paperDoc = await admin.firestore().collection('papers').doc(paperId).get()
+    const paperDoc = await getFirestore(admin.app(), 'default').collection('papers').doc(paperId).get()
     const paper = paperDoc.data()
     if (!paperDoc.exists || !paper || paper.collegeId !== collegeId) {
       throw new HttpsError('not-found', 'Paper was not found in this college')
@@ -1649,7 +1652,7 @@ export const scheduleAssessmentTest = onCall(
       throw new HttpsError('invalid-argument', 'Visibility is invalid')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const paperDoc = await db.collection('papers').doc(paperId).get()
     const paper = paperDoc.data()
     if (!paperDoc.exists || !paper || paper.collegeId !== collegeId) {
@@ -1801,7 +1804,7 @@ export const publishAssessmentTest = onCall(
     requireAssessmentManager(staff)
     const testId = String(request.data?.testId || '')
     if (!testId || testId.includes('/')) throw new HttpsError('invalid-argument', 'A valid testId is required')
-    const testRef = admin.firestore().collection('scheduledTests').doc(testId)
+    const testRef = getFirestore(admin.app(), 'default').collection('scheduledTests').doc(testId)
     const testDoc = await testRef.get()
     const test = testDoc.data()
     if (!testDoc.exists || !test) throw new HttpsError('not-found', 'Test not found')
@@ -1837,7 +1840,7 @@ export const cancelAssessmentTest = onCall(
     if (!testId || testId.includes('/') || reason.length < 3 || reason.length > 1000) {
       throw new HttpsError('invalid-argument', 'A valid test and cancellation reason are required')
     }
-    const testRef = admin.firestore().collection('scheduledTests').doc(testId)
+    const testRef = getFirestore(admin.app(), 'default').collection('scheduledTests').doc(testId)
     const testDoc = await testRef.get()
     const test = testDoc.data()
     if (!testDoc.exists || !test) throw new HttpsError('not-found', 'Test not found')
@@ -1905,7 +1908,7 @@ export const gradeStudentAssessmentSubmission = onCall(
     ) {
       throw new HttpsError('invalid-argument', 'Attempt, score, or feedback is invalid')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const assessmentRef = db.collection('studentAssessments').doc(assessmentId)
     const result = await db.runTransaction(async (transaction) => {
       const assessmentDoc = await transaction.get(assessmentRef)
@@ -2009,7 +2012,7 @@ export const listPendingAssessmentSubmissions = onCall(
     const requestedCollege = String(request.data?.collegeId || '')
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
-    const snapshot = await admin.firestore().collection('studentAssessments')
+    const snapshot = await getFirestore(admin.app(), 'default').collection('studentAssessments')
       .where('collegeId', '==', collegeId)
       .where('status', '==', 'submitted')
       .limit(100)
@@ -2017,7 +2020,7 @@ export const listPendingAssessmentSubmissions = onCall(
     const candidates = snapshot.docs.filter((attempt) => attempt.data().needsManualGrading === true)
     const testIds = [...new Set(candidates.map((attempt) => String(attempt.data().testId || '')).filter(Boolean))]
     const testDocs = testIds.length > 0
-      ? await admin.firestore().getAll(...testIds.map((id) => admin.firestore().collection('scheduledTests').doc(id)))
+      ? await getFirestore(admin.app(), 'default').getAll(...testIds.map((id) => getFirestore(admin.app(), 'default').collection('scheduledTests').doc(id)))
       : []
     const tests = new Map(testDocs.filter((test) => test.exists).map((test) => [test.id, test.data() || {}]))
     const visibleCandidates = candidates.filter((attempt) => {
@@ -2115,7 +2118,7 @@ export const getAssessmentTestReport = onCall(
     requireAssessmentManager(staff)
     const testId = String(request.data?.testId || '')
     if (!testId) throw new HttpsError('invalid-argument', 'testId is required')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const testRef = db.collection('scheduledTests').doc(testId)
     const testDoc = await testRef.get()
     const test = testDoc.data()
@@ -2307,7 +2310,7 @@ export const getAssessmentTestReport = onCall(
 async function finalizeExpiredAttempt(
   attemptDoc: FirebaseFirestore.QueryDocumentSnapshot
 ): Promise<'submitted' | 'graded' | 'skipped'> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const initialRow = attemptDoc.data()
   const testId = String(initialRow.testId || initialRow.assessmentId || '')
   if (!testId) return 'skipped'
@@ -2436,7 +2439,7 @@ export const autoSubmitExpiredStudentTests = onSchedule(
   },
   async () => {
     const now = admin.firestore.Timestamp.now()
-    const collectionRef = admin.firestore().collection('studentAssessments')
+    const collectionRef = getFirestore(admin.app(), 'default').collection('studentAssessments')
     const [modern, legacy] = await Promise.all([
       collectionRef
         .where('status', '==', 'in_progress')
@@ -2473,7 +2476,7 @@ export const autoSubmitExpiredStudentTests = onSchedule(
     // index that normal `deploy:all` does not deploy, so production cleanup
     // could fail forever and leave tests labelled ongoing.
     const liveTestSnapshots = await Promise.all(
-      ['published', 'ongoing'].map((status) => admin.firestore().collection('scheduledTests')
+      ['published', 'ongoing'].map((status) => getFirestore(admin.app(), 'default').collection('scheduledTests')
         .where('status', '==', status)
         .limit(250)
         .get())
@@ -2632,7 +2635,7 @@ export const suggestAssessmentGrading = onCall(
     if (!assessmentId || assessmentId.includes('/')) {
       throw new HttpsError('invalid-argument', 'Attempt id is required')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const attemptRef = db.collection('studentAssessments').doc(assessmentId)
     const attemptDoc = await attemptRef.get()
     const row = attemptDoc.data()
@@ -2813,7 +2816,7 @@ export const getAssessmentConfig = onCall(
     const staff = await resolveStaff(uid, request.auth?.token || {})
     const collegeId = staff.role === 'superadmin' ? String(request.data?.collegeId || '') : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
-    const doc = await admin.firestore().collection('assessmentConfigs').doc(collegeId).get()
+    const doc = await getFirestore(admin.app(), 'default').collection('assessmentConfigs').doc(collegeId).get()
     const data = doc.data()
     const customised = Array.isArray(data?.performanceCategories) && (data.performanceCategories as unknown[]).length > 0
     return {
@@ -2836,7 +2839,7 @@ export const saveAssessmentConfig = onCall(
       throw new HttpsError('invalid-argument', 'Select a college first, then save the report settings')
     }
     const categories = parsePerformanceCategories(request.data?.performanceCategories)
-    await admin.firestore().collection('assessmentConfigs').doc(staff.collegeId).set({
+    await getFirestore(admin.app(), 'default').collection('assessmentConfigs').doc(staff.collegeId).set({
       collegeId: staff.collegeId,
       performanceCategories: categories,
       updatedBy: staff.name,

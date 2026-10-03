@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // College link repair — re-attach faculty profiles to the college they belong to.
 //
@@ -38,7 +41,7 @@ import { IDENTITY_API_VERSION, verifyCaller } from './identityShared'
 
 // Resolved lazily so the pure helpers in this file can be unit-tested without
 // an initialised Admin app.
-const getDb = () => admin.firestore()
+const getDb = () => getFirestore(admin.app(), 'default')
 
 export interface RelinkCandidate {
   facultyDocId: string

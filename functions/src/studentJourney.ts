@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/studentJourney.ts
 // ------------------------------------------------------------------
 // The student's own academic journey, computed from real records.
@@ -30,7 +33,7 @@ interface JourneyStudent {
 }
 
 async function resolveStudent(uid: string, token: Record<string, unknown>): Promise<JourneyStudent> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -170,7 +173,7 @@ export const getMyAcademicJourney = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const student = await resolveStudent(uid, request.auth?.token || {})
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     const [attendanceSnap, assessmentSnap, gradeSnap, rosterSnap] = await Promise.all([
       db

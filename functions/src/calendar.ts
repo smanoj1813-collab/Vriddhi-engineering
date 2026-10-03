@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // Academic calendar (Auto-Scheduler v2 — P4)
 //
@@ -335,7 +338,7 @@ export const saveCalendarEvent = onCall(REGION, async (request) => {
   if (!collegeId) throw new HttpsError('invalid-argument', 'No college is associated with this account')
 
   const event = validateCalendarEvent(raw.event)
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const ref = event.id
     ? db.collection('academicCalendar').doc(event.id)
     : db.collection('academicCalendar').doc()
@@ -419,7 +422,7 @@ export const deleteCalendarEvent = onCall(REGION, async (request) => {
   const id = String(raw.id ?? '').trim()
   if (!id) throw new HttpsError('invalid-argument', 'id is required')
 
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const ref = db.collection('academicCalendar').doc(id)
   const snap = await ref.get()
   if (!snap.exists) throw new HttpsError('not-found', 'Calendar event not found')

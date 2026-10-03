@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/aiModelCanary.ts
 //
 // Clause A2 of docs/HANDOFF_REVIEW_2026-09-25.md: "Model lifecycle is a dated
@@ -108,7 +111,7 @@ export const aiModelCanary = onSchedule(
     }
 
     const checkedAt = new Date().toISOString()
-    await admin.firestore().collection(CANARY_COLLECTION).doc(CANARY_DOC).set(buildCanaryDoc(results, checkedAt))
+    await getFirestore(admin.app(), 'default').collection(CANARY_COLLECTION).doc(CANARY_DOC).set(buildCanaryDoc(results, checkedAt))
     logger.info('[AiModelCanary] report written', {
       checkedAt,
       degraded: results.filter((result) => !result.ok).map((result) => result.tier),

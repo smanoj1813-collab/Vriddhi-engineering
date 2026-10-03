@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // Callables for Vriddhi platform employees.
 //
 // Model: `platform_employees/{uid}` holds the assignment (colleges + grants).
@@ -22,7 +25,7 @@ import {
   type PlatformEmployeeRecord,
 } from './employeeAccessCore'
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 const REGION = { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60 } as const
 
 /**

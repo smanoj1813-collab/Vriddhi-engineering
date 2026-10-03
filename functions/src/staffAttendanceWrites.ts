@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/staffAttendanceWrites.ts
 //
 // THE ONE-STOP WRITE PATH FOR staffAttendance (faculty self-mark).
@@ -206,7 +209,7 @@ export function buildAttendanceDocument(
 
 /** Resolve the superadmin marker the same way the rules' exists() does. */
 async function superadminDocExists(uid: string): Promise<boolean> {
-  const doc = await admin.firestore().collection('superadmins').doc(uid).get()
+  const doc = await getFirestore(admin.app(), 'default').collection('superadmins').doc(uid).get()
   return doc.exists
 }
 
@@ -254,12 +257,12 @@ export const saveMyStaffAttendance = onCall(
     }
 
     const docId = staffAttendanceDocId(decision.collegeId, decision.facultyId, String(raw.date))
-    const ref = admin.firestore().collection(STAFF_ATTENDANCE_COLLECTION).doc(docId)
+    const ref = getFirestore(admin.app(), 'default').collection(STAFF_ATTENDANCE_COLLECTION).doc(docId)
     const now = admin.firestore.Timestamp.now()
     const doc = buildAttendanceDocument(raw, decision, caller, new Date().toISOString())
 
     try {
-      await admin.firestore().runTransaction(async (tx) => {
+      await getFirestore(admin.app(), 'default').runTransaction(async (tx) => {
         const existing = await tx.get(ref)
         const toWrite: Record<string, unknown> = { ...doc, updatedAt: now }
         // createdAt stays meaningful: first write only.

@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // Auto curriculum ↔ faculty mapping
 //
@@ -974,7 +977,7 @@ export const autoMapCurriculum = onCall(AUTO_MAP_REGION, async (request) => {
   const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
   const payload = validateAutoMapPayload(request.data, staff.role, staff.collegeId)
 
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const { curriculum, faculty, existing, teachingGroups } = await loadCollegeContext(db, payload)
   const { branch, courses } = toAutoMapCourses(curriculum)
 
@@ -1007,7 +1010,7 @@ export const applyAutoMapping = onCall(
     const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateAutoMapPayload(request.data, staff.role, staff.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const { curriculum, faculty, existing, teachingGroups } = await loadCollegeContext(db, payload)
     const { branch, courses } = toAutoMapCourses(curriculum)
 

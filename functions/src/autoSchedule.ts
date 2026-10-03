@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // Auto slot scheduler (G4)
 //
@@ -1400,7 +1403,7 @@ export const autoGenerateWeeklySchedule = onCall(
     const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateAutoSchedulePayload(request.data, staff.role, staff.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     // 1. Curriculum (branch/semester authority + tenancy check)
     const curSnap = await db.collection('curriculum').doc(payload.curriculumId).get()

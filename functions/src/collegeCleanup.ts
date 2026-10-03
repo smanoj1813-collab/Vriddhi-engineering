@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/collegeCleanup.ts
 // Full college data cleanup — removes every college-scoped record so demo /
 // current data can be wiped clean before a re-upload.
@@ -20,7 +23,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 const auth = admin.auth()
 
 // Firestore write batches accept at most 500 operations per commit.

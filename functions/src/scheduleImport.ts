@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // Bulk schedule import — validate, clash-check and (only when asked) write.
 //
@@ -594,7 +597,7 @@ export const bulkImportWeeklySchedules = onCall(
     const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateScheduleImportPayload(request.data, staff.role, staff.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const [schedulesSnap, facultySnap, mappingsSnap] = await Promise.all([
       db
         .collection('weeklySchedules')

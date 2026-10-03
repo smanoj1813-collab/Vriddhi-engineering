@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/notifications.ts
 // ------------------------------------------------------------------
 // Server-authoritative college announcements.
@@ -55,7 +58,7 @@ const STAFF_ROLES = ['superadmin', 'admin', 'principal', 'hod', 'faculty', 'ment
 const BROADCAST_ROLES = ['superadmin', 'admin', 'principal', 'hod']
 
 async function resolveStaff(uid: string, token: Record<string, unknown>): Promise<AnnouncementStaff> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const collegeId = String(token.collegeId || user?.collegeId || '')
@@ -69,7 +72,7 @@ async function resolveStudent(
   uid: string,
   token: Record<string, unknown>
 ): Promise<NotificationStudent> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -372,7 +375,7 @@ export const sendAnnouncement = onCall(
     // client-supplied estimate. The old UI guessed with
     // `Math.round(studentCount * 0.2)` for targeted sends, so "Sent to 40"
     // could describe an audience of 7.
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const roster = await db
       .collection('students')
       .where('collegeId', '==', collegeId)
@@ -469,7 +472,7 @@ export const deleteAnnouncement = onCall(
     if (!announcementId || announcementId.includes('/')) {
       throw new HttpsError('invalid-argument', 'A valid announcementId is required')
     }
-    const ref = admin.firestore().collection('notifications').doc(announcementId)
+    const ref = getFirestore(admin.app(), 'default').collection('notifications').doc(announcementId)
     const doc = await ref.get()
     if (!doc.exists) throw new HttpsError('not-found', 'Announcement not found')
     if (staff.role !== 'superadmin' && doc.data()?.collegeId !== staff.collegeId) {
@@ -491,7 +494,7 @@ export const setAnnouncementPinned = onCall(
     if (!announcementId || announcementId.includes('/')) {
       throw new HttpsError('invalid-argument', 'A valid announcementId is required')
     }
-    const ref = admin.firestore().collection('notifications').doc(announcementId)
+    const ref = getFirestore(admin.app(), 'default').collection('notifications').doc(announcementId)
     const doc = await ref.get()
     if (!doc.exists) throw new HttpsError('not-found', 'Announcement not found')
     if (staff.role !== 'superadmin' && doc.data()?.collegeId !== staff.collegeId) {
@@ -533,7 +536,7 @@ export const getMyNotifications = onCall(
 
     // Read state lives in a per-recipient subcollection, so marking one read
     // cannot clear it for anyone else. One batched read for the whole feed.
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const readSnapshots = await db.getAll(
       ...addressed.map((item) => db.collection('notifications').doc(item.id).collection('reads').doc(uid))
     )
@@ -565,7 +568,7 @@ export const markMyNotificationRead = onCall(
       throw new HttpsError('invalid-argument', 'A valid announcementId is required')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const announcementRef = db.collection('notifications').doc(announcementId)
     const readRef = announcementRef.collection('reads').doc(uid)
 
@@ -604,7 +607,7 @@ export const markAllMyNotificationsRead = onCall(
     const addressed = await loadAddressedAnnouncements(student)
     if (addressed.length === 0) return { marked: 0 }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const readSnapshots = await db.getAll(
       ...addressed.map((item) => db.collection('notifications').doc(item.id).collection('reads').doc(uid))
     )

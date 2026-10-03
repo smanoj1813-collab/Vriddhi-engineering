@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // Server-side account provisioning. Clients must not assign roles.
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
@@ -32,13 +35,13 @@ export const provisionUser = onCall(
       throw new HttpsError('unauthenticated', 'Authentication required')
     }
 
-    let callerDoc = await admin.firestore().doc(`users/${request.auth.uid}`).get()
+    let callerDoc = await getFirestore(admin.app(), 'default').doc(`users/${request.auth.uid}`).get()
     let callerIsLegacySuperadmin = false
     if (!callerDoc.exists) {
       // Legacy superadmins may only have a superadmins/{uid} profile doc
       // (no users/{uid} doc and no custom claims). Accept it as proof of
       // identity, otherwise they cannot provision anyone.
-      callerDoc = await admin.firestore().doc(`superadmins/${request.auth.uid}`).get()
+      callerDoc = await getFirestore(admin.app(), 'default').doc(`superadmins/${request.auth.uid}`).get()
       callerIsLegacySuperadmin = callerDoc.exists
     }
     const caller = callerDoc.data()
@@ -115,7 +118,7 @@ export const provisionUser = onCall(
     })
 
     const now = admin.firestore.FieldValue.serverTimestamp()
-    await admin.firestore().collection('users').doc(userRecord.uid).set({
+    await getFirestore(admin.app(), 'default').collection('users').doc(userRecord.uid).set({
       uid: userRecord.uid,
       email: String(email).trim().toLowerCase(),
       name: String(name).trim(),

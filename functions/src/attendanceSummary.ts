@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/attendanceSummary.ts
 //
 // Item 3.1 of docs/HANDOFF_OPTIMISATION_2026-09-25.md.
@@ -266,7 +269,7 @@ export function summaryDrifted(summary: Pick<AttendanceCounts, 'total'>, liveTot
 // ─── Trigger ────────────────────────────────────────────────────────────────
 
 function summaryRef(studentId: string) {
-  return admin.firestore().collection(ATTENDANCE_SUMMARIES_COLLECTION).doc(studentId)
+  return getFirestore(admin.app(), 'default').collection(ATTENDANCE_SUMMARIES_COLLECTION).doc(studentId)
 }
 
 /**
@@ -297,7 +300,7 @@ export const onAttendanceRecordWrite = onDocumentWritten(
     const afterRow = after ? { ...after, id: event.params.recordId } : null
 
     try {
-      await admin.firestore().runTransaction(async (tx) => {
+      await getFirestore(admin.app(), 'default').runTransaction(async (tx) => {
         const snap = await tx.get(summaryRef(studentId))
         const current = snap.exists
           ? (snap.data() as AttendanceSummaryDoc)
@@ -328,7 +331,7 @@ export const onAttendanceRecordWrite = onDocumentWritten(
 
 /** Rebuilds one student's summary from their raw records. */
 export async function rebuildSummaryForStudent(studentId: string): Promise<{ total: number; rebuilt: boolean }> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const rows: Array<AttendanceRowLike & { id: string }> = []
   let cursor: admin.firestore.QueryDocumentSnapshot | null = null
   // Paged so a student with thousands of records cannot blow the memory limit.
@@ -363,7 +366,7 @@ export const reconcileAttendanceSummaries = onSchedule(
     maxInstances: 1,
   },
   async () => {
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const summaries = await db.collection(ATTENDANCE_SUMMARIES_COLLECTION).limit(RECONCILE_BATCH).get()
     let checked = 0
     let repaired = 0
@@ -410,7 +413,7 @@ export const backfillAttendanceSummaries = onCall(
     const collegeId = String((request.data as { collegeId?: string })?.collegeId || '')
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const students = await db.collection('students').where('collegeId', '==', collegeId).limit(BACKFILL_WRITE_BATCH).get()
     const results = await Promise.all(
       students.docs.map(async (student) => {

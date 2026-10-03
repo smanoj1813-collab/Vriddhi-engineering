@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/paperParsing.ts
 // Slice 1 of the paper-upload parse handoff.
 //
@@ -949,7 +952,7 @@ export const parsePaperFile = onCall(
       throw new HttpsError('invalid-argument', 'Paper and college identifiers are required')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const snapshot = await ref.get()
     const paper = snapshot.data()
@@ -1302,7 +1305,7 @@ export const confirmPaperStructure = onCall(
       throw new HttpsError('invalid-argument', 'Paper and college identifiers are required')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const before = await ref.get()
     const paper = before.data()

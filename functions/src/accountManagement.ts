@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/accountManagement.ts
 // Server-side account administration that the client cannot do safely:
 // resetting a Firebase Auth password. The client has no Admin SDK, so the old
@@ -28,7 +31,7 @@ import {
 } from './identityShared'
 import * as logger from 'firebase-functions/logger'
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 const auth = admin.auth()
 
 const COLLEGE_MANAGER_ROLES = ['admin', 'hod', 'principal']

@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import admin from 'firebase-admin'
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https'
 import {
@@ -39,7 +42,7 @@ function dateKey(value: unknown): string {
 }
 
 async function studentIdentity(uid: string, token: Record<string, unknown>): Promise<AcademicStudent> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, profiles] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -108,7 +111,7 @@ async function facultyIdentityAliases(
   uid: string,
   token: Record<string, unknown>
 ): Promise<{ ids: Set<string>; email: string }> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [profileDocs, userDoc] = await Promise.all([
     db.collection('faculty').where('uid', '==', uid).limit(2).get(),
     db.collection('users').doc(uid).get(),
@@ -131,7 +134,7 @@ export const getMyStudentAcademicContext = onCall(
     const { uid, token } = requireAuth(request)
     const student = await studentIdentity(uid, token)
     const date = dateKey(request.data?.date || new Date().toISOString())
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const [classDocs, assignmentDocs, testDocs, curriculumDocs, attendanceDocs] = await Promise.all([
       db.collection('classSessions').where('collegeId', '==', student.collegeId).where('date', '==', date).limit(MAX_CONTEXT_DOCS).get(),
       db.collection('assignments').where('collegeId', '==', student.collegeId).where('status', 'in', ['published', 'ongoing']).limit(MAX_CONTEXT_DOCS).get(),
@@ -168,7 +171,7 @@ export const getFacultyAcademicContext = onCall(
     const collegeId = String(token.collegeId || '')
     if (!collegeId) throw new HttpsError('failed-precondition', 'College scope is required')
     const today = dateKey(request.data?.date || new Date().toISOString())
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const [courseDocs, mappingDocs, sessionDocs, assignmentDocs, assessmentDocs, aliases] = await Promise.all([
       db.collection('curriculum').where('collegeId', '==', collegeId).limit(MAX_CONTEXT_DOCS).get(),
       db.collection('curriculumFacultyMappings').where('collegeId', '==', collegeId).limit(MAX_CONTEXT_DOCS).get(),
@@ -219,7 +222,7 @@ export const getPaperAcademicContext = onCall(
     const collegeId = String(token.collegeId || '')
     if (!collegeId) throw new HttpsError('failed-precondition', 'College scope is required')
     const courseId = String(request.data?.courseId || '')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const courseDoc = courseId ? await db.collection('curriculum').doc(courseId).get() : null
     const questionDocs = await db.collection('questions').where('collegeId', '==', collegeId).limit(MAX_CONTEXT_DOCS).get()
     const course = courseDoc?.exists ? ({ id: courseDoc.id, collegeId, ...courseDoc.data(), courseCode: String(courseDoc.data()?.courseCode || ''), courseName: String(courseDoc.data()?.courseName || '') } as FacultyCourse) : null

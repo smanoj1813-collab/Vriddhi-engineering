@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/selfIdentity.ts
 // Self-service identity synchronisation.
 //
@@ -304,7 +307,7 @@ export const syncMyIdentity = onCall(
     if (!request.auth?.uid) {
       throw new HttpsError('unauthenticated', 'Authentication required')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const uid = request.auth.uid
 
     const auth = admin.auth()

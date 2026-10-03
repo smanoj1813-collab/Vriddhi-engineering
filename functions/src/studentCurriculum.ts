@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // Student curriculum — "what am I studying, what's done, what's next".
 //
@@ -216,7 +219,7 @@ interface StudentIdentity {
 }
 
 async function resolveStudent(uid: string, token: Record<string, unknown>): Promise<StudentIdentity> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -452,7 +455,7 @@ export const getMyCurriculum = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const student = await resolveStudent(uid, request.auth?.token || {})
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     const today = todayKey()
     const horizon = addDays(today, HORIZON_DAYS)

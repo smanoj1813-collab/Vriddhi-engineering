@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/studentAuth.ts
 // Student Auth Management — Bulk creation + sync utilities
 
@@ -171,7 +174,7 @@ export function validateStudentCohortRow(row: {
 }
 
 async function getCollegeData(collegeId: string) {
-  const collegeDoc = await admin.firestore().doc(`colleges/${collegeId}`).get()
+  const collegeDoc = await getFirestore(admin.app(), 'default').doc(`colleges/${collegeId}`).get()
   if (!collegeDoc.exists) {
     throw new HttpsError('not-found', `College ${collegeId} not found`)
   }
@@ -243,7 +246,7 @@ export const bulkCreateStudentAccounts = onCall(
 
     // ── Load college data and mentor aliases ──
     const college = await getCollegeData(collegeId)
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const auth = admin.auth()
 
     // ── Platform-access product (optional) ──

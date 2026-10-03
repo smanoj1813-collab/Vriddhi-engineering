@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/classSchedule.ts
 // ─── Slice 2 "Delivery Spine" — S2.1: session materialisation ───────────────
 //
@@ -481,7 +484,7 @@ async function resolveSlotFacultyAuthUid(slot: WeeklySlot): Promise<string> {
   const profileId = text(slot.facultyId)
   if (!profileId) return ''
   try {
-    const doc = await admin.firestore().collection('faculty').doc(profileId).get()
+    const doc = await getFirestore(admin.app(), 'default').collection('faculty').doc(profileId).get()
     const uid = String(doc.data()?.uid || '').trim()
     if (uid) return uid
   } catch (error) {
@@ -766,7 +769,7 @@ export function needsStaffProfileLookup(input: {
  * must never be able to grant itself a privilege).
  */
 async function resolveLegacyStaffProfile(uid: string, email: string): Promise<LegacyStaffProfile | null> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const anchors: Array<{ field: string; value: string }> = [
     { field: 'uid', value: uid },
     { field: 'userId', value: uid },
@@ -831,7 +834,7 @@ async function resolveLegacyStaffProfile(uid: string, email: string): Promise<Le
  */
 async function loadFacultyAliases(uid: string): Promise<string[]> {
   const ids = mergeIdentityIds(uid)
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   await Promise.all(
     STAFF_PROFILE_COLLECTIONS.map(async (collectionName) => {
       try {
@@ -882,7 +885,7 @@ async function resolveSessionCollege(
   const weeklyScheduleId = cleanText(session.weeklyScheduleId)
   if (!weeklyScheduleId) return ''
   try {
-    const slotSnap = await admin.firestore().collection('weeklySchedules').doc(weeklyScheduleId).get()
+    const slotSnap = await getFirestore(admin.app(), 'default').collection('weeklySchedules').doc(weeklyScheduleId).get()
     return pickCollegeId(slotSnap.data() || null) || ''
   } catch (err) {
     logger.warn('[classSchedule] parent slot college lookup failed', {
@@ -926,7 +929,7 @@ async function resolveStaff(
   allowedRoles: string[],
   deniedMessage: string
 ): Promise<SchedulingStaff> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const userSnap = await db.collection('users').doc(uid).get()
   const user = (userSnap.exists ? userSnap.data() : null) as Record<string, unknown> | null
 
@@ -1182,7 +1185,7 @@ export const generateClassSessions = onCall(
     const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateGeneratePayload(request.data, staff.role, staff.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     // Single-field equality only — no composite index required, so this works
     // on an existing project without an index deploy.
     const slotsSnap = await db
@@ -1485,7 +1488,7 @@ export const cancelWeeklySchedule = onCall(
       throw new HttpsError('invalid-argument', 'No college is associated with this account')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const slotRef = db.collection('weeklySchedules').doc(weeklyScheduleId)
     const slotSnap = await slotRef.get()
     if (!slotSnap.exists) throw new HttpsError('not-found', 'Weekly schedule not found')
@@ -2004,7 +2007,7 @@ export const rescheduleClass = onCall(
       throw new HttpsError('invalid-argument', 'No college is associated with this account')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const slotRef = db.collection('weeklySchedules').doc(weeklyScheduleId)
     const slotSnap = await slotRef.get()
     if (!slotSnap.exists) throw new HttpsError('not-found', 'Weekly schedule not found')
@@ -2390,7 +2393,7 @@ export const ensureClassSession = onCall(
     const facultyId = requestedFacultyId || staff.uid
     if (!facultyId) throw new HttpsError('invalid-argument', 'facultyId is required')
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     // A recurring slot is authoritative about what the class actually is.
     let slot: WeeklySlot | null = null
@@ -2768,7 +2771,7 @@ export const completeClassSession = onCall(
     const staff = await resolveSessionWriter(uid, request.auth?.token || {})
     const input = validateCompleteInput(request.data)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const sessionRef = db.collection('classSessions').doc(input.sessionId)
 
     const sessionSnap = await sessionRef.get()
@@ -3344,7 +3347,7 @@ export const getCurriculumProgress = onCall(
       return !privileged && callerOwnsFacultyId({ uid: staff.uid, ids: selfIds }, subject)
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     // ─── Plan: what was assigned, and what the timetable promises ──────────
     const mappingsSnap = await db

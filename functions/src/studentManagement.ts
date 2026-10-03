@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import { verifyCaller } from './identityShared'
@@ -74,7 +77,7 @@ export const bulkUpdateStudentAcademicFields = onCall(
       throw new HttpsError('invalid-argument', 'Choose a batch, branch and/or semester to update')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const refs = studentIds.map((id) => db.collection('students').doc(id))
     const snapshots = await db.getAll(...refs)
     const existing = snapshots.filter((snapshot) => snapshot.exists)

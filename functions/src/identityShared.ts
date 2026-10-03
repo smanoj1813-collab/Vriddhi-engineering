@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/identityShared.ts
 // Shared primitives for every account-provisioning callable.
 //
@@ -207,7 +210,7 @@ export async function verifyCaller(
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'User must be authenticated')
   }
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const userDoc = await db.doc(`users/${request.auth.uid}`).get()
   const userData = userDoc.data() as Record<string, unknown> | undefined
   if (!userData) {

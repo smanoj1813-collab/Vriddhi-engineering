@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/staffAuth.ts
 // Staff (faculty / HOD / principal / admin) bulk provisioning.
 //
@@ -273,7 +276,7 @@ export const bulkProvisionStaff = onCall(
     const caller = await verifyCaller(request, ['superadmin'])
 
     // ── Load college data ──
-    const collegeRef = admin.firestore().collection('colleges').doc(collegeId)
+    const collegeRef = getFirestore(admin.app(), 'default').collection('colleges').doc(collegeId)
     const collegeSnap = await collegeRef.get()
     if (!collegeSnap.exists) {
       throw new HttpsError('not-found', `College ${collegeId} not found`)
@@ -511,7 +514,7 @@ export const bulkProvisionStaff = onCall(
           updatedAt: now,
         }
 
-        const db = admin.firestore()
+        const db = getFirestore(admin.app(), 'default')
         const batch = db.batch()
 
         // Legacy imports stored the plaintext password on the profile document.
@@ -633,7 +636,7 @@ export const bulkProvisionStaff = onCall(
 
     // ── Audit log ──
     try {
-      await admin.firestore().collection('logs').add({
+      await getFirestore(admin.app(), 'default').collection('logs').add({
         action: 'BULK_STAFF_IMPORT',
         collegeId,
         performedBy: caller.uid,

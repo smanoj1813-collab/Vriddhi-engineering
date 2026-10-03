@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // ─────────────────────────────────────────────────────────────────────────────
 // University Scheme Packs — persistence (G1)
 //
@@ -245,7 +248,7 @@ export const saveSchemePack = onCall(REGION, async (request) => {
   }
 
   const pack = validateSchemePackDoc(raw.pack)
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const docId = customPackDocId(collegeId, pack.code)
   const ref = db.collection('schemePacks').doc(docId)
   const existing = await ref.get()
@@ -288,7 +291,7 @@ export const assignCollegeSchemePack = onCall(REGION, async (request) => {
     if (PRESET_SCHEME_CODES.includes(schemePackId)) {
       resolvedName = `preset ${schemePackId}`
     } else {
-      const snap = await admin.firestore().collection('schemePacks').doc(schemePackId).get()
+      const snap = await getFirestore(admin.app(), 'default').collection('schemePacks').doc(schemePackId).get()
       if (!snap.exists) throw new HttpsError('not-found', 'Scheme pack not found')
       if (String(snap.data()?.collegeId ?? '') !== collegeId) {
         throw new HttpsError('permission-denied', 'This scheme pack belongs to another college')
@@ -297,7 +300,7 @@ export const assignCollegeSchemePack = onCall(REGION, async (request) => {
     }
   }
 
-  await admin.firestore().collection('colleges').doc(collegeId).set(
+  await getFirestore(admin.app(), 'default').collection('colleges').doc(collegeId).set(
     {
       schemePackId: schemePackId || null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),

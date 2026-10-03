@@ -34,6 +34,7 @@
     "openai": "^4.104.0",
     "pdfjs-dist": "^6.3.289",
     "puppeteer": "^25.3.0",
+    "vruddi-attendance": "file:..",
     "zod": "^3.25.76"
   },
   "devDependencies": {

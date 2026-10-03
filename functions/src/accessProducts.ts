@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/accessProducts.ts
 // ─── Platform-access products: duration, price, and what a student bought ────
 //
@@ -442,7 +445,7 @@ export const bulkUpdateStudentAccess = onCall(
       throw new HttpsError('invalid-argument', `Update at most ${MAX_STUDENTS} students at a time`)
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const clear = input.clearAccess === true
     const today = todayInIst()
 
@@ -530,7 +533,7 @@ export const getAccessMis = onCall(
     const collegeId = String(raw.collegeId ?? '').trim()
     const today = todayInIst()
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const rows: AccessRow[] = []
     let cursor: admin.firestore.QueryDocumentSnapshot | null = null
 

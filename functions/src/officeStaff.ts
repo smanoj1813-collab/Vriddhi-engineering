@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/officeStaff.ts
 //
 // College office staff — the ACCOUNTS team (fees, payments, vendor bills,
@@ -48,7 +51,7 @@ export const manageOfficeStaff = onCall(
   { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const tokenRole = String((request.auth.token as Record<string, unknown>).role || '').toLowerCase()
     const callerRole = (await isSuperadmin(db, request.auth.uid, tokenRole)) ? 'superadmin' : tokenRole
 

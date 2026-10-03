@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/admissions.ts
 // ------------------------------------------------------------------
 // Admission Center — the funnel that exists before a student record does.
@@ -284,7 +287,7 @@ interface AdmissionStaff {
 const STAFF_ROLES = ['superadmin', 'admin', 'principal', 'hod']
 
 async function resolveStaff(uid: string, token: Record<string, unknown>): Promise<AdmissionStaff> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const collegeId = String(token.collegeId || user?.collegeId || '')
@@ -324,7 +327,7 @@ function optionalNumber(value: unknown, min: number, max: number): number | null
 }
 
 export async function loadWeights(collegeId: string): Promise<MeritWeights> {
-  const doc = await admin.firestore().collection('colleges').doc(collegeId).collection('config').doc('admission').get()
+  const doc = await getFirestore(admin.app(), 'default').collection('colleges').doc(collegeId).collection('config').doc('admission').get()
   const data = doc.data()
   if (!data) return { ...DEFAULT_MERIT_WEIGHTS }
   const weights = {
@@ -428,7 +431,7 @@ export const saveAdmissionApplication = onCall(
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const staff = await resolveStaff(uid, request.auth?.token || {})
     const input = (request.data || {}) as Record<string, unknown>
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const collegeId = await resolveCollegeId(staff, input.collegeId)
 
     const applicantName = text(input.applicantName)
@@ -525,7 +528,7 @@ export const transitionAdmissionStage = onCall(
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const staff = await resolveStaff(uid, request.auth?.token || {})
     const input = (request.data || {}) as Record<string, unknown>
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const collegeId = await resolveCollegeId(staff, input.collegeId)
 
     const applicationId = text(input.applicationId, 200)
@@ -648,7 +651,7 @@ export const deleteAdmissionApplication = onCall(
     if (!applicationId || applicationId.includes('/')) {
       throw new HttpsError('invalid-argument', 'A valid applicationId is required')
     }
-    const ref = admin.firestore().collection('admissionApplications').doc(applicationId)
+    const ref = getFirestore(admin.app(), 'default').collection('admissionApplications').doc(applicationId)
     const doc = await ref.get()
     if (!doc.exists) throw new HttpsError('not-found', 'Application not found')
     if (staff.role !== 'superadmin' && doc.data()?.collegeId !== collegeId) {
@@ -725,7 +728,7 @@ export const markAdmissionExported = onCall(
       : []
     if (ids.length === 0) throw new HttpsError('invalid-argument', 'No applications selected')
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const refs = ids.map((id) => db.collection('admissionApplications').doc(id))
     const docs = await db.getAll(...refs)
 
@@ -1063,7 +1066,7 @@ export const saveAdmissionConfig = onCall(
         .where('collegeId', '==', collegeId)
         .limit(1000)
         .get()
-      const batch = admin.firestore().batch()
+      const batch = getFirestore(admin.app(), 'default').batch()
       snap.docs.forEach((doc) => {
         batch.update(doc.ref, {
           meritWeights: {
@@ -1089,7 +1092,7 @@ export const rotateAdmissionIngestToken = onCall(
     const input = (request.data || {}) as Record<string, unknown>
     const collegeId = await resolveCollegeId(staff, input.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const config = await loadAdmissionConfig(collegeId)
 
     // Revoke the previous token so a leaked one stops working immediately.
@@ -1137,7 +1140,7 @@ export const disableAdmissionIntake = onCall(
     const staff = await resolveStaff(uid, request.auth?.token || {})
     const collegeId = await resolveCollegeId(staff, (request.data as Record<string, unknown>)?.collegeId)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const config = await loadAdmissionConfig(collegeId)
     const previousHash = String(config.activeTokenHash || '')
     if (previousHash) {

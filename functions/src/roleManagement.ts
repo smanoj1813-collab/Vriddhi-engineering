@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
@@ -10,7 +13,7 @@ import {
 } from './identityShared'
 import { describeCollegeResolutionFailure, resolveCollegeReference } from './collegeResolve'
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 const ALLOWED_ROLES = ['superadmin', 'admin', 'principal', 'hod', 'mentor', 'faculty', 'student', 'parent', 'accounts', 'operations', 'employee'] as const
 type Role = typeof ALLOWED_ROLES[number]
 

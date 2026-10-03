@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/platformStats.ts
 //
 // Item 2.4 of docs/HANDOFF_OPTIMISATION_2026-09-25.md.
@@ -100,7 +103,7 @@ async function countQuery(query: admin.firestore.Query): Promise<number> {
 }
 
 async function collectPlatformStats(): Promise<PlatformStats> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
 
   const [totalColleges, activeColleges, suspendedColleges, totalStudents, totalFaculty, totalAdmins] =
     await Promise.all([
@@ -170,7 +173,7 @@ export const refreshPlatformStats = onSchedule(
   async () => {
     try {
       const stats = await collectPlatformStats()
-      await admin.firestore().collection(PLATFORM_STATS_COLLECTION).doc(PLATFORM_STATS_DOC).set(stats)
+      await getFirestore(admin.app(), 'default').collection(PLATFORM_STATS_COLLECTION).doc(PLATFORM_STATS_DOC).set(stats)
       logger.info('[PlatformStats] refreshed', {
         colleges: stats.totalColleges,
         students: stats.totalStudents,

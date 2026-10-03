@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import { verifyCaller } from './identityShared'
@@ -59,7 +62,7 @@ export const updateFacultyBranches = onCall(
     if (!facultyId) throw new HttpsError('invalid-argument', 'facultyId is required')
     const branches = normalizeBranches(request.data?.branches)
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const facultyRef = db.collection('faculty').doc(facultyId)
     const facultySnap = await facultyRef.get()
     if (!facultySnap.exists) throw new HttpsError('not-found', 'Faculty profile not found')

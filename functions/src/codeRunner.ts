@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -129,7 +132,7 @@ async function listJudge0Languages(baseUrl: string): Promise<Judge0Language[]> {
 }
 
 async function resolveStudentIdentity(uid: string, token: Record<string, unknown>): Promise<StudentRunnerIdentity> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userSnapshot, studentSnapshot] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -176,7 +179,7 @@ async function resolveStudentIdentity(uid: string, token: Record<string, unknown
 }
 
 async function consumeRunQuota(uid: string): Promise<{ remaining: number }> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const ref = db.collection('codeRunnerUsage').doc(uid)
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref)

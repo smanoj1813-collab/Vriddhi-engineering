@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -76,7 +79,7 @@ export const updateMyStudentProfile = onCall(
       throw new HttpsError('invalid-argument', 'Name must be between 2 and 100 characters')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const auth = admin.auth()
     const [userDoc, studentSnapshot] = await Promise.all([
       db.collection('users').doc(uid).get(),
@@ -226,7 +229,7 @@ async function resolveStudentIdentity(
   uid: string,
   token: Record<string, unknown>
 ): Promise<StudentIdentity> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
     db.collection('students').where('userId', '==', uid).limit(2).get(),
@@ -344,7 +347,7 @@ async function getAssignmentForStudent(
   if (!assignmentId || assignmentId.includes('/')) {
     throw new HttpsError('invalid-argument', 'A valid assignmentId is required')
   }
-  const assignmentDoc = await admin.firestore().collection('assignments').doc(assignmentId).get()
+  const assignmentDoc = await getFirestore(admin.app(), 'default').collection('assignments').doc(assignmentId).get()
   const assignment = assignmentDoc.data()
   if (!assignmentDoc.exists || !assignment) throw new HttpsError('not-found', 'Assignment not found')
   if (!allowedStatuses.includes(String(assignment.status || ''))) {
@@ -368,7 +371,7 @@ export const getMyAssignments = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const student = await resolveStudentIdentity(uid, request.auth?.token || {})
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
 
     const [assignmentSnapshot, submissionSnapshot] = await Promise.all([
       db
@@ -420,7 +423,7 @@ export const beginMyAssignmentSubmission = onCall(
     const student = await resolveStudentIdentity(uid, request.auth?.token || {})
     const assignmentDoc = await getAssignmentForStudent(assignmentId, student, ['published', 'ongoing'])
     const assignment = assignmentDoc.data() || {}
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const submissionRef = db.collection('submissions').doc(`${assignmentId}_${student.studentId}`)
     const existingSubmission = await submissionRef.get()
     if (existingSubmission.exists) {
@@ -534,7 +537,7 @@ export const finalizeMyAssignmentSubmission = onCall(
     const assignment = assignmentDoc.data() || {}
     const expectedPrefix = `assignment-submissions/${student.studentId}/${assignmentId}/${sessionId}`
     const files = parseSubmissionFiles(request.data?.files, expectedPrefix)
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const draftRef = db.collection('assignmentSubmissionDrafts').doc(sessionId)
     const draftDoc = await draftRef.get()
     const draft = draftDoc.data()
@@ -669,7 +672,7 @@ export const cancelMyAssignmentSubmission = onCall(
     if (!sessionId || sessionId.includes('/')) {
       throw new HttpsError('invalid-argument', 'A valid sessionId is required')
     }
-    const draftRef = admin.firestore().collection('assignmentSubmissionDrafts').doc(sessionId)
+    const draftRef = getFirestore(admin.app(), 'default').collection('assignmentSubmissionDrafts').doc(sessionId)
     const draftDoc = await draftRef.get()
     const draft = draftDoc.data()
     if (!draftDoc.exists || draft?.studentUid !== uid) {
@@ -698,7 +701,7 @@ export const cleanupExpiredAssignmentSubmissionDrafts = onSchedule(
     timeoutSeconds: 300,
   },
   async () => {
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const expired = await db
       .collection('assignmentSubmissionDrafts')
       .where('status', '==', 'uploading')
@@ -745,7 +748,7 @@ export const gradeAssignmentSubmission = onCall(
       throw new HttpsError('invalid-argument', 'Submission, score, or remarks are invalid')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const userDoc = await db.collection('users').doc(uid).get()
     const user = userDoc.data()
     const role = String(request.auth?.token.role || user?.role || '')
@@ -813,7 +816,7 @@ export async function resolveAssignmentStaff(
   uid: string,
   token: Record<string, unknown>
 ): Promise<AssignmentStaffIdentity> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const collegeId = String(token.collegeId || user?.collegeId || '')
@@ -914,7 +917,7 @@ async function sanitizeAssignmentAuthoringInput(
     if (studentIds.length === 0) {
       throw new HttpsError('invalid-argument', 'Choose at least one student')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const docs = await db.getAll(...studentIds.map((id) => db.collection('students').doc(id)))
     if (docs.some((student) => !student.exists || student.data()?.collegeId !== collegeId)) {
       throw new HttpsError('invalid-argument', 'One or more selected students are invalid')
@@ -955,7 +958,7 @@ export const createFacultyAssignment = onCall(
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
     const assignment = await sanitizeAssignmentAuthoringInput(request.data, collegeId, false)
-    const assignmentRef = admin.firestore().collection('assignments').doc()
+    const assignmentRef = getFirestore(admin.app(), 'default').collection('assignments').doc()
     await assignmentRef.create({
       ...assignment,
       collegeId,
@@ -978,7 +981,7 @@ export const updateFacultyAssignment = onCall(
     const staff = await resolveAssignmentStaff(uid, request.auth?.token || {})
     const assignmentId = String(request.data?.assignmentId || '')
     if (!assignmentId || assignmentId.includes('/')) throw new HttpsError('invalid-argument', 'A valid assignmentId is required')
-    const ref = admin.firestore().collection('assignments').doc(assignmentId)
+    const ref = getFirestore(admin.app(), 'default').collection('assignments').doc(assignmentId)
     const current = await ref.get()
     const data = current.data()
     if (!current.exists || !data) throw new HttpsError('not-found', 'Assignment not found')
@@ -1020,9 +1023,9 @@ export const transitionFacultyAssignment = onCall(
     if (!assignmentId || assignmentId.includes('/') || !['published', 'ongoing', 'closed', 'graded'].includes(nextStatus)) {
       throw new HttpsError('invalid-argument', 'Assignment or next status is invalid')
     }
-    const ref = admin.firestore().collection('assignments').doc(assignmentId)
+    const ref = getFirestore(admin.app(), 'default').collection('assignments').doc(assignmentId)
     let assignmentData: admin.firestore.DocumentData | undefined
-    await admin.firestore().runTransaction(async (transaction) => {
+    await getFirestore(admin.app(), 'default').runTransaction(async (transaction) => {
       const current = await transaction.get(ref)
       const data = current.data()
       if (!current.exists || !data) throw new HttpsError('not-found', 'Assignment not found')
@@ -1076,7 +1079,7 @@ async function createAssignmentPublishedNotification(
   assignmentId: string,
   facultyName: string
 ): Promise<void> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const collegeId = String(assignment.collegeId || '')
   if (!collegeId) return
   const title = `New Assignment: ${String(assignment.title || 'Untitled').slice(0, 80)}`
@@ -1204,8 +1207,8 @@ export const deleteFacultyAssignmentDraft = onCall(
     const staff = await resolveAssignmentStaff(uid, request.auth?.token || {})
     const assignmentId = String(request.data?.assignmentId || '')
     if (!assignmentId || assignmentId.includes('/')) throw new HttpsError('invalid-argument', 'A valid assignmentId is required')
-    const ref = admin.firestore().collection('assignments').doc(assignmentId)
-    await admin.firestore().runTransaction(async (transaction) => {
+    const ref = getFirestore(admin.app(), 'default').collection('assignments').doc(assignmentId)
+    await getFirestore(admin.app(), 'default').runTransaction(async (transaction) => {
       const current = await transaction.get(ref)
       const data = current.data()
       if (!current.exists || !data) throw new HttpsError('not-found', 'Assignment not found')
@@ -1235,7 +1238,7 @@ export const getAssignmentSubmissionDownload = onCall(
     if (!submissionId || submissionId.includes('/') || !storagePath.startsWith('assignment-submissions/')) {
       throw new HttpsError('invalid-argument', 'Submission and file path are required')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const submissionDoc = await db.collection('submissions').doc(submissionId).get()
     const submission = submissionDoc.data()
     if (!submissionDoc.exists || !submission) throw new HttpsError('not-found', 'Submission not found')

@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import { createHash } from 'node:crypto'
 import * as admin from 'firebase-admin'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -54,7 +57,7 @@ async function resolveGradeStaff(
   token: Record<string, unknown>,
   stage: GradeStage,
 ): Promise<GradeStaff> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const collegeId = String(token.collegeId || user?.collegeId || '')
@@ -160,7 +163,7 @@ export const listManagedGradeRecords = onCall(
     if (!collegeId || (status && !['draft', 'published'].includes(status))) {
       throw new HttpsError('invalid-argument', 'College or status is invalid')
     }
-    let query: FirebaseFirestore.Query = admin.firestore().collection('gradeRecords')
+    let query: FirebaseFirestore.Query = getFirestore(admin.app(), 'default').collection('gradeRecords')
       .where('collegeId', '==', collegeId)
     if (status) query = query.where('status', '==', status)
     const snapshot = await query.limit(500).get()
@@ -201,7 +204,7 @@ export const saveDraftGradeRecords = onCall(
       if (duplicateIds.has(id)) throw new HttpsError('invalid-argument', 'Duplicate student/course grade in request')
       duplicateIds.add(id)
     })
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const studentIds = [...new Set(records.map((record) => record.studentId))]
     const studentRefs = studentIds.map((id) => db.collection('students').doc(id))
     const refs = records.map((record) => db.collection('gradeRecords').doc(
@@ -265,7 +268,7 @@ export const publishGradeRecords = onCall(
     const staff = await resolveGradeStaff(uid, request.auth?.token || {}, 'publish')
     const ids = recordIds(request.data?.ids)
     if (ids.length < 1) throw new HttpsError('invalid-argument', 'Choose at least one draft record')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const refs = ids.map((id) => db.collection('gradeRecords').doc(id))
     const auditRefs = ids.map(() => db.collection('gradeRecordAudit').doc())
     await db.runTransaction(async (transaction) => {
@@ -311,7 +314,7 @@ export const deleteDraftGradeRecords = onCall(
     const staff = await resolveGradeStaff(uid, request.auth?.token || {}, 'publish')
     const ids = recordIds(request.data?.ids)
     if (ids.length < 1) throw new HttpsError('invalid-argument', 'Choose at least one draft record')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const refs = ids.map((id) => db.collection('gradeRecords').doc(id))
     const auditRefs = ids.map(() => db.collection('gradeRecordAudit').doc())
     await db.runTransaction(async (transaction) => {

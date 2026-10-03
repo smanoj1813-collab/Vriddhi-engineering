@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/payments.ts
 //
 // Online fee payments via a payment gateway (Razorpay by default).
@@ -13,7 +16,7 @@ import * as logger from 'firebase-functions/logger'
 import * as admin from 'firebase-admin'
 import crypto from 'crypto'
 
-const db = admin.firestore()
+const db = getFirestore(admin.app(), 'default')
 // Finance staff may act on any fee row of their college; everyone else only on
 // their own. HODs/admins no longer hold finance access (accounts team does).
 const STAFF_ROLES = ['superadmin', 'principal', 'accounts']

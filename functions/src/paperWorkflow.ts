@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -47,7 +50,7 @@ async function resolveLegacyPaperStaff(
   uid: string,
   email: string | null,
 ): Promise<{ role: string; collegeId: string; name: string } | null> {
-  const db = admin.firestore()
+  const db = getFirestore(admin.app(), 'default')
   const anchors: Array<{ field: string; value: string }> = [
     { field: 'uid', value: uid },
     { field: 'userId', value: uid },
@@ -89,7 +92,7 @@ async function resolveLegacyPaperStaff(
 }
 
 export async function resolvePaperStaff(uid: string, token: Record<string, unknown>): Promise<PaperStaff> {
-  const userDoc = await admin.firestore().collection('users').doc(uid).get()
+  const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   let role = normalizeRole(token.role, '') || normalizeRole(user?.role, '') || String(token.role || user?.role || '')
   let collegeId = String(token.collegeId || '') || pickCollegeId(user || null) || ''
@@ -436,7 +439,7 @@ export const savePaper = onCall(
     const paper = validatePaperInput(request.data?.paper)
     const canReview = REVIEW_ROLES.includes(staff.role)
     const state = derivePaperState(action, paper, canReview)
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const before = await ref.get()
     const existing = before.data()
@@ -551,7 +554,7 @@ export const reviewPaper = onCall(
     const topic = boundedString(request.data?.topic, 'topic', 200)
     const questionNumbers = boundedString(request.data?.questionNumbers, 'questionNumbers', 200)
     const remarks = boundedString(request.data?.remarks, 'remarks', 2000, action !== 'approve')
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const auditRef = db.collection('paperReviewAudit').doc()
     await db.runTransaction(async (transaction) => {
@@ -630,7 +633,7 @@ export const submitPaperForReview = onCall(
     if (!paperId || paperId.includes('/') || paperId.length > 200) {
       throw new HttpsError('invalid-argument', 'Paper identifier is required')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const auditRef = db.collection('paperReviewAudit').doc()
     await db.runTransaction(async (transaction) => {
@@ -707,7 +710,7 @@ export const reopenPaperForEditing = onCall(
     if (!paperId || paperId.includes('/') || paperId.length > 200) {
       throw new HttpsError('invalid-argument', 'Paper identifier is required')
     }
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const auditRef = db.collection('paperReviewAudit').doc()
     await db.runTransaction(async (transaction) => {
@@ -814,7 +817,7 @@ export const deletePaper = onCall(
       throw new HttpsError('invalid-argument', 'Paper and college identifiers are required')
     }
 
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const ref = db.collection('papers').doc(paperId)
     const before = await ref.get()
     const paper = before.data()
@@ -972,7 +975,7 @@ export const getPaperFileDownload = onCall(
     if (!paperId || paperId.includes('/') || !['paper', 'answer-key'].includes(kind)) {
       throw new HttpsError('invalid-argument', 'Paper download request is invalid')
     }
-    const snapshot = await admin.firestore().collection('papers').doc(paperId).get()
+    const snapshot = await getFirestore(admin.app(), 'default').collection('papers').doc(paperId).get()
     const paper = snapshot.data()
     if (!snapshot.exists || !paper) throw new HttpsError('not-found', 'Paper not found')
     if (staff.role !== 'superadmin' && paper.collegeId !== staff.collegeId) {

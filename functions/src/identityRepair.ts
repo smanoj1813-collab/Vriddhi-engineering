@@ -1,3 +1,6 @@
+import { getFirestore } from 'firebase-admin/firestore';
+import { getApps, initializeApp } from 'firebase-admin/app';
+if (!getApps().length) initializeApp();
 // functions/src/identityRepair.ts
 // Bulk identity repair for accounts that exist in Firestore but not in
 // Firebase Authentication (or exist in Auth without claims / without a
@@ -189,7 +192,7 @@ export const auditAndRepairIdentities = onCall(
     let stoppedAfter: string | null = null
 
     const caller = await verifyCaller(request, ['superadmin'])
-    const db = admin.firestore()
+    const db = getFirestore(admin.app(), 'default')
     const auth = admin.auth()
 
     const noteThrottle = (message: string) => logger.warn(`[identityRepair] ${message}`)
