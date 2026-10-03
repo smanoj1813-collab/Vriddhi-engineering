@@ -1,6 +1,6 @@
-{
+﻿{
   "projects": {
-    "default": "vriddhi-academic",
-    "staging": "vriddhi-academic"
+    "default": "vriddhi-engineering",
+    "staging": "vriddhi-engineering"
   }
 }

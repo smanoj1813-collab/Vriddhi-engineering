@@ -1,4 +1,4 @@
-import { initializeApp, getApps } from 'firebase-admin/app';
+﻿import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
@@ -8,7 +8,7 @@ if (!getApps().length) {
   initializeApp();
 }
 
-export const db = getFirestore();
+export const db = getFirestore('default');
 export const auth = getAuth();
 
 // Lazy Realtime Database handle: getDatabase() throws at module load when

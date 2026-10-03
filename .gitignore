@@ -74,3 +74,5 @@ marketing/__pycache__/
 __pycache__/
 *.pyc
 database-debug.log*
+
+serviceAccountKey.json

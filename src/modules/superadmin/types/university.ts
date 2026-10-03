@@ -1,4 +1,4 @@
-// src/types/university.ts
+﻿// src/types/university.ts
 // University, College Classification & Karnataka District Mapping Types
 
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
@@ -13,15 +13,7 @@ export type AutonomyStatus = "Autonomous" | "Non-Autonomous";
 
 export type UniversityPriority = 1 | 2 | 3 | 4 | 5 | null;
 
-export type CourseCode =
-  | "BA"
-  | "B.Com"
-  | "BBA"
-  | "BCA"
-  | "B.Sc"
-  | "BSW"
-  | "BPA"
-  | "B.Voc";
+export type CourseCode = string;
 
 export const ALL_COURSES: CourseCode[] = [
   "BA",
@@ -234,3 +226,4 @@ export function getManagementTypeColor(type: UniversityManagementType): string {
 export function getAutonomyColor(status: AutonomyStatus): string {
   return status === "Autonomous" ? "#22c55e" : "#64748b";
 }
+

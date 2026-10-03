@@ -1,4 +1,4 @@
-// src/types/superAdmin.ts
+﻿// src/types/superAdmin.ts
 // Centralized types for Super Admin module
 
 import { QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
@@ -10,7 +10,7 @@ import type { BatchProgress } from "../../../shared/utils/batchedImport";
 
 export type UniversityManagementType = "Government" | "Government Aided" | "Private";
 export type AutonomyStatus = "Autonomous" | "Non-Autonomous";
-export type CourseCode = "BA" | "B.Com" | "BBA" | "BCA" | "B.Sc" | "BSW" | "BPA" | "B.Voc";
+export type CourseCode = string;
 export type VriddhiStatus = "not_onboarded" | "onboarding" | "active" | "suspended";
 
 // ═══════════════════════════════════════════════════════════════════════

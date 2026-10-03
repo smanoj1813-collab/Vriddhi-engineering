@@ -1,4 +1,4 @@
-// src/Firebase/config.ts
+﻿// src/Firebase/config.ts
 // PATCH: Add `functions` export for callable Cloud Functions
 
 import { initializeApp } from "firebase/app";
@@ -20,7 +20,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+export const db = getFirestore(app, 'default');
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 // All callable functions in this repository are deployed in asia-south1.

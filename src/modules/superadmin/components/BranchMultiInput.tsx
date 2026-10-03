@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react'
+﻿import React, { useId, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { DEFAULT_PROGRAMS } from '@/shared/constants/academicPrograms'
 
@@ -87,7 +87,7 @@ export default function BranchMultiInput({
               }
             }}
             onBlur={addDraft}
-            placeholder={value.length ? 'Add another branch' : 'e.g. B.Com'}
+            placeholder={value.length ? 'Add another branch' : 'e.g. ECE, EEE, MECH, CIVIL, CSE (AI & ML), CSE (DS), BCA'}
             className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 dark:text-white outline-none placeholder:text-slate-400"
           />
           <button
@@ -110,3 +110,4 @@ export default function BranchMultiInput({
     </div>
   )
 }
+

@@ -1,9 +1,9 @@
-// src/shared/types/university.ts
+﻿// src/shared/types/university.ts
 
 export type ManagementType = 'government' | 'private' | 'aided' | 'autonomous' | 'deemed' | 'Government' | 'Private' | 'Aided' | 'Autonomous' | 'Deemed';
 export type PriorityLevel = 1 | 2 | 3 | 4 | 5;
 export type UniversityStatus = 'active' | 'inactive' | 'pending' | 'onboarding';
-export type CourseCode = "BA" | "B.Com" | "BBA" | "BCA" | "B.Sc" | "BSW" | "BPA" | "B.Voc";
+export type CourseCode = string;
 
 export interface UniversityCourse {
   id: string;
