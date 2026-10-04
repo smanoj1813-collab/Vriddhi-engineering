@@ -11,7 +11,13 @@ export interface ResultImportRow {
   name: string;
   email?: string;
   course?: string;
+  branch?: string;
   batch?: string;
+  courseType?: string;
+  /** Resolved per-row; retained only through preview/grouping, never written into source files. */
+  schemePack?: import('@/shared/types/schemePack').UniversitySchemePack;
+  schemePackId?: string | null;
+  schemePackResolution?: 'cohort' | 'programme' | 'college' | 'platform';
   semester: number;
   
   // Subject
@@ -91,6 +97,8 @@ export interface ResultImportPreview {
    * groupResultsByStudent so grades/pass outcomes use the same rules.
    */
   schemePack?: import('@/shared/types/schemePack').UniversitySchemePack;
+  /** A result file may contain more than one cohort using a different scoped pack. */
+  schemePacks?: Record<string, import('@/shared/types/schemePack').UniversitySchemePack>;
   summary: {
     totalStudents: number;
     totalSubjects: number;
@@ -118,12 +126,17 @@ export interface ParsedResult {
   usn?: string;
   semester: number;
   course?: string;
+  branch?: string;
   batch?: string;
+  schemePackId?: string | null;
+  schemePackCode?: string;
+  schemePackResolution?: 'cohort' | 'programme' | 'college' | 'platform';
   
   subjects: Array<{
     subjectCode: string;
     subjectName: string;
     credits?: number;
+    courseType?: string;
     internal: number;
     external: number;
     total: number;

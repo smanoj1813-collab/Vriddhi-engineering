@@ -4,6 +4,9 @@ import { TrendingUp, Award, BookOpen, ChevronDown, ChevronUp, GraduationCap, Loa
 import { useAuth } from '../../auth/context/AuthContext';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { fetchGrades } from '../api/studentDataApi';
+import { getCollegeSchemePack } from '@/modules/admin/api/schemePackApi';
+import { convertCgpaToPercentage } from '@/shared/utils/engineeringScheme';
+import type { UniversitySchemePack } from '@/shared/types/schemePack';
 
 interface GradeRecord {
   id: string;
@@ -35,6 +38,22 @@ export default function StudentGrades() {
   const [grades, setGrades] = useState<GradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [schemePack, setSchemePack] = useState<UniversitySchemePack | null>(null);
+
+  useEffect(() => {
+    if (!profile?.collegeId) return;
+    let cancelled = false;
+    getCollegeSchemePack(profile.collegeId, {
+      programId: profile.course,
+      branchId: profile.branch || profile.department,
+      admissionBatch: profile.batch || profile.academicYear,
+    }).then((resolved) => {
+      if (!cancelled) setSchemePack(resolved.pack);
+    }).catch(() => {
+      if (!cancelled) setSchemePack(null);
+    });
+    return () => { cancelled = true; };
+  }, [profile?.collegeId, profile?.course, profile?.branch, profile?.department, profile?.batch, profile?.academicYear]);
 
   useEffect(() => {
     if (profileLoading) return;
@@ -86,6 +105,9 @@ export default function StudentGrades() {
     0
   );
   const cgpa = totalCredits ? (totalGradePoints / totalCredits).toFixed(2) : '—';
+  const percentageEquivalent = schemePack
+    ? convertCgpaToPercentage(Number(cgpa), profile?.batch || profile?.academicYear, schemePack)
+    : null;
 
   const semesterGPA = (semester: number) => {
     const list = semesterWise[semester] || [];
@@ -148,6 +170,9 @@ export default function StudentGrades() {
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-black text-slate-900 dark:text-white">{cgpa}</span>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">CGPA</span>
+              {percentageEquivalent !== null && (
+                <span className="text-[8px] font-semibold text-teal-700 dark:text-teal-300">{percentageEquivalent.toFixed(2)}% equivalent</span>
+              )}
             </div>
           </div>
 

@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { getAllQuestions, linkQuestionToPaper } from './questionBankApi';
 import { isSameSubject } from '@/shared/utils/curriculumMatcher';
+import { generateSchemePaper } from '@/shared/utils/engineeringScheme';
+import { getCollegeSchemePack } from './schemePackApi';
 import { generateQuestionsWithAI, saveGeneratedQuestions } from './aiQuestionApi';
 import {
   Paper,
@@ -381,6 +383,8 @@ export interface ExtendedPaperConfig extends PaperConfig {
   topicFilters?: string[];
   unitFilters?: string[];
   customTopic?: string;
+  /** Build the paper from the resolved pack's published module/section pattern. */
+  useSchemeTemplate?: boolean;
 }
 
 const normCoverage = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/^(unit|module)\s*[-:]?\s*/i, '');
@@ -411,8 +415,29 @@ export async function generatePaper(
   userId: string,
   userName: string
 ): Promise<GeneratedPaperResult & { paper: Paper; sets?: Paper[] }> {
-  const sections = config.sections || [];
-  const mode = config.mode || 'bank';
+  const resolved = await getCollegeSchemePack(collegeId, {
+    programId: config.program,
+    branchId: config.branch,
+    admissionBatch: config.batch,
+  });
+  const pack = resolved.pack;
+  const template = pack.engineering?.paperTemplate;
+  config.schemePackId = resolved.schemePackId || pack.id;
+  config.schemePackCode = pack.code;
+  config.schemePackResolution = resolved.resolution;
+  config.schemeTemplateCode = template?.code;
+  if (config.useSchemeTemplate && !template) {
+    throw new Error(`The resolved scheme pack (${pack.code}) has no question-paper template.`);
+  }
+  if (config.useSchemeTemplate && template) {
+    config.totalMarks = template.rawTotal;
+    config.duration = template.durationMinutes;
+    config.numSets = 1;
+  }
+
+  const useSchemeTemplate = config.useSchemeTemplate === true && Boolean(template);
+  const sections = useSchemeTemplate ? [] : config.sections || [];
+  const mode = useSchemeTemplate ? 'bank' : config.mode || 'bank';
   const allQuestions = await getAllQuestions(collegeId, 500);
   const warnings: string[] = [];
 
@@ -431,6 +456,65 @@ export async function generatePaper(
     config.customTopic?.trim() ||
     (config.topicFilters && config.topicFilters.length > 0 ? config.topicFilters.join(', ') : '') ||
     (config.unitFilters && config.unitFilters.length > 0 ? `Units ${config.unitFilters.join(', ')}` : '');
+
+  const schemeDraft = useSchemeTemplate && template
+    ? generateSchemePaper(filtered.map((question) => {
+        const raw = question as Question & { co?: string; courseOutcome?: string };
+        const moduleFromUnit = Number(String(raw.unit || raw.moduleName || '').match(/(?:module|unit)?\s*(\d+)/i)?.[1]);
+        return {
+          id: question.id,
+          marks: Number(question.marks) || 0,
+          module: Number(question.moduleNo) || moduleFromUnit || undefined,
+          co: raw.learningOutcomes?.find((outcome) => /^CO\d+$/i.test(outcome.trim()))
+            || raw.learningOutcomes?.[0]
+            || raw.co
+            || raw.courseOutcome,
+          bloomLevel: question.bloomLevel,
+          difficulty: question.difficulty,
+        };
+      }), pack)
+    : null;
+  const questionById = new Map(filtered.map((question) => [question.id, question]));
+  const schemeGeneratedSections = schemeDraft && template
+    ? schemeDraft.paper.sections.map((section, index) => {
+        const isModulePattern = Boolean(template.modules);
+        const templateSection = template.sections?.[index];
+        const requested = isModulePattern
+          ? template.questionsPerModule ?? section.questions.length
+          : templateSection?.questions ?? section.questions.length;
+        const toAttempt = section.toAttempt ?? requested;
+        const marksEach = section.marksEach ?? template.marksPerFullQuestion ?? templateSection?.marksEach ?? 1;
+        const questions = section.questions
+          .map((question) => questionById.get(question.id))
+          .filter((question): question is Question => Boolean(question));
+        const title = section.label;
+        return {
+          id: section.code,
+          name: title,
+          title,
+          description: `Answer ${Math.min(toAttempt, requested)} of ${requested} questions · ${marksEach} marks each`,
+          questionType: 'any' as const,
+          numQuestions: requested,
+          marksPerQuestion: marksEach,
+          compulsory: toAttempt >= requested,
+          toAttempt,
+          ...(isModulePattern ? { moduleNo: index + 1, unitFilter: String(index + 1) } : {}),
+          questions,
+          matched: questions.length,
+          requested,
+        };
+      })
+    : null;
+  if (schemeDraft) {
+    for (const check of schemeDraft.checks) {
+      if (check.status !== 'pass') warnings.push(`${pack.code} ${check.status.toUpperCase()}: ${check.message}`);
+    }
+    schemeGeneratedSections?.forEach((section) => {
+      if (section.matched < section.requested) {
+        warnings.push(`${section.title}: ${section.matched} of ${section.requested} tagged bank questions matched the scheme template.`);
+      }
+    });
+  }
 
   const generateSingleSetSections = async (setLabel?: string) => {
     const generatedSections: any[] = [];
@@ -522,10 +606,10 @@ export async function generatePaper(
     return generatedSections;
   };
 
-  const generatedSections = await generateSingleSetSections();
+  const generatedSections = schemeGeneratedSections || await generateSingleSetSections();
 
   const totalMatched = generatedSections.reduce((sum, s) => sum + s.matched, 0);
-  const totalSectionMarks = generatedSections.reduce((sum, s) => sum + s.numQuestions * s.marksPerQuestion, 0);
+  const totalSectionMarks = generatedSections.reduce((sum, s) => sum + (s.toAttempt ?? s.numQuestions) * s.marksPerQuestion, 0);
   if (totalSectionMarks !== config.totalMarks) {
     warnings.push(`Section totals (${totalSectionMarks}) do not match configured total marks (${config.totalMarks}).`);
   }

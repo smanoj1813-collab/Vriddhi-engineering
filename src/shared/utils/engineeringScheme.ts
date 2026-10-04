@@ -29,6 +29,48 @@ import type {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+/** Extract the first four-digit admission year from common batch labels. */
+export function getAdmissionYear(admissionBatch?: string | number | null): number | null {
+  const match = String(admissionBatch ?? '').match(/(?:^|\D)((?:19|20)\d{2})(?=\D|$)/);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Apply the pack's safe CGPA conversion formula for one admission batch.
+ * Only the small, explicit arithmetic grammar used by the scheme packs is
+ * accepted; expressions are never evaluated as JavaScript.
+ */
+export function convertCgpaToPercentage(
+  cgpa: number,
+  admissionBatch: string | number | null | undefined,
+  pack: UniversitySchemePack = DEFAULT_SCHEME_PACK,
+): number | null {
+  if (!Number.isFinite(cgpa)) return null;
+  const conversion = pack.engineering?.percentageConversion;
+  if (!conversion?.expression) return null;
+
+  const admissionYear = getAdmissionYear(admissionBatch);
+  const rule = admissionYear == null
+    ? undefined
+    : conversion.batchRules?.find((candidate) => {
+        const exactYears = candidate.admissionYears ?? [];
+        if (exactYears.includes(admissionYear)) return true;
+        const from = candidate.fromAdmissionYear;
+        const through = candidate.throughAdmissionYear;
+        return (from == null || admissionYear >= from) && (through == null || admissionYear <= through)
+          && (from != null || through != null);
+      });
+  const expression = rule?.expression ?? conversion.expression;
+  const offsetMatch = expression.match(/^\s*\(\s*CGPA\s*([+-])\s*(\d+(?:\.\d+)?)\s*\)\s*\*\s*(\d+(?:\.\d+)?)\s*$/i);
+  const directMatch = expression.match(/^\s*CGPA\s*\*\s*(\d+(?:\.\d+)?)\s*$/i);
+  const multiplier = offsetMatch ? Number(offsetMatch[3]) : directMatch ? Number(directMatch[1]) : null;
+  if (multiplier == null || !Number.isFinite(multiplier)) return null;
+  const offset = offsetMatch
+    ? (offsetMatch[1] === '-' ? -1 : 1) * Number(offsetMatch[2])
+    : 0;
+  return round2(Math.min(100, Math.max(0, (cgpa + offset) * multiplier)));
+}
+
 // ─── 1. Course types ─────────────────────────────────────────────────────────
 
 /**
@@ -147,6 +189,11 @@ export function getSchemeGrade(
   pack: UniversitySchemePack = DEFAULT_SCHEME_PACK,
 ): SchemeGradeResult & { method: 'absolute' | 'relative' } {
   const grading = pack.engineering?.grading;
+  const passFloor = pack.passCriteria.aggregatePassPercentage ?? 0;
+  if (grading?.method === 'relative' && (!Number.isFinite(input.percentage) || input.percentage < passFloor)) {
+    return { grade: 'F', gradePoint: 0, description: 'Fail', method: 'absolute' };
+  }
+
   const bands = grading?.relativeBands;
   const minCohort = grading?.minCohortSizeForRelative ?? 0;
 

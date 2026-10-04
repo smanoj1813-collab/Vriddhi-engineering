@@ -110,6 +110,11 @@ export interface AssessmentPaper {
   id: string
   title: string
   subject: string
+  program?: string
+  programId?: string
+  courseType?: string
+  branch?: string
+  batch?: string
   type: 'quiz' | 'midterm' | 'final' | 'assignment' | 'practice' | 'mock'
   paperType?: string
   duration: number
@@ -415,6 +420,9 @@ export interface ScheduleTestInput {
   paperId: string
   title: string
   subject?: string
+  program?: string
+  programId?: string
+  courseType?: string
   branch?: string
   batch?: string
   description?: string
@@ -424,7 +432,15 @@ export interface ScheduleTestInput {
   duration?: number
   durationMinutes?: number
   visibility?: TestVisibility | string
-  targetSections?: Array<{ sectionId: string; sectionName: string }>
+  targetSections?: Array<{
+    sectionId: string
+    sectionName: string
+    section?: string
+    program?: string
+    branch?: string
+    batch?: string
+    semester?: number
+  }>
   targetStudents?: string[]
   accessCode?: string
   allowLateSubmission?: boolean

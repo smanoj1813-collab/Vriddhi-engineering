@@ -427,3 +427,66 @@ export function gradeFromPercentage(percentage: number): { grade: string; gradeP
   if (percentage >= 40) return { grade: 'D', gradePoint: 5 }
   return { grade: 'F', gradePoint: 0 }
 }
+
+export interface SchemeGradingSnapshot {
+  gradeTable?: Array<{ grade: string; gradePoint: number; minPercentage: number }>
+  passCriteria?: { aggregatePassPercentage?: number }
+  /** Per-assessment override, kept separate from the immutable pack criteria. */
+  assessmentPassPercentage?: number
+  engineering?: {
+    grading?: {
+      method?: 'absolute' | 'relative'
+      minCohortSizeForRelative?: number
+      relativeBands?: Array<{
+        grade: string
+        gradePoint: number
+        minPercentile: number
+        absoluteMinPercentage?: number
+      }>
+    }
+  }
+}
+
+/** Scheme-aware server grade; an absolute pass floor always wins over curves. */
+export function gradeFromPercentageForScheme(
+  percentage: number,
+  scheme?: SchemeGradingSnapshot | null,
+  cohort?: { percentile?: number | null; size?: number | null },
+): { grade: string; gradePoint: number; method: 'absolute' | 'relative' } {
+  if (!Number.isFinite(percentage)) return { ...gradeFromPercentage(0), method: 'absolute' }
+  const configuredPassFloor = Number(scheme?.passCriteria?.aggregatePassPercentage ?? 40)
+  const assessmentPassFloor = Number(scheme?.assessmentPassPercentage ?? 0)
+  const passFloor = Math.max(
+    Number.isFinite(configuredPassFloor) ? configuredPassFloor : 40,
+    Number.isFinite(assessmentPassFloor) ? assessmentPassFloor : 0,
+  )
+  if (percentage < passFloor) return { grade: 'F', gradePoint: 0, method: 'absolute' }
+
+  const grading = scheme?.engineering?.grading
+  const bands = grading?.relativeBands
+  const minCohort = Number(grading?.minCohortSizeForRelative ?? 0)
+  if (
+    grading?.method === 'relative'
+    && Array.isArray(bands)
+    && bands.length > 0
+    && cohort?.percentile != null
+    && Number.isFinite(cohort.percentile)
+    && Number(cohort.size ?? 0) >= minCohort
+  ) {
+    for (const band of [...bands].sort((left, right) => right.minPercentile - left.minPercentile)) {
+      if (cohort.percentile >= band.minPercentile) {
+        if (band.absoluteMinPercentage != null && percentage < band.absoluteMinPercentage) continue
+        return { grade: band.grade, gradePoint: band.gradePoint, method: 'relative' }
+      }
+    }
+  }
+
+  const table = scheme?.gradeTable;
+  if (Array.isArray(table) && table.length > 0) {
+    const matched = [...table]
+      .sort((left, right) => right.minPercentage - left.minPercentage)
+      .find((row) => percentage >= row.minPercentage)
+    if (matched) return { grade: matched.grade, gradePoint: matched.gradePoint, method: 'absolute' }
+  }
+  return { ...gradeFromPercentage(percentage), method: 'absolute' }
+}

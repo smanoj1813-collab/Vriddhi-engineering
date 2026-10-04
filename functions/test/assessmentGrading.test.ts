@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   gradeAssessmentPaper,
   gradeFromPercentage,
+  gradeFromPercentageForScheme,
   summarizePaperOutcome,
   type ServerQuestion,
 } from '../src/assessmentGrading'
@@ -93,6 +94,43 @@ describe('server assessment grading', () => {
   it('derives grade bands only on the server', () => {
     assert.deepEqual(gradeFromPercentage(90), { grade: 'A+', gradePoint: 10 })
     assert.deepEqual(gradeFromPercentage(39.99), { grade: 'F', gradePoint: 0 })
+  })
+
+  it('uses the resolved pack grade table and never curves below its absolute pass floor', () => {
+    const scheme = {
+      gradeTable: [
+        { grade: 'O', gradePoint: 10, minPercentage: 90 },
+        { grade: 'A', gradePoint: 8, minPercentage: 70 },
+        { grade: 'P', gradePoint: 4, minPercentage: 40 },
+        { grade: 'F', gradePoint: 0, minPercentage: 0 },
+      ],
+      passCriteria: { aggregatePassPercentage: 40 },
+      engineering: {
+        grading: {
+          method: 'relative' as const,
+          minCohortSizeForRelative: 30,
+          relativeBands: [
+            { grade: 'A', gradePoint: 8, minPercentile: 50, absoluteMinPercentage: 40 },
+            { grade: 'F', gradePoint: 0, minPercentile: 0, absoluteMinPercentage: 40 },
+          ],
+        },
+      },
+    }
+    assert.deepEqual(gradeFromPercentageForScheme(39.99, scheme, { percentile: 99, size: 100 }), {
+      grade: 'F', gradePoint: 0, method: 'absolute',
+    })
+    assert.deepEqual(gradeFromPercentageForScheme(72, scheme, { percentile: 70, size: 40 }), {
+      grade: 'A', gradePoint: 8, method: 'relative',
+    })
+    assert.deepEqual(gradeFromPercentageForScheme(72, scheme), {
+      grade: 'A', gradePoint: 8, method: 'absolute',
+    })
+    assert.deepEqual(gradeFromPercentageForScheme(45, {
+      ...scheme,
+      assessmentPassPercentage: 50,
+    }), {
+      grade: 'F', gradePoint: 0, method: 'absolute',
+    })
   })
 })
 

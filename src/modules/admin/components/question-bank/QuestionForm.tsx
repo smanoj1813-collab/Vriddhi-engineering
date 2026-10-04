@@ -1,7 +1,7 @@
 // src/components/question-bank/QuestionForm.tsx
 // ─── Question Form Component ────────────────────────────
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
   Box,
   TextField,
@@ -20,6 +20,7 @@ import {
 } from '@mui/material'
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import type { Question, QuestionType, DifficultyLevel } from '../../types/questionBank'
+import { parseLearningOutcomes } from '../../utils/questionForm'
 
 const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
   { value: 'mcq', label: 'Multiple Choice' },
@@ -70,6 +71,9 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
     explanation: initialData?.explanation || '',
     tags: initialData?.tags || [],
     bloomLevel: initialData?.bloomLevel || '',
+    moduleNo: initialData?.moduleNo ? String(initialData.moduleNo) : '',
+    moduleName: initialData?.moduleName || '',
+    learningOutcomesText: (initialData?.learningOutcomes || []).join('\n'),
     isPYQ: initialData?.isPYQ || false,
     examYear: initialData?.examYear || '',
     examName: initialData?.examName || '',
@@ -125,7 +129,13 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData as any)
+    const { moduleNo, learningOutcomesText, ...rest } = formData
+    const parsedModule = Number(moduleNo)
+    onSubmit({
+      ...rest,
+      ...(Number.isInteger(parsedModule) && parsedModule > 0 ? { moduleNo: parsedModule } : {}),
+      learningOutcomes: parseLearningOutcomes(learningOutcomesText),
+    } as any)
   }
 
   return (
@@ -261,6 +271,59 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             value={formData.explanation}
             onChange={e => handleChange('explanation', e.target.value)}
           />
+        </Grid>
+
+        <Grid size={{ xs: 12 }}>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Engineering / NBA outcome tags
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              Module, Bloom and course-outcome tags are used by engineering scheme paper templates and OBE attainment checks.
+            </Typography>
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth size="small" type="number" label="Module number"
+                  value={formData.moduleNo}
+                  onChange={(event) => handleChange('moduleNo', event.target.value)}
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  fullWidth size="small" label="Module name"
+                  value={formData.moduleName}
+                  onChange={(event) => handleChange('moduleName', event.target.value)}
+                  placeholder="Optional module title"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Bloom level</InputLabel>
+                  <Select
+                    value={formData.bloomLevel}
+                    label="Bloom level"
+                    onChange={(event) => handleChange('bloomLevel', event.target.value)}
+                  >
+                    <MenuItem value="">Not tagged</MenuItem>
+                    {['L1', 'L2', 'L3', 'L4', 'L5', 'L6'].map((level, index) => (
+                      <MenuItem key={level} value={level}>{level} · {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'][index]}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth multiline minRows={2} size="small" label="Course outcomes / CO tags"
+                  value={formData.learningOutcomesText}
+                  onChange={(event) => handleChange('learningOutcomesText', event.target.value)}
+                  placeholder={'CO1\nCO2'}
+                  helperText="Enter one outcome code or statement per line."
+                />
+              </Grid>
+            </Grid>
+          </Paper>
         </Grid>
 
         <Grid size={{ xs: 12 }}>

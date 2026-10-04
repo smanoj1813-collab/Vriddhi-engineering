@@ -7,12 +7,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import {
   gradeAssessmentPaper,
-  gradeFromPercentage,
+  gradeFromPercentageForScheme,
   summarizePaperOutcome,
+  type SchemeGradingSnapshot,
   type ServerAnswer,
   type ServerQuestion,
 } from './assessmentGrading'
 import { canonicalQuestionType, findSchedulingProblem } from './questionTypes'
+import { resolveSchemePackForCollege } from './schemePacks'
 import { geminiClient, openaiClient, deepseekClient } from './config/aiProviders'
 import { generateWithGeminiFallback, primaryGeminiModel } from './config/aiModels'
 import { maybeTrace, traceRequested } from './assessmentCostTrace'
@@ -45,6 +47,7 @@ interface StudentIdentity {
   collegeId: string
   name: string
   regNo: string
+  program: string
   branch: string
   batch: string
   division: string
@@ -112,6 +115,7 @@ async function resolveStudent(uid: string, token: Record<string, unknown>): Prom
     collegeId,
     name: String(student.name || user?.name || ''),
     regNo: String(student.regNo || student.registrationNumber || ''),
+    program: String(student.programId || student.program || student.course || student.courseName || ''),
     branch: String(student.branch || student.department || ''),
     batch: String(student.batch || student.academicYear || ''),
     division: String(student.division || student.section || ''),
@@ -362,6 +366,7 @@ function testTargetsStudent(test: admin.firestore.DocumentData, student: Student
     return true
   }
   const targetSections = Array.isArray(test.targetSections) ? test.targetSections : []
+  const normalizeScope = (entry: unknown) => String(entry || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
   if (targetSections.some((target: unknown) => {
     const value = (target || {}) as Record<string, unknown>
     const normalizeSection = (entry: unknown) => String(entry || '').trim().toLowerCase().replace(/^section\s+/, '')
@@ -369,8 +374,9 @@ function testTargetsStudent(test: admin.firestore.DocumentData, student: Student
     if (!expectedSection || ![student.section, student.division].map(normalizeSection).includes(expectedSection)) {
       return false
     }
-    if (value.branch && String(value.branch) !== student.branch) return false
-    if (value.batch && String(value.batch) !== student.batch) return false
+    if (value.program && normalizeScope(value.program) !== normalizeScope(student.program)) return false
+    if (value.branch && normalizeScope(value.branch) !== normalizeScope(student.branch)) return false
+    if (value.batch && normalizeScope(value.batch) !== normalizeScope(student.batch)) return false
     if (value.semester && Number(value.semester) !== student.semester) return false
     return true
   })) return true
@@ -904,6 +910,12 @@ export const startMyStudentTest = onCall(
         section: student.section,
         semester: student.semester,
         batch: student.batch,
+        program: String(freshTestData.program || ''),
+        courseType: String(freshTestData.courseType || 'theory'),
+        schemePackId: String(freshTestData.schemePackId || ''),
+        schemePackCode: String(freshTestData.schemePackCode || ''),
+        schemePackResolution: String(freshTestData.schemePackResolution || 'platform'),
+        schemePackSnapshot: freshTestData.schemePackSnapshot || null,
         title: String(freshTestData.title || freshTestData.paperTitle || ''),
         subject: String(freshTestData.subject || freshTestData.subjectName || ''),
         totalMarks: Number(freshTestData.totalMarks) || questions.reduce((sum, question) => sum + question.marks, 0),
@@ -1246,7 +1258,12 @@ export const submitMyStudentTest = onCall(
       const percentage = marksObtained === null || totalMarks <= 0
         ? null
         : Math.round((marksObtained / totalMarks) * 10_000) / 100
-      const finalGrade = percentage === null ? null : gradeFromPercentage(percentage)
+      const finalGrade = percentage === null
+        ? null
+        : gradeFromPercentageForScheme(
+            percentage,
+            (row.schemePackSnapshot || freshTest.schemePackSnapshot) as SchemeGradingSnapshot | undefined,
+          )
       const status = fullyObjective ? 'graded' : 'submitted'
       const submittedAt = admin.firestore.FieldValue.serverTimestamp()
       const answerIds = new Set(answers.map((answer) => answer.questionId))
@@ -1283,6 +1300,9 @@ export const submitMyStudentTest = onCall(
         manualGradeableMax,
         manualQuestionSnippets,
         needsManualGrading: !fullyObjective,
+        schemePackId: String(row.schemePackId || freshTest.schemePackId || ''),
+        schemePackCode: String(row.schemePackCode || freshTest.schemePackCode || ''),
+        schemePackResolution: String(row.schemePackResolution || freshTest.schemePackResolution || ''),
         objectiveCorrectCount: graded.correctCount,
         objectiveIncorrectCount: graded.incorrectCount,
         unattemptedCount: questions.filter((question) => !answerIds.has(question.id)).length,
@@ -1298,6 +1318,8 @@ export const submitMyStudentTest = onCall(
           percentage,
           grade: finalGrade.grade,
           gradePoint: finalGrade.gradePoint,
+          gradeMethod: finalGrade.method,
+          isPass: finalGrade.grade !== 'F',
           gradedAt: submittedAt,
           gradedBy: 'server-auto-grader',
         })
@@ -1442,6 +1464,16 @@ export const getMyStudentTestResult = onCall(
     }))
     const totalMarks = Number(row?.totalMarks) || 0
     const marksObtained = row?.status === 'graded' ? Number(row.marksObtained) || 0 : 0
+    const storedPassingPercentage = Number(resolved.test.passingPercentage)
+    const snapshotPassingPercentage = Number(
+      (resolved.test.schemePackSnapshot as SchemeGradingSnapshot | undefined)?.assessmentPassPercentage,
+    )
+    const legacyPassingMarks = Number(resolved.test.passingMarks)
+    const legacyPassingPercentage = totalMarks > 0 && legacyPassingMarks > 0
+      ? Math.min(100, Math.round((legacyPassingMarks / totalMarks) * 10_000) / 100)
+      : 0
+    const passingPercentage = [storedPassingPercentage, snapshotPassingPercentage, legacyPassingPercentage]
+      .find((value) => Number.isFinite(value) && value > 0) ?? 40
     return {
       studentAssessmentId: attempt.id,
       assessmentId: resolved.testId,
@@ -1470,7 +1502,7 @@ export const getMyStudentTestResult = onCall(
       facultyFeedback: row?.facultyFeedback ? String(row.facultyFeedback) : undefined,
       submittedAt: iso(row?.submittedAt),
       gradedAt: iso(row?.gradedAt) || undefined,
-      passingPercentage: Number(resolved.test.passingPercentage || resolved.test.passingMarks) || 40,
+      passingPercentage,
       percentile: 0,
       completedAt: iso(row?.submittedAt),
       flaggedCount: answers.filter((answer) => answer.isFlagged).length,
@@ -1693,6 +1725,7 @@ export const scheduleAssessmentTest = onCall(
             sectionId: String(value.sectionId || '').trim().slice(0, 200),
             sectionName: String(value.sectionName || '').trim().slice(0, 200),
             section: String(value.section || value.division || '').trim().slice(0, 100),
+            program: String(value.program || value.programId || '').trim().slice(0, 100),
             branch: String(value.branch || '').trim().slice(0, 100),
             batch: String(value.batch || '').trim().slice(0, 100),
             semester: Math.max(0, Math.min(20, Number(value.semester) || 0)),
@@ -1706,6 +1739,64 @@ export const scheduleAssessmentTest = onCall(
       throw new HttpsError('invalid-argument', 'Selected visibility requires a section or student')
     }
     const totalMarks = questions.reduce((sum, question) => sum + question.marks, 0)
+    const uniqueTargetValue = (key: 'program' | 'branch' | 'batch'): string => {
+      const distinct = new Map<string, string>()
+      for (const target of targetSections) {
+        const value = String(target[key] || '').trim().replace(/\s+/g, ' ')
+        if (value) distinct.set(value.toLocaleLowerCase(), distinct.get(value.toLocaleLowerCase()) || value)
+      }
+      return distinct.size === 1 ? [...distinct.values()][0] : ''
+    }
+    const hasInputScope = (key: string) => Object.prototype.hasOwnProperty.call(input, key)
+    const program = String(
+      input.programId
+      || input.program
+      || uniqueTargetValue('program')
+      || (hasInputScope('programId') || hasInputScope('program')
+        ? ''
+        : paper.programId || paper.program || paper.programName || ''),
+    ).trim().slice(0, 100)
+    const branch = String(
+      input.branch
+      || uniqueTargetValue('branch')
+      || (hasInputScope('branch') ? '' : paper.branch || ''),
+    ).trim().slice(0, 100)
+    const admissionBatch = String(
+      input.batch
+      || uniqueTargetValue('batch')
+      || (hasInputScope('batch') ? '' : paper.batch || ''),
+    ).trim().slice(0, 80)
+    const courseType = String(input.courseType || paper.courseType || 'theory').trim().slice(0, 50) || 'theory'
+    const schemePack = await resolveSchemePackForCollege(collegeId, {
+      programId: program,
+      branchId: branch,
+      admissionBatch,
+    })
+    const schemeGradeSnapshot: SchemeGradingSnapshot = {
+      ...(Array.isArray(schemePack.gradeTable) ? { gradeTable: schemePack.gradeTable } : {}),
+      ...(schemePack.passCriteria ? { passCriteria: schemePack.passCriteria } : {}),
+      ...(schemePack.engineering?.grading
+        ? { engineering: { grading: schemePack.engineering.grading } }
+        : {}),
+    }
+    const schemeCourseType = schemePack.engineering?.courseTypes?.[courseType]
+      ?? schemePack.engineering?.courseTypes?._default
+      ?? {
+        internal: schemePack.internalAssessment?.totalMarks ?? 0,
+        external: schemePack.semesterEndExam?.defaultMaxMarks ?? 0,
+      }
+    const rawSchemePassPercentage = Number(schemePack.passCriteria?.aggregatePassPercentage ?? 40)
+    const schemePassPercentage = Number.isFinite(rawSchemePassPercentage) ? rawSchemePassPercentage : 40
+    const schemePassMarks = Math.ceil(totalMarks * schemePassPercentage / 100)
+    const configuredPassingMarks = Number(paper.passingMarks)
+    const passingMarks = Math.max(
+      schemePassMarks,
+      Number.isFinite(configuredPassingMarks) && configuredPassingMarks > 0 ? configuredPassingMarks : 0,
+    )
+    const assessmentPassPercentage = totalMarks > 0
+      ? Math.max(schemePassPercentage, Math.round((passingMarks / totalMarks) * 10_000) / 100)
+      : schemePassPercentage
+    schemeGradeSnapshot.assessmentPassPercentage = assessmentPassPercentage
     const resultPublishDate = input.resultPublishDate
       ? parseRequiredDate(input.resultPublishDate, 'resultPublishDate')
       : end
@@ -1723,14 +1814,27 @@ export const scheduleAssessmentTest = onCall(
       subjectName: String(input.subjectName || input.subject || paper.subject || ''),
       subjectId: String(input.subjectId || paper.subjectId || ''),
       collegeId,
+      schemePackId: schemePack.id,
+      schemePackCode: schemePack.code,
+      schemePackResolution: schemePack.resolution,
+      schemePackSnapshot: {
+        ...schemeGradeSnapshot,
+        id: schemePack.id,
+        code: schemePack.code,
+        resolution: schemePack.resolution,
+        courseType,
+        courseWeightage: schemeCourseType,
+      },
       facultyId: uid,
       facultyName: staff.name,
       // Cohort the faculty selected while scheduling. 'public' visibility
       // still shows the test to every student in the college; these fields
       // act as the fallback filter for 'selected' tests and are displayed on
       // the faculty list and report.
-      branch: String(input.branch || '').trim().slice(0, 100),
-      batch: String(input.batch || '').trim().slice(0, 100),
+      program,
+      branch,
+      batch: admissionBatch,
+      courseType,
       startDateTime: admin.firestore.Timestamp.fromDate(start),
       scheduledAt: admin.firestore.Timestamp.fromDate(start),
       endDateTime: admin.firestore.Timestamp.fromDate(end),
@@ -1750,7 +1854,8 @@ export const scheduleAssessmentTest = onCall(
       requireFaceVerification: Boolean(input.requireFaceVerification),
       resultPublishDate: admin.firestore.Timestamp.fromDate(resultPublishDate),
       showResultImmediately: paper.showResultImmediately !== false,
-      passingMarks: Number(paper.passingMarks) || Math.ceil(totalMarks * 0.4),
+      passingMarks,
+      passingPercentage: assessmentPassPercentage,
       totalMarks,
       totalQuestions: questions.length,
       // Freeze the section structure at schedule time so the completion
@@ -1967,7 +2072,10 @@ export const gradeStudentAssessmentSubmission = onCall(
       const percentage = totalMarks > 0
         ? Math.round((Math.min(marksObtained, totalMarks) / totalMarks) * 10_000) / 100
         : 0
-      const derived = gradeFromPercentage(percentage)
+      const derived = gradeFromPercentageForScheme(
+        percentage,
+        (row.schemePackSnapshot || test.schemePackSnapshot) as SchemeGradingSnapshot | undefined,
+      )
       transaction.update(assessmentRef, {
         status: 'graded',
         manualScore,
@@ -1975,6 +2083,11 @@ export const gradeStudentAssessmentSubmission = onCall(
         percentage,
         grade: derived.grade,
         gradePoint: derived.gradePoint,
+        gradeMethod: derived.method,
+        isPass: derived.grade !== 'F',
+        schemePackId: String(row.schemePackId || test.schemePackId || ''),
+        schemePackCode: String(row.schemePackCode || test.schemePackCode || ''),
+        schemePackResolution: String(row.schemePackResolution || test.schemePackResolution || ''),
         facultyFeedback: feedback,
         gradingBreakdown: Array.isArray(row.gradingBreakdown)
           ? row.gradingBreakdown.map((item: admin.firestore.DocumentData) => {
@@ -2369,7 +2482,12 @@ async function finalizeExpiredAttempt(
     const percentage = marksObtained === null || totalMarks <= 0
       ? null
       : Math.round((marksObtained / totalMarks) * 10_000) / 100
-    const derived = percentage === null ? null : gradeFromPercentage(percentage)
+    const derived = percentage === null
+      ? null
+      : gradeFromPercentageForScheme(
+          percentage,
+          (row.schemePackSnapshot || freshTest.schemePackSnapshot) as SchemeGradingSnapshot | undefined,
+        )
     const startedAt = timestampToDate(row.startedAt)
     const timeSpent = startedAt
       ? Math.max(0, Math.floor((autoSubmitAt.getTime() - startedAt.getTime()) / 1000))
@@ -2406,6 +2524,9 @@ async function finalizeExpiredAttempt(
       autoSubmitted: true,
       isLateSubmission: isLate,
       latePenaltyPercentage,
+      schemePackId: String(row.schemePackId || freshTest.schemePackId || ''),
+      schemePackCode: String(row.schemePackCode || freshTest.schemePackCode || ''),
+      schemePackResolution: String(row.schemePackResolution || freshTest.schemePackResolution || ''),
     }
     if (status === 'graded' && derived) {
       Object.assign(update, {
@@ -2413,6 +2534,8 @@ async function finalizeExpiredAttempt(
         percentage,
         grade: derived.grade,
         gradePoint: derived.gradePoint,
+        gradeMethod: derived.method,
+        isPass: derived.grade !== 'F',
         gradedAt: submittedAt,
         gradedBy: 'server-expiry-grader',
       })

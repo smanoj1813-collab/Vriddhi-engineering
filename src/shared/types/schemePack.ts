@@ -162,6 +162,26 @@ export interface SchemeAttainmentRules {
   correlationScale?: number[];
 }
 
+export interface SchemePercentageConversionRule {
+  /** Match a specific admission year, e.g. 2015, 2017 or 2018. */
+  admissionYears?: number[];
+  /** Inclusive lower admission year. */
+  fromAdmissionYear?: number;
+  /** Inclusive upper admission year. */
+  throughAdmissionYear?: number;
+  /** Safe arithmetic expression, e.g. `(CGPA - 0.75) * 10`. */
+  expression: string;
+  note?: string;
+}
+
+export interface SchemePercentageConversion {
+  /** Fallback formula when no batch rule matches. */
+  expression: string;
+  note?: string;
+  /** Rules are checked in order; the first matching admission year wins. */
+  batchRules?: SchemePercentageConversionRule[];
+}
+
 export interface SchemeEngineeringRules {
   /** Weightage by course type; `_default` is used for unlisted types. */
   courseTypes?: Record<string, SchemeCourseTypeWeightage>;
@@ -176,8 +196,8 @@ export interface SchemeEngineeringRules {
     /** Below this cohort size, grade absolutely (a curve of 6 students is noise). */
     minCohortSizeForRelative?: number;
   };
-  /** Marks conversion from CGPA, applied per admission batch. */
-  percentageConversion?: { expression: string; note?: string };
+  /** Marks conversion from CGPA, selected by the student's admission batch. */
+  percentageConversion?: SchemePercentageConversion;
   paperTemplate?: SchemePaperTemplate;
   attainment?: SchemeAttainmentRules;
 }
@@ -433,7 +453,19 @@ export const VTU_2022_BE_BTECH: UniversitySchemePack = {
     grading: { method: 'absolute' },
     percentageConversion: {
       expression: 'CGPA * 10',
-      note: '2021-22 batch onwards. 2015/2017/2018 batches used (CGPA - 0.75) * 10.',
+      note: '2022 admission batch onwards uses CGPA × 10; 2015, 2017 and 2018 batches use (CGPA − 0.75) × 10.',
+      batchRules: [
+        {
+          admissionYears: [2015, 2017, 2018],
+          expression: '(CGPA - 0.75) * 10',
+          note: 'Legacy conversion for the 2015, 2017 and 2018 admission batches.',
+        },
+        {
+          fromAdmissionYear: 2022,
+          expression: 'CGPA * 10',
+          note: 'Current conversion for the 2022 admission batch onwards.',
+        },
+      ],
     },
     paperTemplate: {
       code: 'VTU_10Q_5MODULES_20M',
