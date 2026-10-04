@@ -76,3 +76,6 @@ __pycache__/
 database-debug.log*
 
 serviceAccountKey.json
+
+# Isolated tooling installed by the scheme CI job (tsx loader only)
+.ci-tools/

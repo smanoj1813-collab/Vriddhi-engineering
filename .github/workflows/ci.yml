@@ -10,9 +10,9 @@ on:
 
 jobs:
   # Job 1: build the frontend (React + Vite + TypeScript)
-  frontend:
+    frontend:
     name: Frontend build (Node 22)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out the code
         uses: actions/checkout@v5
@@ -23,8 +23,31 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The runner image ships with Android SDK, .NET, Haskell, Swift and
+      # CodeQL preinstalled — none of which a Vite/React project needs. On a
+      # large install (852 packages) that leftover bulk has been enough to push
+      # the runner into reclaiming its own files mid-job, which showed up as
+      # `ENOENT: Could not read package.json` from npm. Free it first, and
+      # report usage before and after so the numbers are on the record.
+      - name: Disk before install
+        run: df -h /
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: Disk after install
+        run: |
+          df -h /
+          du -sh node_modules
 
       - name: Check for dead code in src/
         run: node scripts/check-dead-code.cjs
@@ -81,3 +104,31 @@ jobs:
       - name: Course and related Firestore rules tests
         working-directory: functions
         run: npm run test:rules:course-security
+
+  # Job 3: scheme-pack evaluation rules (shared by non-tech and engineering).
+  #
+  # The scheme engine is pure TypeScript with no runtime dependencies, so this
+  # job installs only the TypeScript loader instead of the full dependency
+  # tree. It stays fast, and it keeps guarding the numbers that decide whether
+  # a student passes, what grade they get and what a question paper looks like
+  # even when the frontend install is broken.
+  scheme:
+    name: Scheme pack rules (Node 22)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install the TypeScript test loader
+        run: |
+          mkdir -p .ci-tools
+          npm init -y --prefix .ci-tools >/dev/null
+          npm i --prefix .ci-tools --no-audit --no-fund tsx
+
+      - name: Scheme engine + engineering rules + permissions
+        run: node --import ./.ci-tools/node_modules/tsx/dist/loader.mjs --test src/shared/utils/schemeEngine.test.ts src/shared/utils/engineeringScheme.test.ts src/modules/auth/permissions.test.ts
