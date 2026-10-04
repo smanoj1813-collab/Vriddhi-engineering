@@ -23,8 +23,31 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The runner image ships with Android SDK, .NET, Haskell, Swift and
+      # CodeQL preinstalled — none of which a Vite/React project needs. On a
+      # large install (852 packages) that leftover bulk has been enough to push
+      # the runner into reclaiming its own files mid-job, which showed up as
+      # `ENOENT: Could not read package.json` from npm. Free it first, and
+      # report usage before and after so the numbers are on the record.
+      - name: Disk before install
+        run: df -h /
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: Disk after install
+        run: |
+          df -h /
+          du -sh node_modules
 
       - name: Check for dead code in src/
         run: node scripts/check-dead-code.cjs
