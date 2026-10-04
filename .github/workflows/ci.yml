@@ -81,3 +81,31 @@ jobs:
       - name: Course and related Firestore rules tests
         working-directory: functions
         run: npm run test:rules:course-security
+
+  # Job 3: scheme-pack evaluation rules (shared by non-tech and engineering).
+  #
+  # The scheme engine is pure TypeScript with no runtime dependencies, so this
+  # job installs only the TypeScript loader instead of the full dependency
+  # tree. It stays fast, and it keeps guarding the numbers that decide whether
+  # a student passes, what grade they get and what a question paper looks like
+  # even when the frontend install is broken.
+  scheme:
+    name: Scheme pack rules (Node 22)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install the TypeScript test loader
+        run: |
+          mkdir -p .ci-tools
+          npm init -y --prefix .ci-tools >/dev/null
+          npm i --prefix .ci-tools --no-audit --no-fund tsx
+
+      - name: Scheme engine + engineering rules + permissions
+        run: node --import ./.ci-tools/node_modules/tsx/dist/loader.mjs --test src/shared/utils/schemeEngine.test.ts src/shared/utils/engineeringScheme.test.ts src/modules/auth/permissions.test.ts

@@ -108,3 +108,49 @@ test('HODs may raise purchase requests', () => {
   assert.equal(canAccessAdminPath('hod', '/admin/purchase-requests'), true)
   assert.equal(canAccessAdminPath('faculty', '/admin/purchase-requests'), false)
 })
+
+test('principal no longer owns the university exam page', () => {
+  assert.equal(canAccessAdminPath('principal', '/admin/exam-management'), false)
+  assert.equal(canAccessAdminPath('principal', '/admin/exam-management/hall-tickets'), false)
+  // The exam branch retains full control.
+  assert.equal(canAccessAdminPath('admin', '/admin/exam-management'), true)
+  assert.equal(canAccessAdminPath('hod', '/admin/exam-management'), true)
+  assert.equal(canAccessAdminPath('superadmin', '/admin/exam-management'), true)
+  // Institution-only work stays out of the employee workspace.
+  assert.equal(canAccessAdminPath('employee', '/admin/exam-management'), false)
+  assert.equal(canAccessAdminPath('faculty', '/admin/exam-management'), false)
+  assert.equal(canAccessAdminPath('accounts', '/admin/exam-management'), false)
+})
+
+test('the principal keeps a read-only university-exam lane and everything else', () => {
+  // Permissions: no write, still read.
+  assert.equal(roleHasPermission('principal', 'universityExam.manage'), false)
+  assert.equal(roleHasPermission('principal', 'universityExam.publish'), false)
+  assert.equal(roleHasPermission('principal', 'universityExam.view'), true)
+  // The change is scoped to that one route — academic oversight is untouched.
+  for (const p of [
+    '/admin/dashboard',
+    '/admin/attendance',
+    '/admin/analytics',
+    '/admin/grade-records',
+    '/admin/payroll',
+    '/admin/fee-management',
+  ]) {
+    assert.equal(canAccessAdminPath('principal', p), true, p)
+  }
+  assert.equal(roleHasPermission('principal', 'payroll.approve'), true)
+})
+
+test('engineering permissions are additive and obey deny-by-default', () => {
+  assert.equal(roleHasPermission('hod', 'obe.attainment'), true)
+  assert.equal(roleHasPermission('principal', 'obe.attainment'), true)
+  assert.equal(roleHasPermission('employee', 'obe.attainment'), true)
+  assert.equal(roleHasPermission('faculty', 'obe.attainment'), false)
+  assert.equal(roleHasPermission('student', 'obe.attainment'), false)
+  assert.equal(roleHasPermission('admin', 'engineering.schemePacks'), true)
+  assert.equal(roleHasPermission('hod', 'engineering.schemePacks'), true)
+  assert.equal(roleHasPermission('principal', 'engineering.schemePacks'), false)
+  // Unknown permissions and missing roles are never granted.
+  assert.equal(roleHasPermission('admin', 'not.a.real.permission'), false)
+  assert.equal(roleHasPermission(null, 'universityExam.manage'), false)
+})

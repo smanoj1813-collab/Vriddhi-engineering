@@ -68,6 +68,12 @@ export interface SchemeSemesterEndExam {
   durationMinutes: number;
   /** Minimum % of SEE marks required to pass the course (BCU 35). */
   passPercentage: number;
+  /**
+   * Raw marks the paper is actually set for, when the university scales the
+   * result down (VTU: paper is 100 marks, scaled to 50). Undefined = no
+   * scaling, `defaultMaxMarks` is the paper maximum.
+   */
+  scaleFrom?: number;
 }
 
 export interface SchemePassCriteria {
@@ -85,6 +91,95 @@ export interface SchemeGrade {
   /** Percentage bands are read from the top down: first min ≤ marks wins. */
   minPercentage: number;
   description: string;
+}
+
+// ─── Engineering extension (B.E. / B.Tech) ───────────────────────────────────
+// Optional and additive: every non-tech pack simply omits this block, and the
+// G1 engine keeps behaving exactly as it does today. Engineering colleges need
+// course-type weightages, separate heads of passing, relative grading, OBE
+// attainment and a university-specific question-paper pattern — none of which
+// exist in a non-tech scheme of examination.
+
+/** Internal/external split for one kind of course (VTU theory 50:50, project 50:100). */
+export interface SchemeCourseTypeWeightage {
+  internal: number;
+  external: number;
+  /** Separate heads of passing inside one course, e.g. ['theory', 'practical']. */
+  heads?: string[];
+  /** How the internal marks divide across the heads, e.g. { theory: 30, practical: 20 }. */
+  internalSplit?: Record<string, number>;
+  /** True when the course has no university/end-semester exam (seminar, internship). */
+  internalOnly?: boolean;
+}
+
+/** One band of a relative (cohort-percentile) grading curve. */
+export interface SchemeRelativeGradeBand {
+  grade: string;
+  gradePoint: number;
+  /** Minimum cohort percentile that earns this grade. */
+  minPercentile: number;
+  /** Hard floor: below this percentage the student still fails. */
+  absoluteMinPercentage?: number;
+  description?: string;
+}
+
+/** Question-paper pattern published by the university. */
+export interface SchemePaperTemplate {
+  code: string;
+  /** Module-based pattern (VTU): N modules, K questions each, answer one per module. */
+  modules?: number;
+  questionsPerModule?: number;
+  marksPerFullQuestion?: number;
+  maxSubQuestions?: number;
+  /** Section-based pattern (autonomous / non-tech): Part A, Part B, ... */
+  sections?: {
+    code: string;
+    label: string;
+    questions: number;
+    toAttempt: number;
+    marksEach: number;
+  }[];
+  /** Marks the paper is set for, before scaling (VTU 100). */
+  rawTotal: number;
+  durationMinutes: number;
+  /** Minimum share of L3+ (Bloom) questions, 0-100. */
+  minHigherOrderPercentage?: number;
+  /** Target difficulty index 0-1 (0.5 = balanced). */
+  difficultyTarget?: number;
+}
+
+/** NBA / OBE outcome attainment configuration. */
+export interface SchemeAttainmentRules {
+  enabled: boolean;
+  framework?: string;
+  /** Share of students that must clear the CO threshold for attainment level 1/2/3. */
+  levels?: { level: number; minPercentStudents: number }[];
+  /** A CO counts as attained for a student at or above this % of the CO's marks. */
+  coThresholdPercentage?: number;
+  directWeight?: number;
+  indirectWeight?: number;
+  /** Correlation strengths allowed in the CO→PO matrix. */
+  correlationScale?: number[];
+}
+
+export interface SchemeEngineeringRules {
+  /** Weightage by course type; `_default` is used for unlisted types. */
+  courseTypes?: Record<string, SchemeCourseTypeWeightage>;
+  /**
+   * Grading method. `absolute` uses the pack gradeTable (VTU). `relative`
+   * uses the cohort curve in `relativeBands`, falling back to the gradeTable
+   * when the cohort is too small to curve.
+   */
+  grading?: {
+    method: 'absolute' | 'relative';
+    relativeBands?: SchemeRelativeGradeBand[];
+    /** Below this cohort size, grade absolutely (a curve of 6 students is noise). */
+    minCohortSizeForRelative?: number;
+  };
+  /** Marks conversion from CGPA, applied per admission batch. */
+  percentageConversion?: { expression: string; note?: string };
+  paperTemplate?: SchemePaperTemplate;
+  attainment?: SchemeAttainmentRules;
 }
 
 export interface UniversitySchemePack {
@@ -112,6 +207,11 @@ export interface UniversitySchemePack {
   isDefault?: boolean;
   /** where the numbers came from (syllabus PDF / regulations page) */
   sourceNote?: string;
+  /**
+   * B.E./B.Tech-only rules (course-type weightages, relative grading, OBE
+   * attainment, paper pattern). Absent on every non-tech pack.
+   */
+  engineering?: SchemeEngineeringRules;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -258,10 +358,213 @@ export const GENERIC_NEP_2020: UniversitySchemePack = {
   sourceNote: 'UGC NEP 2020 model curriculum defaults',
 };
 
+/**
+ * VTU letter grades (VTU publishes no 5-point row: D is 6, E is 4).
+ * Verified against VTU's own regulations PDFs.
+ */
+const VTU_GRADE_TABLE: SchemeGrade[] = [
+  { grade: 'S', gradePoint: 10, minPercentage: 90, description: 'Outstanding' },
+  { grade: 'A', gradePoint: 9, minPercentage: 80, description: 'Excellent' },
+  { grade: 'B', gradePoint: 8, minPercentage: 70, description: 'Very Good' },
+  { grade: 'C', gradePoint: 7, minPercentage: 60, description: 'Good' },
+  { grade: 'D', gradePoint: 6, minPercentage: 55, description: 'Above Average' },
+  { grade: 'E', gradePoint: 4, minPercentage: 50, description: 'Average / Pass' },
+  { grade: 'F', gradePoint: 0, minPercentage: 0, description: 'Fail' },
+];
+
+/**
+ * VTU 2022 Scheme (OBE & CBCS) — B.E./B.Tech.
+ *
+ * CIE 50 + SEE 50 for every course. Three independent bars:
+ *   1. CIE >= 40%  -> otherwise the student is NOT ELIGIBLE to sit the SEE
+ *   2. SEE >= 35%  -> otherwise the course is failed, whatever the aggregate
+ *   3. CIE + SEE >= 40% aggregate
+ * The SEE paper is set for 100 marks and scaled down to 50.
+ */
+export const VTU_2022_BE_BTECH: UniversitySchemePack = {
+  id: 'VTU_2022_BE_BTECH',
+  code: 'VTU_2022_BE_BTECH',
+  name: 'Visvesvaraya Technological University — 2022 Scheme (OBE & CBCS)',
+  universityName: 'Visvesvaraya Technological University, Belagavi',
+  schemeName: '2022 Scheme (OBE & CBCS)',
+  applicableProgrammes: ['B.E.', 'B.Tech'],
+  attendance: {
+    minimumPercentage: 75,
+    // VTU carries no attendance marks; the slab exists only so the eligibility
+    // gate has a table to walk.
+    marksSlabs: [{ min: 75, max: 100, marks: 0, label: 'No attendance marks' }],
+    blocksExamEligibility: true,
+  },
+  internalAssessment: {
+    totalMarks: 50,
+    // Two IATs of 20 marks each, averaged and scaled to 25; the remaining 25
+    // are CCE (any two of assignment / quiz / seminar / case study / MOOC ...).
+    test: { count: 2, maxMarksEach: 20, bestOf: 2, weightInTotal: 25 },
+    attendanceMaxMarks: 0,
+    assignmentMaxMarks: 25,
+  },
+  semesterEndExam: {
+    defaultMaxMarks: 50,
+    scaleFrom: 100,
+    durationMinutes: 180,
+    passPercentage: 35,
+  },
+  passCriteria: {
+    aggregatePassPercentage: 40,
+    minimumInternalPercentage: 40,
+    requireSemesterEndPass: true,
+  },
+  gradeTable: VTU_GRADE_TABLE,
+  mediums: ['English'],
+  status: 'active',
+  isDefault: false,
+  sourceNote:
+    'VTU (Award of B.E./B.Tech Degree) Regulations 2022 — 22OB 4.2 (CIE), 22OB 6.3 (passing standards), 22OB 6.1 (absolute grading)',
+  engineering: {
+    courseTypes: {
+      _default: { internal: 50, external: 50 },
+      theory: { internal: 50, external: 50 },
+      ipcc: { internal: 50, external: 50, heads: ['theory', 'practical'], internalSplit: { theory: 30, practical: 20 } },
+      lab: { internal: 50, external: 50, heads: ['practical'] },
+      project: { internal: 50, external: 100 },
+      seminar: { internal: 100, external: 0, internalOnly: true },
+      internship: { internal: 50, external: 50 },
+    },
+    grading: { method: 'absolute' },
+    percentageConversion: {
+      expression: 'CGPA * 10',
+      note: '2021-22 batch onwards. 2015/2017/2018 batches used (CGPA - 0.75) * 10.',
+    },
+    paperTemplate: {
+      code: 'VTU_10Q_5MODULES_20M',
+      modules: 5,
+      questionsPerModule: 2,
+      marksPerFullQuestion: 20,
+      maxSubQuestions: 3,
+      rawTotal: 100,
+      durationMinutes: 180,
+      minHigherOrderPercentage: 40,
+    },
+    attainment: {
+      enabled: true,
+      framework: 'NBA_GAPC_V4',
+      levels: [
+        { level: 3, minPercentStudents: 80 },
+        { level: 2, minPercentStudents: 70 },
+        { level: 1, minPercentStudents: 60 },
+      ],
+      coThresholdPercentage: 60,
+      directWeight: 0.8,
+      indirectWeight: 0.2,
+      correlationScale: [1, 2, 3],
+    },
+  },
+};
+
+/**
+ * Autonomous engineering college — 50:50 with RELATIVE grading.
+ *
+ * Where VTU grades absolutely, autonomous institutions curve: grades follow
+ * the cohort percentile while pass/fail still respects an absolute floor.
+ * The curve is disabled below `minCohortSizeForRelative` students.
+ */
+export const AUTONOMOUS_ENGINEERING_5050: UniversitySchemePack = {
+  id: 'AUTONOMOUS_ENGINEERING_5050',
+  code: 'AUTONOMOUS_ENGINEERING_5050',
+  name: 'Autonomous Engineering College — 50:50, relative grading',
+  universityName: 'Institution-specific (template defaults)',
+  schemeName: 'Autonomous 50:50',
+  applicableProgrammes: ['B.E.', 'B.Tech'],
+  attendance: {
+    minimumPercentage: 75,
+    marksSlabs: [{ min: 75, max: 100, marks: 0, label: 'No attendance marks' }],
+    blocksExamEligibility: true,
+  },
+  internalAssessment: {
+    totalMarks: 50,
+    test: { count: 2, maxMarksEach: 50, bestOf: 2, weightInTotal: 40 },
+    attendanceMaxMarks: 0,
+    assignmentMaxMarks: 10,
+  },
+  semesterEndExam: {
+    defaultMaxMarks: 50,
+    scaleFrom: 100,
+    durationMinutes: 180,
+    passPercentage: 35,
+  },
+  passCriteria: {
+    aggregatePassPercentage: 40,
+    minimumInternalPercentage: 40,
+    requireSemesterEndPass: true,
+  },
+  gradeTable: STANDARD_GRADE_TABLE,
+  mediums: ['English'],
+  status: 'active',
+  isDefault: false,
+  sourceNote:
+    'Template defaults for autonomous institutions (Anna University R2021 grades relatively); edit per college.',
+  engineering: {
+    courseTypes: {
+      _default: { internal: 50, external: 50 },
+      theory: { internal: 50, external: 50 },
+      lab: { internal: 50, external: 50, heads: ['practical'] },
+      project: { internal: 40, external: 60 },
+      seminar: { internal: 100, external: 0, internalOnly: true },
+    },
+    grading: {
+      method: 'relative',
+      minCohortSizeForRelative: 30,
+      relativeBands: [
+        { grade: 'O', gradePoint: 10, minPercentile: 95, absoluteMinPercentage: 40, description: 'Outstanding' },
+        { grade: 'A+', gradePoint: 9, minPercentile: 85, absoluteMinPercentage: 40, description: 'Excellent' },
+        { grade: 'A', gradePoint: 8, minPercentile: 70, absoluteMinPercentage: 40, description: 'Very Good' },
+        { grade: 'B+', gradePoint: 7, minPercentile: 55, absoluteMinPercentage: 40, description: 'Good' },
+        { grade: 'B', gradePoint: 6, minPercentile: 40, absoluteMinPercentage: 40, description: 'Above Average' },
+        { grade: 'C', gradePoint: 5, minPercentile: 20, absoluteMinPercentage: 40, description: 'Average' },
+        { grade: 'P', gradePoint: 4, minPercentile: 0, absoluteMinPercentage: 40, description: 'Pass' },
+      ],
+    },
+    percentageConversion: { expression: 'CGPA * 10' },
+    paperTemplate: {
+      code: 'AUTONOMOUS_SECTIONS_ABC',
+      sections: [
+        { code: 'A', label: 'Short answers', questions: 10, toAttempt: 10, marksEach: 2 },
+        { code: 'B', label: 'Medium answers', questions: 6, toAttempt: 5, marksEach: 8 },
+        { code: 'C', label: 'Long answers', questions: 4, toAttempt: 2, marksEach: 20 },
+      ],
+      rawTotal: 100,
+      durationMinutes: 180,
+      minHigherOrderPercentage: 50,
+      difficultyTarget: 0.5,
+    },
+    attainment: {
+      enabled: true,
+      framework: 'NBA_GAPC_V4',
+      levels: [
+        { level: 3, minPercentStudents: 80 },
+        { level: 2, minPercentStudents: 70 },
+        { level: 1, minPercentStudents: 60 },
+      ],
+      coThresholdPercentage: 60,
+      directWeight: 0.8,
+      indirectWeight: 0.2,
+      correlationScale: [1, 2, 3],
+    },
+  },
+};
+
 export const SCHEME_PACK_PRESETS: UniversitySchemePack[] = [
   BCU_SEP_2024,
   KUD_NEP_CBAE,
   GENERIC_NEP_2020,
+  VTU_2022_BE_BTECH,
+  AUTONOMOUS_ENGINEERING_5050,
+];
+
+/** Packs that carry B.E./B.Tech rules — used to gate engineering-only surfaces. */
+export const ENGINEERING_SCHEME_PACKS: UniversitySchemePack[] = [
+  VTU_2022_BE_BTECH,
+  AUTONOMOUS_ENGINEERING_5050,
 ];
 
 /** Pack applied when a college has none assigned — pre-G1 behaviour. */

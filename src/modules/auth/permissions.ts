@@ -47,6 +47,20 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   'college.manage': ['admin'],
   'users.manage': ['admin'],
 
+  // ── University examination (VTU / Karnataka university compliance) ──
+  // Principal is deliberately absent from `.manage`: university-exam
+  // compliance (hall tickets, room allotment, exam-fee drives, result
+  // importers) is an institution-office job run by the admin/exam branch.
+  // The principal keeps a read-only lane via `universityExam.view` so
+  // reporting stays available without write access.
+  'universityExam.manage': ['admin', 'hod'],
+  'universityExam.publish': ['admin'],
+  'universityExam.view': ['admin', 'hod', 'principal'],
+
+  // ── Engineering evaluation (B.E. / B.Tech) ───────────────────────────
+  'obe.attainment': ['hod', 'principal', 'admin', 'employee'],
+  'engineering.schemePacks': ['admin', 'hod'],
+
   // ── Finance (accounts team) ───────────────────────────────────
   'accounts.desk': ['accounts', 'principal'],
   'fees.manage': ['accounts', 'principal'],
@@ -168,6 +182,9 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/purchase-requests', permission: 'procurement.request' },
   { path: '/admin/vendors', permission: 'vendors.manage' },
   { path: '/admin/no-dues', permission: 'noDues.manage' },
+  // University Examination — admin/exam branch only; the principal keeps
+  // read-only reporting via 'universityExam.view' but no longer owns the page.
+  { path: '/admin/exam-management', permission: 'universityExam.manage' },
   // Principal
   // Everyone in the shell
   { path: '/admin/install-app', permission: null },
