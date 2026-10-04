@@ -143,6 +143,9 @@ export interface PaperSection {
   topicFilter?: string;
   unitFilter?: string;
   compulsory?: boolean;
+  /** Choice pattern from a university scheme pack (e.g. answer one of two). */
+  toAttempt?: number;
+  moduleNo?: number;
   questions?: Question[];
   section?: PaperSection; // nested reference for PaperGenerator
 }
@@ -159,6 +162,12 @@ export interface PaperConfig {
   examType?: string;
   batch?: string;
   branch?: string;
+  program?: string;
+  courseType?: string;
+  schemePackId?: string;
+  schemePackCode?: string;
+  schemePackResolution?: 'cohort' | 'programme' | 'college' | 'platform';
+  schemeTemplateCode?: string;
   date?: string;
 }
 

@@ -421,6 +421,66 @@ function facultyBContext() {
   })
 }
 
+describe('scheme packs (global reference reads and tenant-scoped customs)', () => {
+  async function seedPacks() {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore()
+      await Promise.all([
+        setDoc(doc(db, 'schemePacks', 'VTU_BE_2022_5050'), {
+          code: 'VTU_BE_2022_5050', name: 'VTU BE 2022', global: true, scope: 'platform',
+        }),
+        setDoc(doc(db, 'schemePacks', 'custom-a'), {
+          code: 'CUSTOM_A', name: 'College A custom', collegeId: COLLEGE_A,
+        }),
+        setDoc(doc(db, 'schemePacks', 'custom-b'), {
+          code: 'CUSTOM_B', name: 'College B custom', collegeId: COLLEGE_B,
+        }),
+      ])
+    })
+  }
+
+  it('lets signed-in users read global presets, but never write scheme packs', async () => {
+    await seedPacks()
+    const student = studentContext().firestore()
+    const globalRef = doc(student, 'schemePacks', 'VTU_BE_2022_5050')
+    await assertSucceeds(getDoc(globalRef))
+    const globalRows = await assertSucceeds(getDocs(query(
+      collection(student, 'schemePacks'),
+      where('global', '==', true),
+    )))
+    assert.equal(globalRows.size, 1)
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'schemePacks', 'VTU_BE_2022_5050')))
+    await assertFails(setDoc(globalRef, { code: 'FORGED', global: true }))
+    await assertFails(updateDoc(globalRef, { name: 'Forged preset' }))
+    await assertFails(deleteDoc(globalRef))
+    await assertFails(setDoc(doc(superadminContext().firestore(), 'schemePacks', 'forged-global'), {
+      code: 'FORGED', global: true,
+    }))
+  })
+
+  it('keeps college customs tenant-scoped and requires filters on list queries', async () => {
+    await seedPacks()
+    const staff = adminContext().firestore()
+    await assertSucceeds(getDoc(doc(staff, 'schemePacks', 'custom-a')))
+    await assertFails(getDoc(doc(staff, 'schemePacks', 'custom-b')))
+    await assertFails(getDocs(collection(staff, 'schemePacks')))
+    const ownCustoms = await assertSucceeds(getDocs(query(
+      collection(staff, 'schemePacks'),
+      where('collegeId', '==', COLLEGE_A),
+    )))
+    assert.equal(ownCustoms.size, 1)
+    const student = studentContext().firestore()
+    await assertSucceeds(getDoc(doc(student, 'schemePacks', 'custom-a')))
+    await assertFails(getDoc(doc(student, 'schemePacks', 'custom-b')))
+    await assertFails(getDocs(collection(student, 'schemePacks')))
+    const studentCollegePacks = await assertSucceeds(getDocs(query(
+      collection(student, 'schemePacks'),
+      where('collegeId', '==', COLLEGE_A),
+    )))
+    assert.equal(studentCollegePacks.size, 1)
+  })
+})
+
 describe('student identity and profile isolation', () => {
   it('resolves the provisioned profile by canonical userId', async () => {
     const db = studentContext().firestore()

@@ -5,6 +5,7 @@ import * as XLSX from '@e965/xlsx';
 import { collection, getDocs, query, where, limit, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/Firebase/config';
 import { calculateSGPA } from '@/shared/utils/bcuCompliance';
+import { getCourseWeightage } from '@/shared/utils/engineeringScheme';
 import {
   checkSchemePassCriteria,
   getSchemeGradeFromMarks,
@@ -12,27 +13,30 @@ import {
   type UniversitySchemePack,
 } from '@/shared/utils/schemeEngine';
 import { getCollegeSchemePack } from './schemePackApi';
+import { normalizeSchemePackScopeValue, type SchemePackContext } from '@/shared/utils/schemePackResolution';
+import type { ResultImportRow, ResultImportPreview, ParsedResult } from '../types/resultImport';
 
-/**
- * G1: the college's assigned university pack, resolved once and reused for
- * the whole import session. parseResultFile awaits the first call; callers
- * that go straight to groupResultsByStudent pass `preview.schemePack` so no
- * import ever mixes two universities' rules.
- */
-let packMemo: { collegeId: string; promise: Promise<UniversitySchemePack> } | null = null;
-async function resolveSchemePack(): Promise<UniversitySchemePack> {
+/** Pack resolutions are cached per college/programme/branch/batch for an import session. */
+const packMemo = new Map<string, Promise<Awaited<ReturnType<typeof getCollegeSchemePack>>>>();
+async function resolveSchemePack(context: SchemePackContext = {}) {
   let collegeId = '';
   try { collegeId = getCollegeId(); } catch { /* fall through to default */ }
-  if (!collegeId) return DEFAULT_SCHEME_PACK;
-  if (!packMemo || packMemo.collegeId !== collegeId) {
-    packMemo = {
-      collegeId,
-      promise: getCollegeSchemePack(collegeId).then((r) => r.pack).catch(() => DEFAULT_SCHEME_PACK),
-    };
+  if (!collegeId) {
+    return { pack: DEFAULT_SCHEME_PACK, schemePackId: null, origin: 'preset' as const, resolution: 'platform' as const };
   }
-  return packMemo.promise;
+  const key = [collegeId, context.programId, context.branchId, context.admissionBatch]
+    .map(normalizeSchemePackScopeValue)
+    .join('|');
+  if (!packMemo.has(key)) {
+    packMemo.set(key, getCollegeSchemePack(collegeId, context).catch(() => ({
+      pack: DEFAULT_SCHEME_PACK,
+      schemePackId: null,
+      origin: 'preset' as const,
+      resolution: 'platform' as const,
+    })));
+  }
+  return packMemo.get(key)!;
 }
-import type { ResultImportRow, ResultImportPreview, ParsedResult } from '../types/resultImport';
 
 function getCollegeId(): string {
   const id = localStorage.getItem('vriddhi_college_id');
@@ -51,7 +55,9 @@ function toString(value: unknown): string {
 
 // Parse Excel/CSV file for result import
 export async function parseResultFile(file: File): Promise<ResultImportPreview> {
-  const pack = await resolveSchemePack();
+  const fallbackPack = await resolveSchemePack();
+  let primaryPack: UniversitySchemePack | undefined;
+  const schemePacks: Record<string, UniversitySchemePack> = {};
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
@@ -79,6 +85,10 @@ export async function parseResultFile(file: File): Promise<ResultImportPreview> 
     if (h === 'internalmarks' || h === 'ia' || h === 'internal') headerMap['internal'] = idx;
     if (h === 'externalmarks' || h === 'external' || h === 'university' || h === 'ue') headerMap['external'] = idx;
     if (h === 'totalmarks' || h === 'total' || h === 'marks') headerMap['total'] = idx;
+    if (['course', 'program', 'programme', 'degree', 'courseprogram'].includes(h)) headerMap['program'] = idx;
+    if (['branch', 'department', 'dept', 'specialization'].includes(h)) headerMap['branch'] = idx;
+    if (['admissionbatch', 'batch', 'academicyear'].includes(h)) headerMap['batch'] = idx;
+    if (['coursetype', 'subjecttype', 'classification'].includes(h)) headerMap['coursetype'] = idx;
   });
 
   const requiredHeaders = ['regno', 'subjectcode', 'subjectname'];
@@ -115,12 +125,22 @@ export async function parseResultFile(file: File): Promise<ResultImportPreview> 
       continue;
     }
 
+    const course = get('program') || get('course');
+    const branch = get('branch');
+    const batch = get('batch') || get('academicyear');
+    const courseType = get('coursetype') || 'theory';
+    const resolvedPack = await resolveSchemePack({ programId: course, branchId: branch, admissionBatch: batch });
+    const pack = resolvedPack.pack;
+    primaryPack ??= pack;
+    schemePacks[pack.code] = pack;
+    const weightage = getCourseWeightage(courseType, pack);
+
     const internal = getNum('internal');
     const external = getNum('external');
     let total = getNum('total');
     const credits = getNum('credits') || 4;
     const semester = getNum('semester') || 1;
-    const maxMarks = getNum('maxmarks') || 100;
+    const maxMarks = getNum('maxmarks') || (weightage.internal + weightage.external) || 100;
 
     // Auto-calculate total if not provided but internal+external present
     if (total === undefined && internal !== undefined && external !== undefined) {
@@ -131,41 +151,42 @@ export async function parseResultFile(file: File): Promise<ResultImportPreview> 
     const rowErrors: string[] = [];
     const rowWarnings: string[] = [];
 
-    if (internal !== undefined && (internal < 0 || internal > 20)) {
-      rowWarnings.push(`Internal ${internal} out of expected 0-20 range`);
+    if (internal !== undefined && (internal < 0 || internal > weightage.internal)) {
+      rowWarnings.push(`Internal ${internal} out of expected 0-${weightage.internal} range for ${courseType} under ${pack.code}`);
     }
-    if (external !== undefined && (external < 0 || external > 80)) {
-      rowWarnings.push(`External ${external} out of expected 0-80 range (BCU)`);
+    if (external !== undefined && (external < 0 || external > weightage.external)) {
+      rowWarnings.push(`External ${external} out of expected 0-${weightage.external} range for ${courseType} under ${pack.code}`);
     }
     if (total !== undefined && (total < 0 || total > maxMarks)) {
       rowErrors.push(`Total ${total} out of 0-${maxMarks} range`);
     }
 
-    // Check pass criteria against the college's active scheme pack
-    if (external !== undefined && total !== undefined) {
-      const passCheck = checkSchemePassCriteria(
-        {
-          semesterEndMarks: external,
-          internalMarks: internal || 0,
-          maxSemesterEndMarks: pack.semesterEndExam.defaultMaxMarks,
-          maxInternalMarks: pack.internalAssessment.totalMarks,
-        },
-        pack,
-      );
-      if (!passCheck.isPass) {
-        rowWarnings.push(`Fail per ${pack.code}: ${passCheck.remarks}`);
-      }
+    // Check pass criteria against the cohort-resolved scheme pack.
+    const passCheck = external !== undefined && total !== undefined
+      ? checkSchemePassCriteria(
+          {
+            semesterEndMarks: external,
+            internalMarks: internal || 0,
+            maxSemesterEndMarks: weightage.external,
+            maxInternalMarks: weightage.internal,
+          },
+          pack,
+        )
+      : null;
+    if (passCheck && !passCheck.isPass) {
+      rowWarnings.push(`Fail per ${pack.code}: ${passCheck.remarks}`);
     }
 
-    const grade = get('grade');
-    const gradePoint = getNum('gradepoint');
+    const autoGrade = total === undefined ? undefined : getSchemeGradeFromMarks(total, maxMarks, pack);
+    const grade = get('grade') || autoGrade?.grade;
+    const gradePoint = getNum('gradepoint') ?? autoGrade?.gradePoint;
     const resultRaw = get('result').toUpperCase();
-    let result: 'P' | 'F' | 'A' | 'W' | 'PASS' | 'FAIL' = 'P';
+    let result: 'P' | 'F' | 'A' | 'W' | 'PASS' | 'FAIL' = passCheck ? (passCheck.isPass ? 'P' : 'F') : 'P';
     if (resultRaw) {
       if (['F', 'FAIL', 'FAILED'].includes(resultRaw)) result = 'F';
       else if (['A', 'ABSENT'].includes(resultRaw)) result = 'A';
       else if (['W', 'WITHHELD'].includes(resultRaw)) result = 'W';
-      else result = 'P';
+      else result = passCheck && !passCheck.isPass ? 'F' : 'P';
     }
 
     rows.push({
@@ -174,8 +195,13 @@ export async function parseResultFile(file: File): Promise<ResultImportPreview> 
       usn: get('usn') || regNo,
       name: get('name') || get('studentname') || 'Unknown',
       email: get('email'),
-      course: get('course') || get('program'),
-      batch: get('batch') || get('academicyear'),
+      course,
+      branch,
+      batch,
+      courseType,
+      schemePack: pack,
+      schemePackId: resolvedPack.schemePackId,
+      schemePackResolution: resolvedPack.resolution,
       semester,
       subjectCode,
       subjectName,
@@ -220,7 +246,8 @@ export async function parseResultFile(file: File): Promise<ResultImportPreview> 
 
   return {
     rows,
-    schemePack: pack,
+    schemePack: primaryPack ?? fallbackPack.pack,
+    schemePacks,
     summary: {
       totalStudents: uniqueStudents,
       totalSubjects,
@@ -256,34 +283,34 @@ export function groupResultsByStudent(
     const first = studentRows[0];
     
     const subjects = studentRows.map(r => {
+      const rowPack = r.schemePack || pack;
+      const weightage = getCourseWeightage(r.courseType || 'theory', rowPack);
       const internal = r.internal || 0;
       const external = r.external || 0;
-      const total = r.total || (internal + external);
-      const maxMarks = r.maxMarks || 100;
+      const total = r.total ?? (internal + external);
+      const maxMarks = r.maxMarks || weightage.internal + weightage.external || 100;
 
-      // Auto grade if not provided
+      // Auto grade if not provided, using this student's resolved cohort pack.
       let grade = r.grade;
       let gradePoint = r.gradePoint;
       let isPass = r.result === 'P' || r.result === 'PASS';
 
       if (!grade || gradePoint === undefined) {
-        const gradeInfo = getSchemeGradeFromMarks(total, maxMarks, pack);
+        const gradeInfo = getSchemeGradeFromMarks(total, maxMarks, rowPack);
         grade = grade || gradeInfo.grade;
         gradePoint = gradePoint ?? gradeInfo.gradePoint;
         isPass = gradeInfo.grade !== 'F';
       }
 
-      // Check pass per the college's scheme pack (max marks scale per course:
-      // maxMarks * SEE-share / (SEE + IA-split share)).
-      const maxTotal = pack.semesterEndExam.defaultMaxMarks + pack.internalAssessment.totalMarks;
+      // Each course type may carry its own internal/external denominator.
       const passCheck = checkSchemePassCriteria(
         {
           semesterEndMarks: external,
           internalMarks: internal,
-          maxSemesterEndMarks: Math.round((pack.semesterEndExam.defaultMaxMarks * maxMarks) / maxTotal),
-          maxInternalMarks: Math.round((pack.internalAssessment.totalMarks * maxMarks) / maxTotal),
+          maxSemesterEndMarks: weightage.external,
+          maxInternalMarks: weightage.internal,
         },
-        pack,
+        rowPack,
       );
       if (!passCheck.isPass) isPass = false;
 
@@ -291,6 +318,7 @@ export function groupResultsByStudent(
         subjectCode: r.subjectCode,
         subjectName: r.subjectName,
         credits: r.credits || 4,
+        courseType: r.courseType,
         internal,
         external,
         total,
@@ -323,7 +351,11 @@ export function groupResultsByStudent(
       usn: first.usn,
       semester: first.semester,
       course: first.course,
+      branch: first.branch,
       batch: first.batch,
+      schemePackId: first.schemePackId,
+      schemePackCode: first.schemePack?.code || pack.code,
+      schemePackResolution: first.schemePackResolution,
       subjects,
       totalMarks,
       maxTotalMarks,
@@ -438,6 +470,13 @@ export async function importResults(
           status: 'published' as const,
           result: subject.result,
           isPass: subject.isPass,
+          program: result.course || studentData.course || '',
+          branch: result.branch || studentData.branch || studentData.department || '',
+          batch: result.batch || studentData.batch || '',
+          courseType: subject.courseType || 'theory',
+          schemePackId: result.schemePackId || null,
+          schemePackCode: result.schemePackCode || scheme,
+          schemePackResolution: result.schemePackResolution || 'platform',
           academicYear,
           examType,
           scheme,
@@ -481,6 +520,9 @@ export async function importResults(
           regNo: result.regNo,
           usn: result.usn || result.regNo,
           course: result.course || studentData.course || '',
+          program: result.course || studentData.course || '',
+          branch: result.branch || studentData.branch || studentData.department || '',
+          batch: result.batch || studentData.batch || '',
           semester: result.semester,
           academicYear,
           subjectCode: subject.subjectCode,
@@ -493,7 +535,11 @@ export async function importResults(
           grade: subject.grade,
           gradePoint: subject.gradePoint,
           result: subject.result,
-          percentage: result.percentage,
+          courseType: subject.courseType || 'theory',
+          schemePackId: result.schemePackId || null,
+          schemePackCode: result.schemePackCode || scheme,
+          schemePackResolution: result.schemePackResolution || 'platform',
+          percentage: subject.maxMarks > 0 ? (subject.total / subject.maxMarks) * 100 : 0,
           sgpa: result.sgpa,
           resultStatus: result.result,
           examType,

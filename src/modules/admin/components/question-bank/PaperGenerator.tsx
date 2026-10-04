@@ -1,7 +1,7 @@
 // src/components/question-bank/PaperGenerator.tsx
 // ─── Paper Generator Agent Component ────────────────────
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Box,
   Paper,
@@ -23,6 +23,7 @@ import {
   Card,
   CardContent,
   CardActions,
+  Stack,
   Slider,
   Switch,
   FormControlLabel,
@@ -48,6 +49,8 @@ import { usePaperGenerator } from '../../hooks/usePaperGenerator'
 import { useQuestionBank } from '../../hooks/useQuestionBank'
 import { downloadPaperPDF } from '../../../../shared/utils/pdfDownloader'
 import type { GenerationConfig, PaperSection } from '../../types/questionBank'
+import { DEFAULT_PROGRAMS } from '@/shared/constants/academicPrograms'
+import { getCollegeSchemePack } from '../../api/schemePackApi'
 import QuestionPreview from './QuestionPreview'
 
 const STEPS = ['Configure Paper', 'Define Sections', 'Review & Generate']
@@ -72,6 +75,7 @@ interface PaperGeneratorProps {
   batches: string[]
   branches: string[]
   subjects: string[]
+  programs?: string[]
   onPaperCreated?: (paperId: string) => void
 }
 
@@ -79,6 +83,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
   batches,
   branches,
   subjects,
+  programs = DEFAULT_PROGRAMS,
   onPaperCreated,
 }) => {
   const { generate, generatedResult, generating, error, clearGenerated, currentPaper } = usePaperGenerator()
@@ -113,6 +118,9 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
     duration: number
     batch: string
     branch: string
+    program: string
+    courseType: string
+    useSchemeTemplate: boolean
     date: string
     instructions: string[]
     includePYQ: boolean
@@ -127,6 +135,9 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
     duration: 180,
     batch: '',
     branch: '',
+    program: '',
+    courseType: '_default',
+    useSchemeTemplate: false,
     date: new Date().toISOString().split('T')[0],
     instructions: [
       'All questions are compulsory unless stated otherwise.',
@@ -138,6 +149,79 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
     mode: 'bank',
     numSets: 1,
   })
+
+  const [resolvedScheme, setResolvedScheme] = useState<Awaited<ReturnType<typeof getCollegeSchemePack>> | null>(null)
+  const availablePrograms = programs.length > 0 ? programs : DEFAULT_PROGRAMS
+  const courseTypeOptions = Object.keys(resolvedScheme?.pack.engineering?.courseTypes ?? { _default: { internal: 0, external: 0 } })
+  const schemeTemplate = resolvedScheme?.pack.engineering?.paperTemplate
+
+  useEffect(() => {
+    let active = true
+    getCollegeSchemePack(undefined, {
+      programId: config.program,
+      branchId: config.branch,
+      admissionBatch: config.batch,
+    }).then((resolved) => {
+      if (active) setResolvedScheme(resolved)
+    }).catch(() => {
+      if (active) setResolvedScheme(null)
+    })
+    return () => { active = false }
+  }, [config.program, config.branch, config.batch])
+
+  const applySchemeTemplate = () => {
+    if (!schemeTemplate) return
+    const difficultyMix = (count: number) => {
+      const easy = Math.floor(count / 3)
+      const hard = Math.floor(count / 3)
+      return { easy, medium: count - easy - hard, hard }
+    }
+    const nextSections: PaperSection[] = schemeTemplate.modules
+      ? Array.from({ length: schemeTemplate.modules }, (_, index) => {
+          const moduleNo = index + 1
+          const numQuestions = schemeTemplate.questionsPerModule ?? 2
+          const toAttempt = 1
+          const title = `Module ${moduleNo}`
+          return {
+            id: `scheme-module-${moduleNo}`,
+            name: title,
+            title,
+            description: `Choose ${toAttempt} of ${numQuestions} questions`,
+            marksPerQuestion: schemeTemplate.marksPerFullQuestion ?? Math.max(1, Math.floor(schemeTemplate.rawTotal / schemeTemplate.modules!)),
+            numQuestions,
+            compulsory: false,
+            toAttempt,
+            moduleNo,
+            unitFilter: String(moduleNo),
+            questionType: 'any',
+            difficulty: 'mixed',
+            difficultyMix: difficultyMix(numQuestions),
+          }
+        })
+      : (schemeTemplate.sections ?? []).map((section, index) => ({
+          id: `scheme-${section.code || index + 1}`,
+          name: section.label,
+          title: section.label,
+          description: `Choose ${section.toAttempt} of ${section.questions} questions`,
+          marksPerQuestion: section.marksEach,
+          numQuestions: section.questions,
+          compulsory: section.toAttempt >= section.questions,
+          toAttempt: section.toAttempt,
+          questionType: 'any',
+          difficulty: 'mixed',
+          difficultyMix: difficultyMix(section.questions),
+        }))
+    if (nextSections.length === 0) return
+    setSections(nextSections)
+    setConfig((previous) => ({
+      ...previous,
+      totalMarks: schemeTemplate.rawTotal,
+      duration: schemeTemplate.durationMinutes,
+      mode: 'bank',
+      numSets: 1,
+      useSchemeTemplate: true,
+    }))
+  }
 
   // Sections - now with all required PaperSection fields
   const [sections, setSections] = useState<PaperSection[]>([
@@ -279,6 +363,9 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
       numSets: config.numSets,
       batch: config.batch,
       branch: config.branch,
+      program: config.program,
+      courseType: config.courseType,
+      useSchemeTemplate: config.useSchemeTemplate,
     }
 
     try {
@@ -356,6 +443,21 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                   Quick Quiz (20 Marks · 25m)
                 </Button>
               </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, mt: 1.5 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+                  {resolvedScheme
+                    ? `Scheme: ${resolvedScheme.pack.name} · resolved by ${resolvedScheme.resolution}`
+                    : 'Scheme pack unavailable; standard paper presets remain available.'}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="contained"
+                  disabled={!schemeTemplate}
+                  onClick={applySchemeTemplate}
+                >
+                  Apply scheme paper template{schemeTemplate ? ` · ${schemeTemplate.code}` : ''}
+                </Button>
+              </Stack>
             </Box>
 
             <Grid container spacing={3}>
@@ -379,6 +481,22 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                   >
                     {subjects.map(s => (
                       <MenuItem key={s} value={s}>{s}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid size={{ xs: 12, md: 6 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Programme (scheme scope)</InputLabel>
+                  <Select
+                    value={config.program}
+                    onChange={e => handleConfigChange('program', e.target.value)}
+                    label="Programme (scheme scope)"
+                  >
+                    <MenuItem value="">College default</MenuItem>
+                    {availablePrograms.map((program) => (
+                      <MenuItem key={program} value={program}>{program}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -450,6 +568,23 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                   </Select>
                 </FormControl>
               </Grid>
+
+              {resolvedScheme?.pack.engineering?.courseTypes && (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Course type</InputLabel>
+                    <Select
+                      value={config.courseType}
+                      onChange={e => handleConfigChange('courseType', e.target.value)}
+                      label="Course type"
+                    >
+                      {courseTypeOptions.map((courseType) => (
+                        <MenuItem key={courseType} value={courseType}>{courseType}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
 
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth>
@@ -683,7 +818,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
 
                   <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
                     <Typography variant="caption" color="text.secondary">
-                      Section Total: {section.numQuestions * section.marksPerQuestion} marks
+                      Section Total: {(section.toAttempt ?? section.numQuestions) * section.marksPerQuestion} answerable marks
                     </Typography>
                   </Box>
                 </CardContent>
@@ -706,11 +841,11 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Total Questions: {sections.reduce((sum, s) => sum + s.numQuestions, 0)} | 
-                Total Marks: {sections.reduce((sum, s) => sum + s.numQuestions * s.marksPerQuestion, 0)} / {config.totalMarks}
+                Total Marks: {sections.reduce((sum, s) => sum + (s.toAttempt ?? s.numQuestions) * s.marksPerQuestion, 0)} / {config.totalMarks}
               </Typography>
-              {sections.reduce((sum, s) => sum + s.numQuestions * s.marksPerQuestion, 0) !== config.totalMarks && (
+              {sections.reduce((sum, s) => sum + (s.toAttempt ?? s.numQuestions) * s.marksPerQuestion, 0) !== config.totalMarks && (
                 <Alert severity="info" sx={{ mt: 1 }}>
-                  Section totals ({sections.reduce((sum, s) => sum + s.numQuestions * s.marksPerQuestion, 0)}) 
+                  Answerable section totals ({sections.reduce((sum, s) => sum + (s.toAttempt ?? s.numQuestions) * s.marksPerQuestion, 0)})
                   don't match configured total marks ({config.totalMarks}). The generator will still work.
                 </Alert>
               )}

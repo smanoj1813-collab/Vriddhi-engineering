@@ -38,6 +38,7 @@ interface SectionTarget {
   id: string;
   name: string;
   section: string;
+  program: string;
   branch: string;
   batch: string;
   semester: number;
@@ -77,9 +78,10 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
   const [startDateTime, setStartDateTime] = useState<Date | null>(new Date());
   const [endDateTime, setEndDateTime] = useState<Date | null>(new Date(Date.now() + 3600000));
   const [durationMinutes, setDurationMinutes] = useState(30);
-  // Cohort the test is labelled for (optional). 'public' visibility still
-  // shows the test to every student in the college — these are metadata that
-  // also act as the fallback filter for 'selected' tests.
+  // Cohort the test is labelled for (optional). The program scope lets the
+  // server freeze the matching scheme pack at schedule time; branch and batch
+  // narrow that assignment when supplied.
+  const [program, setProgram] = useState('');
   const [branch, setBranch] = useState('');
   const [batch, setBatch] = useState('');
   const [allowLateSubmission, setAllowLateSubmission] = useState(false);
@@ -97,6 +99,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
     sectionId: string;
     sectionName: string;
     section: string;
+    program: string;
     branch: string;
     batch: string;
     semester: number;
@@ -112,6 +115,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
     name: string;
     regNo: string;
     sectionId: string;
+    program: string;
     branch: string;
     batch: string;
     semester: number;
@@ -138,6 +142,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
             name: String(data.name || 'Unnamed student'),
             regNo: String(data.regNo || data.registrationNumber || ''),
             sectionId: section,
+            program: String(data.programId || data.program || data.course || data.courseName || ''),
             branch: String(data.branch || data.department || ''),
             batch: String(data.batch || data.academicYear || ''),
             semester: Number(data.semester) || 0,
@@ -146,11 +151,12 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
         const sections = new Map<string, SectionTarget>();
         students.forEach((student) => {
           if (!student.sectionId) return;
-          const id = [student.branch, student.batch, student.semester, student.sectionId].join('|');
+          const id = [student.program, student.branch, student.batch, student.semester, student.sectionId].join('|');
           sections.set(id, {
             id,
-            name: [student.branch, student.batch, `Semester ${student.semester}`, `Section ${student.sectionId}`].filter(Boolean).join(' · '),
+            name: [student.program, student.branch, student.batch, `Semester ${student.semester}`, `Section ${student.sectionId}`].filter(Boolean).join(' · '),
             section: student.sectionId,
+            program: student.program,
             branch: student.branch,
             batch: student.batch,
             semester: student.semester,
@@ -166,7 +172,11 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
     return () => { cancelled = true; };
   }, [collegeId]);
 
-  // Distinct branch / batch values present in the college, for the selectors.
+  // Distinct program / branch / batch values present in the college, for the selectors.
+  const programOptions = useMemo(
+    () => [...new Set(availableStudents.map((student) => student.program).filter(Boolean))].sort(),
+    [availableStudents],
+  );
   const branchOptions = useMemo(
     () => [...new Set(availableStudents.map((s) => s.branch).filter(Boolean))].sort(),
     [availableStudents],
@@ -264,8 +274,10 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
         ...input,
         startDateTime,
         endDateTime,
-        branch: branch || undefined,
-        batch: batch || undefined,
+        program,
+        courseType: selectedPaper.courseType || undefined,
+        branch,
+        batch,
         visibility: visibility === 'public' ? 'public' : 'selected',
         targetSections: visibility === 'private' ? targetSections : undefined,
         targetStudents: visibility === 'selected' ? targetStudents : undefined,
@@ -296,6 +308,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
     setStartDateTime(new Date());
     setEndDateTime(new Date(Date.now() + 3600000));
     setDurationMinutes(30);
+    setProgram('');
     setBranch('');
     setBatch('');
     setAllowLateSubmission(false);
@@ -364,6 +377,9 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
       return;
     }
     setSelectedPaper(requested);
+    setProgram(requested.programId || requested.program || '');
+    setBranch(requested.branch || '');
+    setBatch(requested.batch || '');
     setTestTitle(requested.title ? `${requested.title} - Test` : 'Scheduled Test');
     if (requested.duration > 0) setDurationMinutes(requested.duration);
     setShowScheduler(true);
@@ -482,9 +498,13 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                         // Clicking the already-selected card DESELECTS it —
                         // the previous behaviour (re-select) left no way to
                         // switch to a different paper.
-                        onClick={() =>
-                          setSelectedPaper((prev) => (prev?.id === paper.id ? null : paper))
-                        }
+                        onClick={() => {
+                          const nextPaper = selectedPaper?.id === paper.id ? null : paper;
+                          setSelectedPaper(nextPaper);
+                          setProgram(nextPaper?.programId || nextPaper?.program || '');
+                          setBranch(nextPaper?.branch || '');
+                          setBatch(nextPaper?.batch || '');
+                        }}
                       >
                         {selectedPaper?.id === paper.id && (
                           <Box
@@ -524,7 +544,12 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                         size="small"
                         color="inherit"
                         startIcon={<CancelIcon fontSize="small" />}
-                        onClick={() => setSelectedPaper(null)}
+                        onClick={() => {
+                          setSelectedPaper(null);
+                          setProgram('');
+                          setBranch('');
+                          setBatch('');
+                        }}
                       >
                         Clear selection
                       </Button>
@@ -559,6 +584,23 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                       <FormControl sx={{ flex: '1 1 180px', minWidth: 180 }}>
+                        <InputLabel id="test-program-label">Program</InputLabel>
+                        <Select
+                          labelId="test-program-label"
+                          label="Program"
+                          value={program}
+                          onChange={(e) => setProgram(e.target.value)}
+                        >
+                          <MenuItem value="">All programs</MenuItem>
+                          {program && !programOptions.includes(program) && (
+                            <MenuItem value={program}>{program}</MenuItem>
+                          )}
+                          {programOptions.map((option) => (
+                            <MenuItem key={option} value={option}>{option}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControl sx={{ flex: '1 1 180px', minWidth: 180 }}>
                         <InputLabel id="test-branch-label">Branch</InputLabel>
                         <Select
                           labelId="test-branch-label"
@@ -567,6 +609,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                           onChange={(e) => setBranch(e.target.value)}
                         >
                           <MenuItem value="">All branches</MenuItem>
+                          {branch && !branchOptions.includes(branch) && <MenuItem value={branch}>{branch}</MenuItem>}
                           {branchOptions.map((b) => (
                             <MenuItem key={b} value={b}>{b}</MenuItem>
                           ))}
@@ -581,6 +624,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                           onChange={(e) => setBatch(e.target.value)}
                         >
                           <MenuItem value="">All batches</MenuItem>
+                          {batch && !batchOptions.includes(batch) && <MenuItem value={batch}>{batch}</MenuItem>}
                           {batchOptions.map((b) => (
                             <MenuItem key={b} value={b}>{b}</MenuItem>
                           ))}
@@ -649,6 +693,7 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                                   sectionId: section.id,
                                   sectionName: section.name,
                                   section: section.section,
+                                  program: section.program,
                                   branch: section.branch,
                                   batch: section.batch,
                                   semester: section.semester,
@@ -706,8 +751,11 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                         <Typography>{durationMinutes} minutes</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography color="text.secondary">Branch / Batch:</Typography>
-                        <Typography>{branch || 'All branches'} / {batch || 'All batches'}</Typography>
+                        <Typography color="text.secondary">Program / Branch / Batch:</Typography>
+                        <Typography>
+                          {program || 'All programs'}
+                          {' / '}{branch || 'All branches'} / {batch || 'All batches'}
+                        </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography color="text.secondary">Start:</Typography>

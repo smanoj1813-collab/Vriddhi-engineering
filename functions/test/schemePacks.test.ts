@@ -5,7 +5,13 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { validateSchemePackDoc, PRESET_SCHEME_CODES } from '../src/schemePacks'
+import {
+  validateSchemePackDoc,
+  PRESET_SCHEME_CODES,
+  selectSchemePackAssignment,
+  normalizeSchemePackAssignmentScope,
+  type StoredSchemePackAssignment,
+} from '../src/schemePacks'
 
 function validPack(): Record<string, unknown> {
   return {
@@ -93,7 +99,13 @@ describe('validateSchemePackDoc', () => {
   })
 
   it('keeps the preset codes reserved (sync-check with client presets)', () => {
-    assert.deepEqual(PRESET_SCHEME_CODES, ['BCU_SEP_2024', 'KUD_NEP_CBAE', 'GENERIC_NEP_2020'])
+    assert.deepEqual(PRESET_SCHEME_CODES, [
+      'BCU_SEP_2024',
+      'KUD_NEP_CBAE',
+      'GENERIC_NEP_2020',
+      'VTU_BE_2022_5050',
+      'AUTONOMOUS_ENGINEERING_5050',
+    ])
   })
 
   it('defaults status to active and trims notes', () => {
@@ -103,5 +115,68 @@ describe('validateSchemePackDoc', () => {
     const pack = validateSchemePackDoc(raw)
     assert.equal(pack.status, 'active')
     assert.equal(pack.sourceNote, 'verified 2026')
+  })
+
+  it('preserves and validates engineering fields including batch-specific conversion', () => {
+    const raw = validPack()
+    raw.semesterEndExam = {
+      defaultMaxMarks: 50,
+      scaleFrom: 100,
+      durationMinutes: 180,
+      passPercentage: 35,
+    }
+    raw.engineering = {
+      courseTypes: {
+        _default: { internal: 50, external: 50 },
+        lab: { internal: 50, external: 50, heads: ['practical'] },
+      },
+      grading: { method: 'absolute' },
+      percentageConversion: {
+        expression: 'CGPA * 10',
+        batchRules: [{ admissionYears: [2015, 2017, 2018], expression: '(CGPA - 0.75) * 10' }],
+      },
+      paperTemplate: { code: 'VTU_10Q_5MODULES_20M', modules: 5, questionsPerModule: 2, marksPerFullQuestion: 20, rawTotal: 100, durationMinutes: 180 },
+      attainment: { enabled: true, levels: [{ level: 3, minPercentStudents: 80 }] },
+    }
+    const pack = validateSchemePackDoc(raw)
+    assert.equal(pack.semesterEndExam.scaleFrom, 100)
+    assert.equal(pack.engineering?.courseTypes?._default.external, 50)
+    assert.equal(pack.engineering?.percentageConversion?.batchRules?.[0]?.admissionYears?.[0], 2015)
+    assert.equal(pack.engineering?.paperTemplate?.modules, 5)
+    assert.equal(pack.engineering?.attainment?.enabled, true)
+  })
+
+  it('rejects executable or otherwise unsupported CGPA formulas', () => {
+    const raw = validPack()
+    raw.engineering = { percentageConversion: { expression: 'CGPA * 10; globalThis.pwned = true' } }
+    assert.throws(() => validateSchemePackDoc(raw), /supported CGPA arithmetic formula/)
+  })
+})
+
+describe('normalizeSchemePackAssignmentScope', () => {
+  it('collapses whitespace in programme, branch and batch identifiers', () => {
+    assert.deepEqual(
+      normalizeSchemePackAssignmentScope({
+        programId: '  B.E.   ',
+        branchId: 'Computer   Science   Engineering',
+        admissionBatch: '2022-2026',
+      }),
+      { programId: 'B.E.', branchId: 'Computer Science Engineering', admissionBatch: '2022-2026' },
+    )
+  })
+})
+
+describe('selectSchemePackAssignment', () => {
+  const rows: StoredSchemePackAssignment[] = [
+    { schemePackId: 'PROGRAMME', programId: 'B.E.' },
+    { schemePackId: 'CSE_2022', programId: 'B.E.', branchId: 'Computer Science', admissionBatch: '2022-2026' },
+  ]
+
+  it('chooses a cohort override before the programme and otherwise falls back to programme', () => {
+    assert.equal(selectSchemePackAssignment(rows, {
+      programId: 'b.e.', branchId: 'computer science', admissionBatch: '2022-2026',
+    })?.schemePackId, 'CSE_2022')
+    assert.equal(selectSchemePackAssignment(rows, { programId: 'B.E.', branchId: 'Electrical', admissionBatch: '2022-2026' })?.schemePackId, 'PROGRAMME')
+    assert.equal(selectSchemePackAssignment(rows, { programId: 'MCA' }), null)
   })
 })

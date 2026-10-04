@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   calculateAttainment,
   checkHeadsOfPassing,
+  convertCgpaToPercentage,
   generateSchemePaper,
   getCourseWeightage,
   getSchemeGrade,
@@ -27,6 +28,33 @@ import {
   VTU_2022_BE_BTECH,
   SCHEME_PACK_PRESETS,
 } from '../types/schemePack';
+
+describe('batch-scoped CGPA conversion', () => {
+  it('uses the legacy adjustment for 2015, 2017 and 2018 admission batches', () => {
+    assert.equal(convertCgpaToPercentage(8, '2015-2019', VTU_2022_BE_BTECH), 72.5);
+    assert.equal(convertCgpaToPercentage(8, '2017', VTU_2022_BE_BTECH), 72.5);
+    assert.equal(convertCgpaToPercentage(8, '2018-2022', VTU_2022_BE_BTECH), 72.5);
+  });
+
+  it('uses CGPA × 10 for 2022 onwards and the pack fallback for unknown batches', () => {
+    assert.equal(convertCgpaToPercentage(8, '2022-2026', VTU_2022_BE_BTECH), 80);
+    assert.equal(convertCgpaToPercentage(8, '2029', VTU_2022_BE_BTECH), 80);
+    assert.equal(convertCgpaToPercentage(8, '2020', VTU_2022_BE_BTECH), 80);
+  });
+
+  it('rejects non-finite CGPA and does not evaluate unsupported formulas', () => {
+    assert.equal(convertCgpaToPercentage(Number.NaN, '2022', VTU_2022_BE_BTECH), null);
+    const unsafe = {
+      ...VTU_2022_BE_BTECH,
+      engineering: {
+        ...VTU_2022_BE_BTECH.engineering,
+        percentageConversion: { expression: 'globalThis.process.exit(1)' },
+      },
+    };
+    assert.equal(convertCgpaToPercentage(8, '2022', unsafe), null);
+    assert.equal(convertCgpaToPercentage(8, '2022', BCU_SEP_2024), null);
+  });
+});
 
 describe('SEE scaling', () => {
   it('scales a 100-mark VTU paper down to 50', () => {
@@ -45,11 +73,15 @@ describe('SEE scaling', () => {
 });
 
 describe('course-type weightages', () => {
-  it('reads per-course-type splits', () => {
+  it('reads per-course-type splits and falls through to _default for unknown types', () => {
     assert.deepEqual(getCourseWeightage('theory', VTU_2022_BE_BTECH), { internal: 50, external: 50 });
     assert.deepEqual(
       getCourseWeightage('project', VTU_2022_BE_BTECH),
       { internal: 50, external: 100 },
+    );
+    assert.deepEqual(
+      getCourseWeightage('unlisted-elective', VTU_2022_BE_BTECH),
+      VTU_2022_BE_BTECH.engineering?.courseTypes?._default,
     );
   });
 
@@ -131,6 +163,20 @@ describe('relative grading', () => {
     const grade = getSchemeGrade({ percentage: 30, percentile: 99, cohortSize: 60 }, AUTONOMOUS_ENGINEERING_5050);
     assert.equal(grade.grade, 'F');
     assert.equal(grade.gradePoint, 0);
+
+    const noBandFloorPack = {
+      ...AUTONOMOUS_ENGINEERING_5050,
+      engineering: {
+        ...AUTONOMOUS_ENGINEERING_5050.engineering,
+        grading: {
+          ...AUTONOMOUS_ENGINEERING_5050.engineering!.grading!,
+          relativeBands: [{ grade: 'O', gradePoint: 10, minPercentile: 0 }],
+        },
+      },
+    };
+    const noBandFloorGrade = getSchemeGrade({ percentage: 39, percentile: 99, cohortSize: 60 }, noBandFloorPack);
+    assert.equal(noBandFloorGrade.grade, 'F');
+    assert.equal(noBandFloorGrade.method, 'absolute');
   });
 
   it('grades absolutely for VTU regardless of the cohort', () => {

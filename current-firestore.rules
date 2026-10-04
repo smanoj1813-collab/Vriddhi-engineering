@@ -1239,7 +1239,12 @@ service cloud.firestore {
     // (Admin SDK), which is the single door that validates slab/IA/grade
     // structure before a pack can poison result imports or hall tickets.
     match /schemePacks/{packId} {
-      allow get, list: if isSignedIn() && (isStaff() || sameCollege(resource.data));
+      // Global preset packs are read-only reference data used by students and
+      // staff alike; custom packs stay tenant-scoped.
+      allow get, list: if isSignedIn() && (
+        ('global' in resource.data && resource.data.global == true)
+        || sameCollege(resource.data)
+      );
       allow create, update, delete: if false;
     }
 
