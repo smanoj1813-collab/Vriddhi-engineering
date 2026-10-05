@@ -1,6 +1,7 @@
 # Assessment Portal Redesign — Skills-First Assessment for Technical Colleges
 
-Status: **Design proposal — awaiting college requirements before implementation**
+Status: **Design proposal — direction approved, refinement round in progress.
+No Phase-1 code yet; iterate on this doc with college feedback before build.**
 Date: 2026-10-05 · Project: `vriddhi-engineering`
 
 ---
@@ -207,14 +208,68 @@ colleges' own requirements arrive.
 
 ---
 
-## 5. Open questions (need answers before build)
+## 5. Refinement areas (for the current design-review round)
 
-1. **Fee/exam hold scope** — fee callables are already deployed; are Student
-   Portal fee + university-exam features on hold like Admission Center, or active?
+Concrete detail added for discussion — each item is a decision point colleges
+or the product owner should react to:
+
+### 5.1 Mastery calculation
+
+Per student × skill: `mastery = Σ(weight_i × score_i) / Σ(weight_i)` over the
+last N attempts (N = 8), where `weight_i = difficultyWeight × recencyDecay`
+(recency half-life 30 days). Bands: <40% *Needs Training*, 40–69% *Developing*,
+70–84% *Job-Ready*, ≥85% *Strong*. The college-editable performance categories
+still label report bands; mastery bands are a separate, fixed scale so cross-
+college comparisons stay meaningful.
+
+### 5.2 Company readiness score
+
+`readiness(company) = Σ_section (sectionWeight × projectedSectionScore)` where
+`projectedSectionScore` is the mean mastery of the section's mapped skills
+discounted by attempt recency. Cut-offs start as per-college editable numbers
+(seeded blank — no invented data); a drive is "green" at ≥ cut-off for every
+section, "amber" within 10 points, else "red". Open point: should the platform
+ship default cut-offs per company for colleges that want them?
+
+### 5.3 Blueprint builder UX
+
+Three entry paths, all ending in the same editor:
+1. **Blank** — pick type, add sections, assign skills.
+2. **From company pattern** — choose a company guide (`prep_companies`),
+   section weights/counts pre-filled, college tweaks.
+3. **Clone** — copy a previous blueprint (next batch, next drive).
+Validation mirrors the paper scheduler: every section resolvable to ≥ count
+pool questions, or a shortfall warning naming the skills with thin pools and
+offering AI generation for exactly the gap.
+
+### 5.4 Data-model field detail (for review)
+
+- `skillQuestions/{collegeId}/{id}`: `{ text, type, options?, answer, skillId,
+  difficulty 1-4, tags[], status: draft|approved, createdBy, usedCount, lastUsedAt }`
+- `scheduledTests` additions: `{ sourceKind: 'paper'|'skills', blueprintId?,
+  companyCode?, skillCoverage: { skillId: count } }`
+- `studentAssessments` additions: `{ skillScores: { [skillId]: { correct,
+  total, avgDifficulty } }, companyCode? }`
+- `skillMastery/{collegeId}/{studentId}`: `{ bySkill: { [skillId]: { mastery,
+  attempts, lastAttemptAt } }, readiness: { [companyCode]: score }, updatedAt }`
+  (recomputed post-submit; reports read this doc — cheap dashboards).
+
+### 5.5 What "no question paper module" means in the UI
+
+For a `skills`-mode college: Paper Builder, Paper Review, PYQ import and
+scheme-grade entry do not appear in navigation (same toggle mechanism used for
+Assignments today). Their functions stay deployed for university-mode colleges;
+no deletion. `getMyCurriculum` / grading records remain shared infrastructure.
+
+## 6. Open questions (need answers before build)
+
+1. ~~Fee/exam hold scope~~ — **Resolved 2026-10-05:** fees are on hold too
+   (deployed fee callables untouched); exam-area work frozen like Admission.
 2. **Default `assessmentMode`** — for newly onboarded technical colleges:
    default `skills`? Existing colleges keep `university` unless they opt in.
 3. **Which assessment types** does the first pilot college want on day one?
-4. **Readiness cut-offs** — who owns company cut-off data (platform seed vs.
-   college-entered)?
+4. **Readiness cut-offs** — platform defaults per company, or college-only entry?
 5. **Proctoring depth** for low-stakes skill checks — keep full proctoring or
    a lighter "honesty pledge" mode to reduce friction on practice attempts?
+6. **Mastery visibility to students** — full radar from attempt #1, or only
+   after a diagnostic baseline? (Avoids noisy 0% radars on day one.)

@@ -526,7 +526,10 @@ async function loadAddressedAnnouncements(
 }
 
 export const getMyNotifications = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  // Quota pilot (docs/QUOTA_COMPATIBLE_DEPLOYMENT_PLAN.md): 30 → 10. This is
+  // the single-function pilot approved to bring one active, non-admission
+  // function under the 20,000 milliCPU Cloud Run cap before touching more.
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 10 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

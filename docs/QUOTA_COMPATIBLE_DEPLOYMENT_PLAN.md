@@ -1,6 +1,8 @@
 # Quota-Compatible Deployment Plan — Cloud Run CPU Quota (asia-south1)
 
-Status: **Proposal — nothing applied. Scaling caps require explicit approval.**
+Status: **Pilot cap approved & applied in code (getMyNotifications). Wider caps
+still proposed — nothing else applied. Deployment runs from the Windows
+worktree, in batches of ≤ 5, after syncing this branch.**
 Date: 2026-10-05 · Project: `vriddhi-engineering` · Region: `asia-south1`
 
 ---
@@ -18,6 +20,11 @@ Date: 2026-10-05 · Project: `vriddhi-engineering` · Region: `asia-south1`
 - `runStudentCode` (Judge0) stays excluded — no deploy, no placeholder secret,
   no bypass.
 - Admission Center's 10 functions stay **on hold** (not deleted, not redeployed).
+- Student-portal **fee functions are also on hold** (decision 2026-10-05):
+  `createFeePaymentOrder`, `verifyFeePayment`, `razorpayWebhook` are already
+  deployed and stay exactly as they are — no changes, no redeploy. Exam-area
+  work is likewise frozen; only quota-neutral source fixes (like this plan's
+  pilot) proceed for in-scope areas.
 - Deployments run from the prepared worktree `C:\Projects\Vriddhi-engineering-deploy`,
   never the original Windows checkout; approved source changes must be synced
   to that worktree first.
@@ -46,16 +53,16 @@ milliCPU) — 12.8× the entire regional quota.** A single deployment batch of
 Do exactly what the Cloud Run error prescribes — bring `maxScale`
 (`maxInstances`) down — with the smallest viable values, then verify.
 
-### Step 1 — Pilot (one active, non-admission function)
+### Step 1 — Pilot (one active, non-admission function) ✅ approved
 
 Pick `getMyNotifications` (active, core area, 256 MiB, read-only):
 
-- Set `maxInstances: 30 → 10` (~1.67 vCPU requested).
+- `maxInstances: 30 → 10` (~1.67 vCPU requested) — **applied in this branch**.
 - Sync change to the deployment worktree, build, deploy **alone**.
 - Verify: deploys cleanly, responds in the app, Cloud Run console shows
   maxScale 10.
 
-### Step 2 — Roll out the remaining in-scope functions in batches of ≤ 5
+### Step 2 — Roll out the remaining in-scope functions in batches of ≤ 5 *(proposal — not yet approved)*
 
 Caps (memory and CPU unchanged):
 
