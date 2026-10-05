@@ -171,3 +171,33 @@ test('engineering permissions are additive and obey deny-by-default', () => {
   assert.equal(roleHasPermission('admin', 'not.a.real.permission'), false)
   assert.equal(roleHasPermission(null, 'universityExam.manage'), false)
 })
+
+test('assignment analytics left the HOD portal (HOD round)', () => {
+  // Hidden from hodNav/admin nav; the deep link bounces the department too.
+  assert.equal(canAccessAdminPath('admin', '/admin/assignment-analytics'), false)
+  assert.equal(canAccessAdminPath('hod', '/admin/assignment-analytics'), false)
+  assert.equal(canAccessAdminPath('employee', '/admin/assignment-analytics'), false)
+  // Principal keeps the lane; superadmin bypasses as always.
+  assert.equal(canAccessAdminPath('principal', '/admin/assignment-analytics'), true)
+  assert.equal(canAccessAdminPath('superadmin', '/admin/assignment-analytics'), true)
+  assert.equal(roleHasPermission('principal', 'analytics.assignments'), true)
+  assert.equal(roleHasPermission('hod', 'analytics.assignments'), false)
+  assert.equal(roleHasPermission('admin', 'analytics.assignments'), false)
+  // Plain Analytics and Journey stay with the department.
+  for (const role of ['admin', 'hod'] as const) {
+    assert.equal(canAccessAdminPath(role, '/admin/analytics'), true, role)
+    assert.equal(canAccessAdminPath(role, '/admin/journey'), true, role)
+  }
+})
+
+test('the HOD paper-craft pages bounce at the route layer, not this matrix', () => {
+  // Official Grade Records / Paper Review / Paper Generator are gated by
+  // PAPER_CRAFT_ROLES in src/modules/admin/routes.tsx (superadmin + employee),
+  // so canAccessAdminPath still treats them as academic pages.
+  for (const p of ['/admin/grade-records', '/admin/paper-review', '/admin/paper-generator']) {
+    assert.equal(canAccessAdminPath('employee', p), true, p)
+    assert.equal(canAccessAdminPath('superadmin', p), true, p)
+    assert.equal(canAccessAdminPath('accounts', p), false, p)
+    assert.equal(canAccessAdminPath('student', p), false, p)
+  }
+})

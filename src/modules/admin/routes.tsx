@@ -127,6 +127,17 @@ const questionWorkflowOnly = (node: ReactNode) => (
   <RoleRoute allowedRoles={QUESTION_WORKFLOW_ROLES}>{node}</RoleRoute>
 );
 
+// HOD round: Official Grade Records, Paper Review and Paper Generator left the
+// HOD/admin sidebar as well (the department keeps the question bank and AI
+// drafting; a new test-scheduling surface replaces this lane). Hidden, not
+// deleted — the employee workspace and superadmin still run these pages, and
+// the deep links bounce everyone else. Plug back for HOD/admin = add
+// 'admin'/'hod' here and re-add the nav lines in Layout.tsx.
+const PAPER_CRAFT_ROLES: UserRole[] = ['superadmin', 'employee'];
+const paperCraftOnly = (node: ReactNode) => (
+  <RoleRoute allowedRoles={PAPER_CRAFT_ROLES}>{node}</RoleRoute>
+);
+
 export const adminRoutes: RouteObject[] = [
   {
     path: '/admin',
@@ -152,7 +163,7 @@ export const adminRoutes: RouteObject[] = [
       { path: 'test-reports', element: <LazyPage><AssessmentTestReportsPage /></LazyPage> },
       // Principal oversight: read-only branch-wise conduction picture.
       { path: 'branch-conduction', element: <LazyPage><BranchConductionPage /></LazyPage> },
-      { path: 'grade-records', element: questionWorkflowOnly(<LazyPage><GradeRecords /></LazyPage>) },
+      { path: 'grade-records', element: paperCraftOnly(<LazyPage><GradeRecords /></LazyPage>) },
       { path: 'fee-management', element: <LazyPage><AdminFeeManagement /></LazyPage> },
       { path: 'finance-settings', element: <LazyPage><FinanceSettings /></LazyPage> },
       // ── College office: library ──
@@ -174,8 +185,8 @@ export const adminRoutes: RouteObject[] = [
       // B revamp: single hub — old deep-links render same page on its Universal / Review tab so bookmarks don't 404
       { path: 'universal-bank', element: questionWorkflowOnly(<LazyPage><QuestionBank initialTab="universal" /></LazyPage>) },
       { path: 'review-queue', element: questionWorkflowOnly(<LazyPage><QuestionBank initialTab="review" /></LazyPage>) },
-      { path: 'paper-review', element: questionWorkflowOnly(<LazyPage><PaperReview /></LazyPage>) },
-      { path: 'paper-generator', element: questionWorkflowOnly(<LazyPage><PaperGeneratorAdmin /></LazyPage>) },
+      { path: 'paper-review', element: paperCraftOnly(<LazyPage><PaperReview /></LazyPage>) },
+      { path: 'paper-generator', element: paperCraftOnly(<LazyPage><PaperGeneratorAdmin /></LazyPage>) },
       { path: 'class-schedule', element: <LazyPage><AdminClassSchedule /></LazyPage> },
       { path: 'curriculum', element: <LazyPage><AdminCurriculum /></LazyPage> },
       { path: 'curriculum-progress', element: <LazyPage><CurriculumProgress /></LazyPage> },
@@ -189,7 +200,7 @@ export const adminRoutes: RouteObject[] = [
       { path: 'onboarding', element: <LazyPage><CollegeOnboarding /></LazyPage> },
       { path: 'admissions', element: <LazyPage><AdmissionCenter /></LazyPage> },
       { path: 'papers/builder', element: questionWorkflowOnly(<LazyPage><PaperBuilder /></LazyPage>) },
-      { path: 'papers/generator', element: questionWorkflowOnly(<LazyPage><PaperGeneratorAdmin /></LazyPage>) },
+      { path: 'papers/generator', element: paperCraftOnly(<LazyPage><PaperGeneratorAdmin /></LazyPage>) },
       // Karnataka University Features - Competitive with Uniclare
       { path: 'exam-management', element: <LazyPage><ExamManagement /></LazyPage> },
       { path: 'uucms-integration', element: <LazyPage><UUCMSIntegration /></LazyPage> },

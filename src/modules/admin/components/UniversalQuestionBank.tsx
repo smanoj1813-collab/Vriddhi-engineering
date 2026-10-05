@@ -569,6 +569,11 @@ export function UniversalQuestionBank({
   const { user } = useAuth();
   const collegeId = user?.collegeId || localStorage.getItem('vriddhi_college_id') || '';
   const isSuperadmin = user?.role === 'superadmin';
+  // /admin/paper-generator left the HOD/admin portal (HOD round); only the
+  // roles still allowed on that route may be sent there. Everyone else keeps
+  // the in-dialog "Create Paper" flow. Mirrors PAPER_CRAFT_ROLES in
+  // src/modules/admin/routes.tsx — widen both together to plug it back.
+  const canOpenAdminPaperGenerator = user?.role === 'superadmin' || user?.role === 'employee';
 
   // ── Correct universal-store binding (was legacy college store + cast) ──
   const {
@@ -1045,20 +1050,22 @@ export function UniversalQuestionBank({
                 <Button size="small" variant="contained" color="success" onClick={handleOpenPaperDialog}>
                   Create Paper
                 </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  sx={{ bgcolor: 'white', color: 'primary.main' }}
-                  onClick={() => {
-                    if (collegeId) {
-                      navigate('/admin/paper-generator', { state: { universalSelection: selectedIdsArray } });
-                    } else {
-                      handleOpenPaperDialog();
-                    }
-                  }}
-                >
-                  Go to Generator
-                </Button>
+                {canOpenAdminPaperGenerator && (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    sx={{ bgcolor: 'white', color: 'primary.main' }}
+                    onClick={() => {
+                      if (collegeId) {
+                        navigate('/admin/paper-generator', { state: { universalSelection: selectedIdsArray } });
+                      } else {
+                        handleOpenPaperDialog();
+                      }
+                    }}
+                  >
+                    Go to Generator
+                  </Button>
+                )}
               </Box>
             </MuiPaper>
           )}
@@ -1098,19 +1105,21 @@ export function UniversalQuestionBank({
                       setPaperDialogOpen(false);
                       if (isSuperadmin) navigate('/superadmin/question-bank');
                       else if (user?.role === 'faculty') navigate('/faculty/papers');
-                      else navigate('/admin/paper-generator');
+                      else if (canOpenAdminPaperGenerator) navigate('/admin/paper-generator');
                     }}
                   >
                     Done
                   </Button>
-                  <Button
-                    variant="contained"
-                    onClick={() => {
-                      navigate('/admin/paper-generator');
-                    }}
-                  >
-                    View Papers
-                  </Button>
+                  {canOpenAdminPaperGenerator && (
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        navigate('/admin/paper-generator');
+                      }}
+                    >
+                      View Papers
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button variant="contained" onClick={handleCreatePaperFromSelection} disabled={paperCreating || selectedCount === 0}>

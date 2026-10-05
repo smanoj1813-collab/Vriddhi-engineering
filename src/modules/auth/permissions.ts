@@ -90,6 +90,10 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
 
   // ── Principal-only governance ─────────────────────────────────
   'access.settings': ['principal'],
+  // Assignment reporting left the HOD portal (HOD round): departments read
+  // Analytics + Journey; assignment-level reporting stays an institution
+  // lane. Add 'admin'/'hod' back here to plug it in again.
+  'analytics.assignments': ['principal'],
 };
 
 /** All permission identifiers known to the matrix. */
@@ -191,6 +195,9 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/bcu-compliance', permission: 'universityExam.manage' },
   { path: '/admin/result-importer', permission: 'universityExam.manage' },
   { path: '/admin/scheme-packs', permission: 'engineering.schemePacks' },
+  // Insights — Assignment Analytics is out of the HOD sidebar, so deep links
+  // bounce the department too (principal + superadmin keep it).
+  { path: '/admin/assignment-analytics', permission: 'analytics.assignments' },
   // Principal
   // Everyone in the shell
   { path: '/admin/install-app', permission: null },

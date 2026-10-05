@@ -140,9 +140,10 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
           push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
           push(act('ai-questions', 'AI Question Drafting', '/faculty/ai-questions', 'paper'));
         } else {
+          // HOD round: Paper Generator / Paper Review left the department
+          // portal, so the assistant stops offering them here.
           push(act('question-bank', 'Open Question Bank', '/admin/question-bank', 'question-bank'));
-          push(act('paper', 'Launch Paper Generator', '/admin/paper-generator', 'paper'));
-          push(act('review', 'Paper Review Queue', '/admin/paper-review', 'portal'));
+          push(act('ai-questions', 'AI Question Drafting', '/admin/ai-questions', 'paper'));
         }
       } else if (isStudent) {
         // Privacy boundary: students get their assessment + tutoring surface.
@@ -166,7 +167,8 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
         if (canAuthorPapers) push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
       } else {
         push(act('assessments', 'Assessments', '/admin/assessments', 'assessments'));
-        push(act('grades', 'Grade Records', '/admin/grade-records', 'grades'));
+        // Official Grade Records is no longer a department surface.
+        push(act('reports', 'Assessment Reports', '/admin/test-reports', 'analytics'));
       }
       break;
 

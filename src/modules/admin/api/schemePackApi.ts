@@ -17,6 +17,7 @@ import {
   type UniversitySchemePack,
 } from '@/shared/types/schemePack';
 import { normalizeSchemePack } from '@/shared/utils/schemeEngine';
+import { filterVisibleSchemePacks } from '@/shared/utils/schemePackVisibility';
 import { findSchemePackAssignment, type SchemePackContext } from '@/shared/utils/schemePackResolution';
 
 /** A pack as the UI lists it: `origin` distinguishes built-ins from customs. */
@@ -31,7 +32,13 @@ function currentCollegeId(): string {
   return id;
 }
 
-/** Presets + the college's custom packs, presets first. */
+/**
+ * Presets + the college's custom packs, presets first.
+ *
+ * The three legacy non-engineering presets are filtered out of the listing
+ * (see schemePackVisibility) — resolution below still knows them, so a
+ * college already bound to one keeps its rules.
+ */
 export async function fetchSchemePacks(collegeId?: string): Promise<ListedSchemePack[]> {
   const cid = collegeId || currentCollegeId();
   const listed: ListedSchemePack[] = SCHEME_PACK_PRESETS.map((p) => ({ pack: p, origin: 'preset' }));
@@ -54,7 +61,7 @@ export async function fetchSchemePacks(collegeId?: string): Promise<ListedScheme
     // Rules/index hiccups should not sink the page — in-code presets still list.
     console.warn('[schemePackApi] Firestore packs unavailable:', err);
   }
-  return listed;
+  return filterVisibleSchemePacks(listed);
 }
 
 /**

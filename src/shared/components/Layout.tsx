@@ -187,14 +187,13 @@ const navItems: NavItem[] = [
   { label: "Faculty Attendance", path: "/admin/faculty-attendance", icon: <BadgeIcon fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Branch-wise Assessment Conduction", path: "/admin/branch-conduction", icon: <Assignment fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Academic" },
-  // Principal dropped from the five entries below (sidebar + search/quick-jump):
-  // the question/paper craft surface and Official Grade Records are HOD
-  // territory; the principal keeps oversight via the Assessments entry above.
-  { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" />, roles: ["admin"], section: "Academic" },
+  // Principal dropped earlier (question/paper craft is department work); the
+  // HOD round then dropped Official Grade Records, Paper Review and Paper
+  // Generator for `admin`/`hod` too — the department keeps the question bank
+  // and AI drafting. Plug back = re-add the entries with their role strings
+  // (and the roles in PAPER_CRAFT_ROLES, src/modules/admin/routes.tsx).
   { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
-  { label: "Paper Review", path: "/admin/paper-review", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
-  { label: "Paper Generator", path: "/admin/paper-generator", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
   { label: "Admission Center", path: "/admin/admissions", icon: <People fontSize="small" />, roles: ["admin", "principal"], section: "Students" },
@@ -203,7 +202,8 @@ const navItems: NavItem[] = [
   { label: "Guest Faculty Billing", path: "/admin/guest-faculty-billing", icon: <BadgeIcon fontSize="small" />, roles: ["principal"], section: "Finance" },
   { label: "Finance Settings", path: "/admin/finance-settings", icon: <AttachMoney fontSize="small" />, roles: ["principal"], section: "Finance" },
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
-  { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
+  // `admin` (= department HOD) dropped: assignment reporting is a principal lane.
+  { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" />, roles: ["principal"], section: "Insights" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
   { label: "Settings", path: "/admin/settings", icon: <Settings fontSize="small" />, roles: ["admin", "principal"], section: "Settings" },
 
@@ -214,15 +214,13 @@ const navItems: NavItem[] = [
   { label: "Attendance", path: "/admin/attendance", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Academic" },
   { label: "Faculty Attendance", path: "/admin/faculty-attendance", icon: <BadgeIcon fontSize="small" />, roles: ["hod"], section: "Academic" },
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["hod"], section: "Academic" },
-  { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" />, roles: ["hod"], section: "Academic" },
+  // HOD round: Grade Records, Paper Review and Paper Generator removed here
+  // too (same plug-back note as the admin block above).
   { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
-  { label: "Paper Review", path: "/admin/paper-review", icon: <Description fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
   { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
-  { label: "Paper Generator", path: "/admin/paper-generator", icon: <Description fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["hod"], section: "Insights" },
-  { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" />, roles: ["hod"], section: "Insights" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["hod"], section: "Insights" },
 
   // ─── FACULTY ───
@@ -504,11 +502,14 @@ const hodNav: SidebarEntry[] = [
     icon: <Assignment fontSize="small" />,
     children: [
       { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" /> },
-      { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" /> },
       { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" /> },
-      { label: "Paper Review", path: "/admin/paper-review", icon: <Description fontSize="small" /> },
       { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" /> },
-      { label: "Paper Generator", path: "/admin/paper-generator", icon: <Description fontSize="small" /> },
+      // HIDDEN for HOD/admin (plug back by re-adding the nav line here, the
+      // role string in the flat navItems above, and 'admin'/'hod' to
+      // PAPER_CRAFT_ROLES in src/modules/admin/routes.tsx):
+      //   Official Grade Records · Paper Review · Paper Generator
+      // The department keeps the question bank + AI drafting; the test
+      // scheduling surface that replaces this lane is pending design.
     ],
   },
 
@@ -529,7 +530,10 @@ const hodNav: SidebarEntry[] = [
     icon: <TrendingUp fontSize="small" />,
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
-      { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" /> },
+      // HIDDEN for HOD/admin (plug back: re-add this line, the role string in
+      // the flat navItems above, and drop the '/admin/assignment-analytics'
+      // entry from ADMIN_ROUTE_PERMISSIONS in src/modules/auth/permissions.ts):
+      //   Assignment Analytics — assignment reporting stays with the principal.
       { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" /> },
     ],
   },
