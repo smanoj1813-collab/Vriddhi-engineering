@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStudentData } from '../hooks/useStudentData';
 import StudentAcademicSummary from '../components/StudentAcademicSummary';
+import TodayStrip from '../components/TodayStrip';
 import {
   Calendar, BookOpen, FileText, CreditCard, Clock, CheckCircle, AlertTriangle,
   Bell, ChevronRight, TrendingUp, MapPin, BarChart3, Library, Settings, Receipt,
@@ -389,6 +390,10 @@ export default function StudentDashboard() {
       {/* Deterministic academic context (getMyStudentAcademicContext callable).
           Renders nothing when the backend feature gate is off. */}
       <StudentAcademicSummary />
+
+      {/* One Vriddhi Phase B: the three-pillar pulse — what to do next across
+          Learning, Assessment and Practice, from data already loaded. */}
+      <TodayStrip />
 
       {/* Quick Actions — up to 15 destinations from the shared student nav,
           split into their nav groups. Programme-specific actions are filtered
