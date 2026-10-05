@@ -195,18 +195,50 @@ Concrete v1 links (all deep links, no new engines):
 | Phase | Scope | Acceptance |
 |---|---|---|
 | **A — Practice visible** ✅ | Placement Prep nav item → existing `/prep` viewer, governed by the college visibility panel | student of an enabled college reaches company prep in ≤ 2 taps from home; disabled college sees nothing, deep links refused |
-| **B — Today strip** | three-pillar pulse on dashboard from existing data | strip renders from data already loaded; every row deep-links correctly |
-| **C — Loop links** | result → practice/learning links; prep → upcoming tests | every completed test offers ≥ 1 correct next step; links respect college toggles |
-| **D — Journey spine** | practice activity + company readiness rows in My Journey | one page answers "how am I doing" across all three pillars |
+| **B — Today strip** ✅ | three-pillar pulse on dashboard from existing data | strip renders from data already loaded; every row deep-links correctly |
+| **C — Loop links** ✅ | result → practice/learning links; prep → upcoming tests | every completed test offers ≥ 1 correct next step; links respect college toggles |
+| **D — Journey spine** ✅ | practice activity rows in My Journey (company-readiness lines deferred) | one page answers "how am I doing" across all three pillars |
 
 Each phase ships independently; none touches the assessment engine.
+
+### What B–D shipped
+
+- **B — `TodayStrip`** (`src/modules/student/components/TodayStrip.tsx`) renders
+  above Quick Actions from the shared `useStudentData` snapshot only: next
+  class today (skips cancelled/completed), assignments due when the module is
+  on, tests starting inside the next 7 days, and one practice pick
+  (upcoming test → Placement Prep; else Placement Prep if visible; else Coding
+  Lab; else study materials). Pure logic lives in `buildTodayItems`, pinned by
+  `todayStrip.test.ts`.
+- **C — loop links**: every graded result shows a "Next steps" card —
+  "Practice {subject} questions" → `/prep` (rendered only while the college
+  keeps Placement Prep visible) and "Study {subject} materials" →
+  `/student/materials`. The reverse direction: signed-in students see a
+  "See my upcoming tests →" strip on the public prep viewer; the assessments
+  page itself enforces the college toggles, so the link never points at a
+  hidden surface.
+- **D — `PracticeActivityCard`** on My Journey reads the learner's existing
+  Placement Prep progress (`GET /prep/progress`, zero new backend surface) and
+  shows topics visited / completed / quizzes attempted with a deep link into
+  `/prep`. The card hides when Placement Prep is switched off or the read
+  fails — it never invents progress.
+
+### Deferred (documented, not dropped)
+
+- **Company-readiness lines in My Journey** depend on the parked assessment /
+  mastery redesign (see the v3 assessment doc, kept for reference). No fake
+  readiness scores ship until that engine exists.
+- **Coding-lab progress in Journey**: no client-readable progress store exists
+  today; adding one is a separate, approved scope change.
 
 ## 9. Open questions
 
 1. "Placement Prep" label — or the college-facing brand (e.g. "Career Prep")?
 2. Prep entry for colleges with the master switch on but zero published
    content — show with an empty state, or hide until first publish?
-3. Should the dashboard strip replace the current quick-tiles section on
-   desktop, or sit above it (current plan: above)?
-4. Practice activity in Journey: show from day one (empty states) or after a
-   college has real activity?
+3. ~~Should the dashboard strip replace the current quick-tiles section on
+   desktop, or sit above it?~~ **Resolved**: it sits above Quick Actions and
+   the tiles are untouched.
+4. ~~Practice activity in Journey: show from day one (empty states) or after a
+   college has real activity?~~ **Resolved**: show from day one with an honest
+   empty state and a one-tap start link.
