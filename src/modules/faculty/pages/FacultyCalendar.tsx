@@ -17,11 +17,18 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/Firebase/config'
 import { useAuth } from '@/modules/auth/context/AuthContext'
+import { fetchCalendarEvents } from '@/modules/admin/api/calendarApi'
+import {
+  expandAcademicCalendar,
+  isAcademicOverlayId,
+  overlayLabel,
+  type AcademicCalendarSource,
+} from '@/shared/utils/academicCalendarOverlay'
 
 interface CalendarEvent {
   id: string
   title: string
-  type: 'class' | 'exam' | 'meeting' | 'deadline' | 'other'
+  type: 'class' | 'exam' | 'meeting' | 'deadline' | 'holiday' | 'other'
   date: string
   startTime: string
   endTime: string
@@ -29,6 +36,9 @@ interface CalendarEvent {
   batch: string
   subject: string
   color: string
+  /** College academic-calendar entries are read-only here (single source of
+   *  truth is the Academic Calendar page; writes are callable-only). */
+  readOnly?: boolean
 }
 
 const eventColors: Record<string, string> = {
@@ -36,6 +46,8 @@ const eventColors: Record<string, string> = {
   exam: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
   meeting: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   deadline: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  // College academic calendar (holidays, study holidays, fests).
+  holiday: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
   other: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
 }
 
@@ -44,6 +56,7 @@ const eventDotColors: Record<string, string> = {
   exam: 'bg-rose-400',
   meeting: 'bg-blue-400',
   deadline: 'bg-amber-400',
+  holiday: 'bg-violet-400',
   other: 'bg-slate-400',
 }
 
@@ -61,6 +74,9 @@ export default function FacultyCalendar() {
   })
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month')
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  // College academic calendar (academicCalendar/{id}) — read-only overlay so
+  // the faculty calendar and the Academic Calendar page can never disagree.
+  const [academicEvents, setAcademicEvents] = useState<AcademicCalendarSource[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -154,6 +170,23 @@ export default function FacultyCalendar() {
         })
       }
 
+      // 3. College academic calendar — holidays / study holidays / fests /
+      //    exam windows. Read-only here: faculty read, the office writes
+      //    through the saveCalendarEvent callable on the Academic Calendar page.
+      const academic = await fetchCalendarEvents(collegeId).catch((err) => {
+        console.warn('[FacultyCalendar] academic calendar unavailable:', err)
+        return []
+      })
+      setAcademicEvents(academic.map((event) => ({
+        id: event.id,
+        title: event.title,
+        type: event.type,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        suspendsClasses: event.suspendsClasses,
+        ...(event.notes ? { notes: event.notes } : {}),
+      })))
+
       setEvents(loadedEvents)
     } catch (err) {
       console.error('[FacultyCalendar] fetch error:', err)
@@ -219,6 +252,9 @@ export default function FacultyCalendar() {
   }
 
   const handleDeleteEvent = async (eventId: string) => {
+    // Academic-calendar entries belong to the college office — never deletable
+    // from a faculty calendar (the UI hides the button; this is the backstop).
+    if (isAcademicOverlayId(eventId)) return
     if (eventId.startsWith('sched_')) {
       // Schedule template item, remove locally
       setEvents(prev => prev.filter(e => e.id !== eventId))
@@ -263,7 +299,35 @@ export default function FacultyCalendar() {
     return days
   }, [year, month, firstDayOfMonth, daysInMonth, daysInPrevMonth])
 
-  const getEventsForDate = (dateStr: string) => events.filter(e => e.date === dateStr)
+  // Own events + timetable occurrences + the college academic calendar,
+  // expanded day by day across the grid actually on screen (week view reads
+  // the same list, and its days always sit inside the month grid window).
+  const allEvents = useMemo(() => {
+    if (calendarDays.length === 0 || academicEvents.length === 0) return events
+    const windowStart = calendarDays[0].fullDate
+    const windowEnd = calendarDays[calendarDays.length - 1].fullDate
+    const overlay: CalendarEvent[] = expandAcademicCalendar(academicEvents, windowStart, windowEnd)
+      .map((entry) => {
+        const type: CalendarEvent['type'] =
+          entry.kind === 'exam' ? 'exam' : entry.kind === 'fest' ? 'other' : 'holiday'
+        return {
+          id: entry.id,
+          title: overlayLabel(entry),
+          type,
+          date: entry.date,
+          startTime: 'All day',
+          endTime: '',
+          room: 'Academic calendar',
+          batch: '-',
+          subject: entry.suspendsClasses ? 'Classes suspended' : 'Classes as usual',
+          color: eventColors[type] || eventColors.other,
+          readOnly: true,
+        }
+      })
+    return [...events, ...overlay]
+  }, [events, academicEvents, calendarDays])
+
+  const getEventsForDate = (dateStr: string) => allEvents.filter(e => e.date === dateStr)
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : []
 
   const navigateMonth = (dir: number) => {
@@ -305,7 +369,9 @@ export default function FacultyCalendar() {
               <CalendarIcon className="w-6 h-6 text-teal-400" />
               Calendar
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">View live academic schedule and manage events</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Your classes and events, with the college academic calendar (holidays, study holidays, fests, exam windows) overlaid.
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -452,16 +518,25 @@ export default function FacultyCalendar() {
                           <div className={`w-2 h-2 rounded-full ${eventDotColors[event.type] || 'bg-slate-400'}`} />
                           <span className="text-sm font-medium">{event.title}</span>
                         </div>
-                        <button
-                          onClick={() => handleDeleteEvent(event.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-400 transition-opacity"
-                          title="Delete Event"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {event.readOnly ? (
+                          <span
+                            className="text-[10px] uppercase tracking-wide opacity-70"
+                            title="Maintained by the college office on the Academic Calendar"
+                          >
+                            Academic calendar
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteEvent(event.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-400 transition-opacity"
+                            title="Delete Event"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs opacity-80">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {event.startTime} - {event.endTime}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {event.endTime ? `${event.startTime} - ${event.endTime}` : event.startTime}</span>
                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.room}</span>
                         {event.batch && event.batch !== '-' && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {event.batch}</span>}
                       </div>
@@ -478,7 +553,7 @@ export default function FacultyCalendar() {
                 Upcoming Events
               </h3>
               <div className="space-y-2">
-                {events
+                {allEvents
                   .filter(e => e.date >= (selectedDate || ''))
                   .sort((a, b) => a.date.localeCompare(b.date))
                   .slice(0, 4)
@@ -523,7 +598,7 @@ export default function FacultyCalendar() {
                       dayEvents.map(event => (
                         <div key={event.id} className={`p-2.5 rounded-lg border ${event.color} text-xs`}>
                           <p className="font-medium mb-1">{event.title}</p>
-                          <p className="opacity-80">{event.startTime} - {event.endTime}</p>
+                          <p className="opacity-80">{event.endTime ? `${event.startTime} - ${event.endTime}` : event.startTime}</p>
                           <p className="opacity-60 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {event.room}</p>
                         </div>
                       ))

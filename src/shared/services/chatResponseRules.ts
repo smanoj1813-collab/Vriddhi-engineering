@@ -136,8 +136,9 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
     case 'questionBank':
       if (canAuthorPapers) {
         if (isFaculty) {
+          // Faculty round: Paper Generator left the faculty portal with the
+          // Generated Papers page; question drafting + the assessment hub stay.
           push(act('question-bank', 'Open Question Bank', '/faculty/question-bank', 'question-bank'));
-          push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
           push(act('ai-questions', 'AI Question Drafting', '/faculty/ai-questions', 'paper'));
         } else {
           // HOD round: Paper Generator / Paper Review left the department
@@ -164,7 +165,7 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
         push(act('faculty', 'Book a Revision Slot', '/student/faculty-connect', 'faculty'));
       } else if (isFaculty) {
         push(act('assessments', 'Assessment Manager', '/faculty/assessments', 'assessments'));
-        if (canAuthorPapers) push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
+        if (canAuthorPapers) push(act('question-bank', 'Open Question Bank', '/faculty/question-bank', 'question-bank'));
       } else {
         push(act('assessments', 'Assessments', '/admin/assessments', 'assessments'));
         // Official Grade Records is no longer a department surface.

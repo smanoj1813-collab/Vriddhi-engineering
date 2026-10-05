@@ -1104,7 +1104,8 @@ export function UniversalQuestionBank({
                     onClick={() => {
                       setPaperDialogOpen(false);
                       if (isSuperadmin) navigate('/superadmin/question-bank');
-                      else if (user?.role === 'faculty') navigate('/faculty/papers');
+                      // /faculty/papers retired with the faculty paper surface.
+                      else if (user?.role === 'faculty') navigate('/faculty/assessments');
                       else if (canOpenAdminPaperGenerator) navigate('/admin/paper-generator');
                     }}
                   >
