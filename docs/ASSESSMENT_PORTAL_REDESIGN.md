@@ -1,373 +1,409 @@
-# Assessment Portal — Design: How To Do It Well
+# Assessment Portal — Design v3: Desktop-First, Cost-Engineered, Skills-Based
 
-Status: **Design specification (refinement round, approved direction)**
+Status: **Design specification — refinement round 2 (PrepInsta workflow absorbed)**
 Date: 2026-10-05 · Project: `vriddhi-engineering` · Region: `asia-south1`
-Supersedes: none — this expands the earlier redesign note into a build-ready spec.
+
+> Reference source: PrepInsta assessment platform student-end workflow
+> (login/OTP → My Tests → instructions → section countdown → palette →
+> autosave → section lock → proctoring → coding with run caps).
+> Vriddhi takes that interaction contract, rebuilds it **desktop-only**,
+> adds the skills/readiness layer, and engineers Firestore reads/writes and
+> Cloud Run quota explicitly.
 
 ---
 
-## 1. Purpose
-
-Technical colleges assess **employability skills**, not syllabus recall:
-DSA, aptitude (quant / verbal / logical), language proficiency (Java, Python,
-SQL, JS…), and company-specific patterns (TCS NQT, Infosys, Cognizant…).
-There is **no question-paper module** in their world — no previous-year papers,
-no blueprints over university subjects.
-
-A well-done assessment portal therefore answers one question for every stakeholder:
-
-> **"Is this student — and this batch — ready for the next gate, and what
-> exactly closes the gap?"**
-
-### Design principles (what "well" means here)
+## 1. Design principles
 
 | # | Principle | Consequence |
 |---|---|---|
-| P1 | **Skills, not papers** | Every question is tagged to a skill; every result decomposes into skills. "Paper" disappears from the skills-mode vocabulary. |
-| P2 | **Reuse the engine, replace the composition** | Scheduling, freezing, autosave, proctoring, submission lifecycle stay (they are battle-tested); only what creates a test changes. |
-| P3 | **Every result loops into practice** | A report without a next action is a dead end. Each weak skill links to prep / Coding Lab / materials. |
-| P4 | **Phone-first** | Most students will take tests on budget Android phones over patchy networks; the player must survive tab switches, low bandwidth, and small screens. |
-| P5 | **College-configurable, never hardcoded** | Companies come from `prep_companies`, skills from the college graph; no college/branch names in code. |
-| P6 | **Quota-neutral** | New endpoints ride the shared `api` Express function; no new Cloud Run services. |
-| P7 | **Both tracks coexist** | University-mode colleges keep today's paper flow untouched (`assessmentMode` selects the track). |
+| P1 | **Skills, not papers** | Questions tag to skills; results decompose into skills; no PYQ/paper module for tech colleges. |
+| P2 | **Reuse the engine** | Freeze/schedule/autosave/proctor/submit machinery exists — extend, don't duplicate. |
+| P3 | **Desktop-only test player** | No mobile fallback. Laptop/system only: richer layout, keyboard shortcuts, hard device gate. Admin/faculty dashboards stay responsive. |
+| P4 | **Every result loops into practice** | Weak skill → one-tap practice (prep / Coding Lab / materials). |
+| P5 | **Read/write & cost are first-class requirements** | Every interaction has a Firestore budget (§10); debounced writes, lazy section reads, client-direct delivery. |
+| P6 | **Quota-neutral** | New endpoints ride the deployed shared `api` function; no new Cloud Run services (20,000 milliCPU cap). |
+| P7 | **Both tracks coexist** | `assessmentMode: skills | university` per college; university paper flow untouched. |
+| P8 | **College-configurable, never hardcoded** | Companies from `prep_companies`, skills from college graph, limits from test config. |
 
 ---
 
-## 2. Personas and the outcomes they need
-
-| Persona | Outcome | Primary surfaces |
-|---|---|---|
-| Student | Know where I stand, what to practice, prove readiness before drives | Assessment hub, test player, My Readiness |
-| Faculty / trainer | Run skill checks after my unit; see who didn't absorb it | Assessment Studio, class skill report |
-| HOD / Admin | Batch health before placement season; schedule diagnostics & gates | Readiness dashboard, Assessment Studio |
-| Placement cell | Per-company readiness lists; shortlist for drives | Company readiness board, exports |
-| Superadmin | Curate company patterns & question pools; onboard colleges | Prep Content Studio (existing), pool tools |
-
----
-
-## 3. Product model
-
-### 3.1 Skill graph (per college, platform-seeded)
+## 2. Student journey (target spec — PrepInsta parity + Vriddhi extensions)
 
 ```
-skillGraphs/{collegeId}
-  domains[]            "Programming", "Aptitude", "Core CS", "Communication"
-    skills[]           id, name, domainId, difficultyLadder L1–L4,
-                       practiceLinks { prepTopicIds[], codingLabTopic?, materialTags[] },
-                       courseCodes[]        ← optional mapping to curriculum courses
+Login ──► My Tests dashboard ──► Instructions + environment check
+      ──► Section countdown ──► Attempt (palette, timers, autosave)
+      ──► Submit Section (locks) ──► …next section…
+      ──► Final review ──► Submit Test ──► Result + skill radar + next actions
 ```
 
-Seeding: the platform ships a starter graph (aptitude topics reuse the existing
-`qa-*` / `lr-*` / `va-*` catalogue the prep module already maps company
-sections to; programming skills start with DSA fundamentals). Colleges edit,
-never from hardcoded lists.
+### 2.1 Login (three modes, college/test-configurable)
 
-### 3.2 Assessment types
-
-| Type | Length | Frequency | Proctoring tier |
+| Mode | Who | How | Cost |
 |---|---|---|---|
-| **Diagnostic** | 40–60 Q, ~75 min | intake / semester start | light |
-| **Skill Check** | 10–30 Q, 15–35 min | after training units | light |
-| **Mock Drive** | company-pattern, 60–90 min | monthly / pre-drive | full |
-| **Aptitude Sprint** | 10–20 Q, ≤ 20 min | self-paced practice | none |
-| **Readiness Gate** | mixed, 60–90 min | once per drive season | full |
+| **Vriddhi account** | enrolled students | existing student auth (email + password, custom claims) — SSO into the portal | ₹0 |
+| **Email OTP** | external/walk-in candidates (drives) | enter registered email → 6-digit OTP (5-min TTL, resend capped 3×/15 min) → Continue | 1 email/OTP (~₹0.01) + 2 writes |
+| **Exam passcode** | mass drives, lab sessions | test-level passcode issued by college (printed/shared) + registered email match | ₹0 messaging |
 
-### 3.3 Blueprints (the new "paper")
+OTP session doc: `assessmentOtp/{hash}` with TTL index (auto-expiry — no cleanup job,
+no extra reads). Rate limits server-side on the shared `api` function.
+
+### 2.2 My Tests dashboard
+
+- Cards: test name, type badge (Mock Drive / Skill Check / Diagnostic / Gate),
+  scheduled window ("Today 10:00–11:30 IST"), section summary, status
+  (Upcoming / Live / Completed / Missed).
+- **Start Test** enabled only inside the window (server-verified, not just UI).
+- Completed tests show score chip + "View result".
+- 1 query read (`scheduledTests` by college + cohort + window) — no per-test reads.
+
+### 2.3 Instructions + environment gate (desktop-only enforced here)
+
+Before questions, the student sees:
+
+- Section structure table — e.g. `Coding Challenge — 3 Q / 60 min`,
+  `CS Fundamentals — 20 Q / 20 min`, `Aptitude — 10 Q / 10 min`.
+- Rules: no refresh/close, no external help, no tab switching, stable internet,
+  repeated tab switches may auto-submit.
+- Negative marking & per-section lock notice if configured.
+- **Environment check (blocking):**
+  - viewport ≥ 1024 px and desktop UA → else hard stop: *"This assessment
+    requires a laptop or desktop. Mobile is not supported."*
+  - browser Chrome/Edge latest ± 1 (others warn, don't block),
+  - battery ≥ 20% or plugged in (Battery API where available),
+  - network probe (small HEAD request) — poor connection gets a warning,
+  - fullscreen consent for proctored tests,
+  - webcam check for camera-proctored tests (future phase).
+
+### 2.4 Section countdown
+
+- 5-second (configurable) countdown before each section activates — also
+  spreads the Firestore read spike when 1,000 students start together.
+- On activate: sectional timer starts; questions stream in (lazy, §10).
+
+### 2.5 Test player — desktop 3-pane layout
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Test title · Section tabs [Coding|CS Fund|Aptitude] · ⏱ Section 24:12 ·  │
+│ ⏱ Total 1:12:40 · candidate chip · help (F1)                            │
+├──────────────┬──────────────────────────────────────────┬────────────────┤
+│ PALETTE      │ QUESTION CANVAS                          │ SUMMARY        │
+│ ┌─┬─┬─┬─┬─┐  │ Q.4 / 20                        [🚩]     │ Answered  12   │
+│ │1│2│3│4│5│  │ Statement, passage/code/figure render    │ Unanswered 6   │
+│ ├─┼─┼─┼─┼─┤  │                                          │ Marked     2   │
+│ │…│ │ │ │ │  │  (A) option        (B) option            │ ── legend ──   │
+│ └─┴─┴─┴─┴─┘  │  (C) option        (D) option            │ ▢ grey: not    │
+│ Grey=not     │                                          │ ▣ green: done  │
+│  answered    │  ◀ Prev   Clear   Mark for review   Next ▶│ ▨ rose: marked │
+│ Green=done   │  Jump to question: [ 7 ]                 │ [Submit Section]│
+│ Rose=marked  │                                          │ [End Test…]    │
+└──────────────┴──────────────────────────────────────────┴────────────────┘
+```
+
+Interaction contract (parity with the reference workflow, desktop-enhanced):
+
+- **Auto-save on selection** — answer persists without a Save button;
+  debounce batches writes server-side (§10.2).
+- **Palette click = jump**; keyboard: `←/→` navigate, `A–D`/`1–4` select,
+  `M` mark, `C` clear, `Enter` next, `F1` help.
+- **Clear** returns the question to grey (unanswered).
+- **Mark for review** (rose) — review queue listed in the Summary pane.
+- Answers modifiable until **section submit**; submitted sections lock and
+  their palette greys out with a 🔒.
+- Timer warnings at 5 min / 1 min (banner + palette pulse), never a silent kill:
+  expiry → auto-submit with an on-screen "auto-submitted" report.
+
+### 2.6 Section & final submission
+
+- **Submit Section** opens a recap modal: answered / unanswered / marked
+  counts per section → confirm → locked forever (server records
+  `sectionState[i].submittedAt`).
+- After the last section: **Final review** modal (all sections, counts,
+  flagged list) → **Submit Test** → confirmation with test id → result page
+  as soon as grading lands (choice sections instant; written answers show
+  "grading in progress").
+- Submission is **idempotent** (attempt doc id `{testId}_{studentId}` — an
+  existing engine guarantee): double-clicks, retries, and reconnects can never
+  create duplicate attempts.
+
+### 2.7 Proctoring — rule ladder, not instant punishment
+
+Events are logged to the existing `proctoringLogs` pipeline; the *response*
+is a per-test configured ladder:
+
+| Event | Default response (configurable per test) |
+|---|---|
+| Tab/window switch | 1st–2nd: warning banner + log · 3rd: final warning · ≥ `maxTabSwitches` (default 5): **auto-submit + disqualification flag for staff review** |
+| Fullscreen exit (proctored tests) | same ladder as tab switch |
+| Idle > 3 min | "Are you still there?" prompt; no activity 10 min → log |
+| Copy/paste attempt | log only (never blocks — false positives punish honest students) |
+| Network drop | grace mode: local buffer keeps answers; reconnect resumes; grace window (default 10 min) beyond → auto-submit saved state |
+| Refresh/close mid-test | re-entry restores server-side attempt state (answers, palette, timer) — **never** a fresh start |
+
+Staff side: flags land in a review queue (existing grading-queue pattern);
+a human confirms disqualification — the system never silently zeroes a student.
+
+### 2.8 Coding assessments (desktop split-pane workspace)
+
+```
+┌─ PROBLEM (left, scrollable) ────────┬─ EDITOR (right) ───────────────────┐
+│ Title · difficulty · skill tags     │ Language: [C++▾ Java▾ Python▾ …]   │
+│ Statement, constraints, I/O format  │ monospace editor, tab-indent,      │
+│ Sample input/output (2–3)           │ autosave like every other answer   │
+│                                     ├────────────────────────────────────┤
+│                                     │ TEST AREA                          │
+│                                     │ Custom input [        ] [▶ Dry run]│
+│                                     │  → stdout/stderr, time, memory     │
+│                                     │ Graded runs: 18/25 left [Run cases]│
+│                                     │  → verdict per visible case        │
+│                                     │ [Submit problem]                   │
+└─────────────────────────────────────┴────────────────────────────────────┘
+```
+
+- **Language selection per problem** from the college's allowed set.
+- **Dry runs (custom input): unlimited** — rate-limited to 1 concurrent +
+  3 s cooldown to stop abuse; results show stdout/stderr only.
+- **Graded runs: 25 per problem (configurable 10–50)** against hidden test
+  cases; counter visible; at 0 the runner locks (code still editable &
+  submittable) — the cap is per-problem, exhaustion never auto-submits the
+  *whole* test unless the test config says so.
+- Execution: while Judge0 stays excluded, coding problems run as
+  trace-the-output / predict / pseudocode MCQs **or** the college's own lab
+  runner integration; `mode: 'code'` activates real execution once a runner
+  is approved — zero schema change, zero re-authoring.
+
+### 2.9 Recommended environment (shown on instructions screen)
+
+Chrome/Edge latest · stable internet · no refresh · no tab switching ·
+laptop/desktop only · power connected for tests > 45 min.
+
+---
+
+## 3. Where Vriddhi goes beyond the reference platform
+
+| Area | Reference flow | Vriddhi addition |
+|---|---|---|
+| Results | score per test | **skill radar + mastery bands** per attempt; trend across attempts |
+| Meaning of scores | percentage | **company readiness** vs college-set cut-offs (patterns from `prep_companies`) |
+| After a weak result | nothing | **one-tap practice plan**: prep topic / Coding Lab drill / materials |
+| Test creation | manual paper building | **blueprints over skills** + company-pattern import + AI top-up with pool-shortfall warnings |
+| Crash recovery | typically lost session | **server-authoritative resume** — refresh/re-login restores exact state |
+| Question quality | static pool | discrimination flags (all-right/all-wrong items auto-routed to review) |
+| Integrity | auto-disqualification | **review queue** — flags are evidence, a human decides |
+| Cohort insight | per-student only | **heat-map** (branch × skill) + placement shortlists |
+
+---
+
+## 4. Product model (unchanged from v2 — summary)
+
+- `skillGraphs/{collegeId}`: domains → skills (L1–L4) → practice links.
+- Assessment types: Diagnostic · Skill Check · Mock Drive · Aptitude Sprint ·
+  Readiness Gate (each with length/proctoring defaults).
+- `assessmentBlueprints/{collegeId}`: sections over skills × difficulty mix;
+  composition at schedule time draws from college pool → universal pool →
+  AI top-up, then **freezes** (existing `questionChunks`).
+- Mock Drive builder imports `prep_companies/{code}` sections (topicIds,
+  counts, minutes, eliminator rounds already modelled there).
+
+---
+
+## 5. Engine changes needed (additive only)
+
+| Change | Where | Why |
+|---|---|---|
+| `sectionState[]` on attempt docs (locked/active/submitted + timestamps) | `studentAssessments.ts` | section-lock semantics (reference parity) |
+| Per-section lazy delivery of frozen chunks | same | cost + security (§10.3) |
+| Debounced answer-flush endpoint | same | write budget (§10.2) |
+| Proctor ladder config on `scheduledTests` (`maxTabSwitches`, `autoSubmitOnBreach`, `fullscreenRequired`) | schedule flow | per-test integrity policy |
+| OTP + passcode auth routes on shared `api` | `routes/` | drive-mode login |
+| Coding runner abstraction (`mode: 'code'` stub → runner adapter) | new module, runner stays pluggable | future Judge0/college-lab integration |
+
+No change to university-mode behaviour; all additions gated by
+`sourceKind: 'skills'` or explicit config.
+
+---
+
+## 6. Mastery, readiness & reports (formulas from v2, kept)
+
+- Mastery per student×skill: recency-weighted mean over last 8 attempts
+  (half-life 30 d, difficulty weights L1 0.7 → L4 1.6); bands
+  <40 Needs Training · 40–69 Developing · 70–84 Job-Ready · ≥85 Strong.
+- `readiness(company) = Σ sectionWeight × projectedSectionScore` vs
+  college-entered cut-offs (green/amber/red).
+- Surfaces: student result + My Readiness · class skill report (faculty) ·
+  cohort heat-map (HOD) · company readiness board + CSV (placement cell).
+- Dashboards read one `skillMastery/{collegeId}/{studentId}` doc each —
+  single-read surfaces (§10).
+
+---
+
+## 7. Staff-side flows (summary)
+
+- **Assessment Studio**: blueprint builder (blank / company-pattern import /
+  clone), pool-health panel with exact shortfall per skill + AI top-up,
+  cohort picker, schedule window, proctor config, negative marking.
+- **Review queues**: AI-generated questions → approve; proctor flags →
+  decide; flagged items → revise/archive.
+- **Readiness dashboard** (HOD/placement): heat-map, per-company boards,
+  exports via existing CSV machinery.
+
+---
+
+## 8. Configuration
+
+`assessmentConfigs/{collegeId}` gains:
 
 ```jsonc
-// assessmentBlueprints/{collegeId}/{id}
 {
-  "title": "TCS NQT Mock — CSE Sem 6",
-  "type": "mock_drive",
-  "companyCode": "tcs-nqt",              // → prep_companies/{code}
-  "sections": [
-    { "name": "Numerical Ability", "skillIds": ["quant.percentages", "quant.ratio-time"],
-      "count": 20, "minutes": 25, "difficulty": { "L1": 0.3, "L2": 0.5, "L3": 0.2 } },
-    { "name": "Coding", "skillIds": ["dsa.arrays", "dsa.strings"],
-      "count": 2, "minutes": 40, "mode": "code" }
-  ],
-  "targetCohort": { "branch": "CSE", "batch": "2027", "semester": 6 },
-  "negativeMarking": { "enabled": false },
-  "status": "draft | approved | scheduled"
+  "assessmentMode": "skills",            // university keeps paper flow
+  "enabledAssessmentTypes": ["diagnostic", "skill_check", "mock_drive"],
+  "targetCompanies": ["tcs-nqt", "infosys"],
+  "loginMode": "account",                // account | otp | passcode (per test override)
+  "codingRunCapDefault": 25,
+  "devicePolicy": "desktop"              // only supported value today
 }
 ```
 
-**Composition rule:** a blueprint is never a fixed question list. At schedule
-time the engine draws questions from pools in priority order —
-college-authored → platform universal pool → AI-generated top-up — matching
-section counts × difficulty mix, then **freezes** them via the existing
-`questionChunks` snapshot mechanism so live-pool edits never touch a running test.
-
-**Shortfall handling:** if a section's pool is thin, scheduling does not fail
-silently — it reports the exact skills short and offers one-click AI top-up
-(existing `/api/ai-questions` route), or lets staff lower the count.
-
-### 3.4 Company patterns are already half-built
-
-`prep_companies/{code}` stores sections with `topicIds` into the aptitude
-catalogue, question counts, per-section minutes, rounds (with eliminator
-flags), and eligibility. **Mock Drive builder = import a company pattern →
-sections pre-filled → college tweaks.** No new company modelling needed.
+Toggles reuse the existing `colleges/{id}/config` mechanism — no parallel system.
 
 ---
 
-## 4. End-to-end flows (screen level)
+## 9. Architecture & reuse map
 
-### 4.1 Admin/HOD schedules a Mock Drive
-
-```
-Assessment Studio → New assessment → "Mock Drive"
-  → pick company (from prep_companies) → sections auto-filled
-  → adjust counts/minutes/difficulty → cohort picker (branch/batch/sem/division)
-  → Pool check panel: "Numerical OK (412 candidates) · Coding SHORT by 3
-     questions for dsa.strings [Generate with AI] [Reduce count]"
-  → Approve & schedule → date window + auto-submit time
-```
-
-### 4.2 Faculty runs a Skill Check
-
-```
-Assessment Studio → "Skill Check" → pick 1–3 skills (graph picker with search)
-  → count + duration suggested by difficulty → preview 5 sample questions
-  → assign to class → publish (notification fans out via the existing
-     announcement pipeline)
-```
-
-### 4.3 Student takes a test
-
-Reuses today's player (`TestInstructionsPage → ActiveTestPage →
-TestResultPage`) with skills-mode additions:
-
-1. **Instructions screen** gains section map ("Numerical 20 Q · 25 min"),
-   negative marking notice, device-check (battery %, network probe).
-2. **Player**: section tabs with per-section timers when the pattern uses
-   them (company mocks), else one shared timer; palette (answered / skipped /
-   marked-for-review); autosave on every answer (existing autosave index);
-   reconnect banner instead of data loss on network drops.
-3. **Coding questions** launch as *trace-the-output / pseudocode / predict-
-   the-behaviour* MCQs while Judge0 stays excluded; when a code runner is
-   approved later, the same section gains `mode: 'code'` with test-case
-   scoring — no schema break, no re-authoring.
-4. **Result screen** leads with the skill radar and "what to do next",
-   percentage + band label second.
-
-### 4.4 Placement cell shortlists for a drive
-
-```
-Readiness dashboard → pick company → sort by readiness score
-  → filter: ≥ cut-off in all sections · no active backlogs (journey data)
-  → export CSV (same export machinery as test reports)
-```
-
----
-
-## 5. Test-taking quality bar (where portals usually fail)
-
-| Concern | How it's done well |
-|---|---|
-| **Network drops** | Autosave already lands every answer server-side; on reconnect the player reloads the attempt doc, not local state. Submit retries idempotently (`{testId}_{studentId}` doc id already guarantees this). |
-| **Tab-switch / app switch** | Existing proctor event log records switches; light-tier tests *count* them, full-tier flags after threshold. No auto-fail without staff review. |
-| **Phone ergonomics** | One question per screen on small viewports; ≥ 44px tap targets; palette collapsible; no hover-only interactions. |
-| **Fairness** | Same frozen snapshot for everyone in a cohort; shuffled question order + option order per student; window long enough for the slow device (window = duration + 30 min grace). |
-| **Accessibility** | Readable font sizes, high-contrast palette states, keyboard navigation on desktop, math/notation rendered by the existing renderer. |
-| **Integrity without cruelty** | Proctoring tiers per type (§3.2): practice sprints never proctor; gates proctor fully. Flags surface in the report queue — a human decides. |
-| **Timezone & windows** | All times IST server-side; student sees their local rendering; auto-submit scheduler (existing) catches expired attempts. |
-
----
-
-## 6. Content pipeline (questions)
-
-```
-sources:   college-authored → review queue → approved
-           platform universal pool (universalQuestions, prepTags)
-           AI generation (/api/ai-questions) → human review → approved
-           company-pattern seeds (superadmin, Prep Content Studio)
-
-every question carries: skillId, difficulty L1–L4, type, language,
-                        usedCount, lastUsedAt, qualityFlags[]
-```
-
-- **Anti-repetition**: selection discounts `usedAt` recency per cohort (a
-  student should not see the same question twice in one semester; engine
-  already tracks `recentlyUsedQuestionIds` in paper context — generalize it).
-- **Pool health dashboard** (admin): coverage per skill vs. demand from
-  scheduled blueprints; thin-skill alerts before scheduling, not during.
-- **AI top-up is drafted, never auto-published**: goes through the same
-  review queue faculty already use for AI-generated questions.
-- **Quality loop**: questions with abnormal discrimination (everyone right /
-  everyone wrong) get flagged for review after each test.
-
----
-
-## 7. Scoring, mastery, readiness — with a worked example
-
-### 7.1 Attempt scoring (unchanged mechanics)
-
-Choice/numeric types auto-grade; written answers grade manually (existing
-grading queue) or via AI suggestion (existing `suggestAssessmentGrading`,
-human confirms). New: each graded answer also credits its `skillId`.
-
-### 7.2 Skill mastery (per student × skill)
-
-```
-mastery = Σ(wᵢ × scoreᵢ) / Σ(wᵢ)   over last 8 attempts
-wᵢ = difficultyWeight(L) × 0.5^(ageDays/30)
-difficultyWeight: L1 0.7 · L2 1.0 · L3 1.3 · L4 1.6
-```
-
-Bands (fixed platform scale, so cross-college comparisons hold):
-`<40 Needs Training · 40–69 Developing · 70–84 Job-Ready · ≥85 Strong`.
-The college-editable performance categories still label report bands —
-mastery bands are a separate, stable ruler.
-
-### 7.3 Company readiness
-
-```
-readiness(company) = Σ_section sectionWeight × projectedScore(section)
-projectedScore = recency-weighted mean mastery of the section's mapped skills
-```
-
-Status vs. the college-entered cut-off per section:
-`green ≥ cut-off · amber within 10 pts · red below`.
-
-### 7.4 Worked example
-
-> Anitha, CSE sem 6. Mock Drive (tcs-nqt): Numerical 14/20, Verbal 16/20,
-> Reasoning 9/15, Coding section 1/2.
-> → Skill deltas update: `quant.percentages` 0.62→0.71, `logical.puzzle`
-> 0.48→0.46 (harder set), `dsa.arrays` 0.55→0.58.
-> → Readiness(tcs-nqt): Numerical 74 (cut 60 ✅), Verbal 81 (cut 60 ✅),
-> Reasoning 52 (cut 55 🟠), Coding 49 (cut 50 🟠).
-> → Her result screen: "2 sections from green. Practice: Puzzles sprint
-> (prep), Arrays drill set 3 (Coding Lab)." One tap adds both to her plan.
-
----
-
-## 8. Reports and dashboards
-
-| Surface | Audience | Shows |
+| Need | Reuse | New |
 |---|---|---|
-| **Student result** | student | skill radar, section scores, band, next-practice actions, attempt history sparkline |
-| **My Readiness** | student | per-target-company status chips, mastery trend, upcoming gates |
-| **Class skill report** | faculty | after a Skill Check: per-student × per-skill matrix, who to reteach |
-| **Cohort heat-map** | HOD/admin | branch × skill colour grid; drill to students; compare diagnostics vs now |
-| **Company readiness board** | placement cell | students × selected companies, filters, CSV export, drive shortlist |
-| **Attempt report** | admin | existing test report (participation, flags, proctor events) — unchanged |
-
-All read from `skillMastery/{collegeId}/{studentId}` (recomputed post-submit),
-so dashboards are single-document reads — cheap at classroom scale.
+| Delivery/freeze/autosave/proctor/submit | `studentAssessments.ts`, `questionChunks`, `proctoringLogs`, auto-submit scheduler | section-lock state machine |
+| Scheduling & cohorts | `scheduleAssessmentTest` flow | blueprint draw step |
+| Company patterns | `prep_companies` + Prep Content Studio | import action |
+| AI questions | `/api/ai-questions` + review queue | pool top-up step |
+| Notifications | `notifications.ts` | result-ready template |
+| Auth | existing student auth | OTP/passcode routes **on shared `api`** |
+| New endpoints | — | `/api/assessment-auth/*`, `/api/skills*`, `/api/skill-questions*`, `/api/blueprints*`, `/api/readiness/*` — **all on the deployed `api` function: 0 new Cloud Run services (P6)** |
 
 ---
 
-## 9. Engagement loop
+## 10. Read/write & cost engineering (first-class requirement)
 
-- Existing notification pipeline announces publications; results push a
-  "your result is ready — 2 actions" notification.
-- **Practice plan**: weak-skill links accumulate into a student plan
-  (prep topics / Coding Lab sets / materials) — visible on My Readiness.
-- Optional streaks for Aptitude Sprints (college toggle; off by default —
-  gamification is a college culture decision).
+### 10.1 Pricing posture
+
+- Firestore in **asia-south1 (regional)** ≈ ₹0.003/10k reads, ₹0.009/10k writes
+  (≈ $0.036/$0.108 per 100k — verify against current pricing page).
+- Cloud Run quota is the hard wall (20,000 milliCPU): delivery must not add
+  services; compute per request is already paid for by the deployed `api`
+  function (512 MiB × 10, min 0 → ₹0 when idle).
+- Strategy: **reads client-direct from Firestore where rules allow;
+  writes through the smallest possible number of server operations.**
+
+### 10.2 Write budget — debounced answer flush
+
+Naive autosave = 1 write per interaction (a 60-Q test ≈ 100+ writes).
+Instead:
+
+- Client buffers answers; flush triggers: every **5 changed answers** or
+  **10 s** since last flush, whichever first; plus hard flushes on
+  section submit / final submit / tab hide / beforeunload / 30 s heartbeat.
+- One flush = **one** attempt-doc update (answers map merged server-side).
+
+Result: ~100 interactions → **~12–18 writes per attempt**.
+
+### 10.3 Read budget — lazy sections, chunked snapshots
+
+- Instructions: 1 read (test doc). Dashboard: 1 query.
+- Questions: frozen chunks of 25 (existing cap) fetched **per section at
+  activation** — a 60-Q test ≈ 3 chunk reads, and later sections are never
+  on the wire early (also an anti-leak win).
+- Result: attempt doc + mastery snapshot = 2 reads.
+
+### 10.4 Per-attempt budget (60-Q, 3-section test)
+
+| Step | Reads | Writes |
+|---|---:|---:|
+| Login (OTP mode) | 1 | 2 |
+| Dashboard + instructions | 2 | 0 |
+| Start (attempt create) | 1 | 1 |
+| Section chunks (lazy, ×3) | 3 | 0 |
+| Answers (debounced) | 0 | 12–18 |
+| Proctor events (batched) | 0 | 2–4 |
+| Section submits (×3) | 0 | 3 |
+| Final submit + grading | 0 | 2 |
+| Result view | 2 | 0 |
+| **Total per attempt** | **≈ 9** | **≈ 22–30** |
+
+### 10.5 Drive-scale cost (1,000 students × one 60-Q mock drive)
+
+- ≈ 9k reads + ≈ 26k writes ≈ **₹3–4 Firestore** for the whole drive.
+- Storage: ~100 KB/attempt → 100 MB ≈ ₹1/month (TTL policies clean expired
+  OTP docs and draft sessions automatically).
+- Cloud Run: ~3 requests/attempt on the *existing* `api` service → well
+  inside the free request tier; **no quota delta**.
+- Naive per-answer-write design would be 100k+ writes (~₹11–12/drive and 4×
+  write latency during peaks) — the debounce is a requirement, not a nicety.
+
+### 10.6 Scale protections
+
+- Section countdown jitter + lazy chunks flatten the start spike.
+- Proctor batches capped (existing MAX_STORED_PROCTOR_EVENTS=500).
+- Attempt docs stay < 100 KB (answer maps, not blobs); files (coding
+  artifacts, if any) go to Storage, never Firestore.
+- Composite indexes for cohort queries ship in `firestore.indexes.json`
+  before launch (existing repo convention).
 
 ---
 
-## 10. Architecture — reuse map
-
-| Need | Reuse existing | New |
-|---|---|---|
-| Delivery / freezing / autosave / proctoring | `studentAssessments.ts` engine, `questionChunks`, `proctoringLogs`, auto-submit scheduler | `sourceKind: 'skills'` on `scheduledTests` |
-| Scheduling UI/logic | `scheduleAssessmentTest` flow, cohort targeting | blueprint → question draw step |
-| Company patterns | `prep_companies/{code}` + Prep Content Studio | import-into-blueprint action |
-| AI questions | `/api/ai-questions` route + review queue | draft-into-pool step |
-| Announcements/notifications | `notifications.ts` fan-out | result-ready template |
-| Exports | report CSV machinery | readiness CSV |
-| Settings | `assessmentConfigs/{collegeId}` | `+ assessmentMode`, `+ enabledAssessmentTypes`, `+ targetCompanies` |
-| **New endpoints** | — | all on shared `api` router: `/api/skills*`, `/api/skill-questions*`, `/api/blueprints*`, `/api/readiness/*` — **zero new Cloud Run services** (P6) |
-
----
-
-## 11. Data model (field spec)
+## 11. Data model (additions over v2)
 
 ```
-skillGraphs/{collegeId}            { domains[], skills[], updatedAt, updatedBy }
-skillQuestions/{collegeId}/{id}    { text, type, options?, answer, skillId,
-                                     difficulty 1–4, tags[], language,
-                                     status: draft|approved|archived,
-                                     createdBy, usedCount, lastUsedAt, qualityFlags[] }
-assessmentBlueprints/{collegeId}/{id}   §3.3
-scheduledTests (existing) +        { sourceKind: 'paper'|'skills', blueprintId?,
-                                     companyCode?, skillCoverage: {skillId: count} }
-studentAssessments (existing) +    { skillScores: { [skillId]: {correct,total,avgDifficulty} },
-                                     companyCode? }
-skillMastery/{collegeId}/{studentId}  { bySkill: { [skillId]: {mastery,attempts,lastAt} },
-                                     readiness: { [companyCode]: {score, sections[]} },
-                                     plan: { items[] }, updatedAt }
-assessmentConfigs/{collegeId} +    { assessmentMode: 'university'|'skills',
-                                     enabledAssessmentTypes[], targetCompanies[] }
+scheduledTests +     { sectionPlan: [{ name, skillIds, count, minutes, mode,
+                                       negativeMarking? }],
+                       proctor: { tier, maxTabSwitches, autoSubmitOnBreach,
+                                  fullscreenRequired, camera? },
+                       loginMode, passcodeHash? }
+studentAssessments + { sectionState: [{ status, activatedAt, submittedAt }],
+                       activeSection, flushSeq,
+                       skillScores, companyCode? }
+assessmentOtp/{hash} { emailHash, codeHash, testId, expiresAt (TTL), tries }
+skillGraphs / skillQuestions / assessmentBlueprints / skillMastery  (as v2)
 ```
 
-Firestore rules: mirror the existing `assessmentConfigs` / paper scoping —
-students read their own mastery doc; staff read their college; writes only
-through Functions.
-
 ---
 
-## 12. Configuration & toggles
+## 12. Rollout & acceptance
 
-- `assessmentMode` selects the studio + report set a college sees;
-  paper-centric pages hide in skills mode exactly like the Assignments toggle
-  hides today's assignment flow (same `colleges/{id}/config` mechanism — no
-  parallel system).
-- `enabledAssessmentTypes`: a college may ship only Diagnostics + Skill Checks
-  in month one and switch Mock Drives on before drive season.
-- Fees/Admission remain on hold and are untouched; this portal adds no
-  dependency on them.
-
----
-
-## 13. Rollout plan with acceptance criteria
-
-| Phase | Scope | Acceptance criteria |
+| Phase | Scope | Acceptance |
 |---|---|---|
-| **0 (done)** | Assignments toggle; config docs extended; quota pilot | toggles live, 1248/710 tests green |
-| **1 — Skills foundation** | graph CRUD, skill questions (manual + AI review), Diagnostic & Skill Check, skillScores on results, student radar | a pilot college runs a diagnostic end-to-end on phones; radar matches manual math (pinned unit tests) |
-| **2 — Drives** | company pattern import, Mock Drive + Sprint, mastery + readiness v1, heat-map & readiness board, CSV exports | placement cell produces a drive shortlist matching a hand-computed list |
-| **3 — Coding sections** | `mode: 'code'` when a runner is approved (Judge0 excluded until then); bridge MCQs until | parity scoring vs manual judge on 50-sample set |
+| 0 (done) | Assignments toggle, config docs, quota pilot | toggles live; 1248/710 tests green |
+| 1 — Core player parity | section-lock player, palette/keyboard, debounced autosave, resume, environment gate, instructions/countdown | pilot college runs a 3-section Skill Check; refresh-mid-test resumes with 0 lost answers; measured writes/attempt ≤ budget |
+| 2 — Skills & drives | graph + questions, blueprints + company import, mastery/radar, readiness board, heat-map | placement cell shortlist matches hand-computed list |
+| 3 — Proctor hardening + coding | ladder config UI, review queue, `mode: 'code'` with approved runner | parity verdicts vs manual judge on 50-sample set |
 
-Each phase ships behind `assessmentMode`; university colleges see zero change.
-
----
-
-## 14. How we'll know it's done well (metrics)
-
-- **Reliability**: 0 lost submissions (attempt docs reconcile 100%); autosave
-  gap < 1 answer after forced refresh.
-- **Performance**: instructions → first question < 3 s on a mid-range phone on 4G;
-  dashboards single-read (p95 < 500 ms server time).
-- **Validity**: item review flags < 5% of pool after 2 months; no student sees
-  a repeated question inside a semester.
-- **Adoption**: ≥ 90% of targeted students complete the first diagnostic;
-  placement cell exports its first real shortlist from the board.
-- **Quota**: zero new Cloud Run services across all phases.
+Success metrics: 0 lost submissions; refresh-resume 100%; instructions→first
+question < 2 s on lab desktops; writes/attempt within §10.4; quota delta = 0
+services; ≥ 90% diagnostic completion in pilot.
 
 ---
 
-## 15. Risks & mitigations
+## 13. Risks & mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Thin question pools at pilot college | Pool-health alerts before scheduling; AI top-up through review; platform universal pool as backstop |
-| Mastery noise from few attempts | Bands only surface after ≥ 2 attempts per skill; radar shows "needs data" state |
-| College expectations ≠ company patterns | Patterns carry `patternVerifiedOn` + sources; college sees verification date |
-| Quota pressure if anyone adds callables | Hard rule in review: skills endpoints live on `api` router (documented here + in code) |
-| Proctoring over-flagging on cheap devices | Tiered proctoring; flags are review-queue items, never auto-fails |
+| 1,000-student start spike | countdown jitter + lazy per-section chunks + client-direct reads |
+| Debounce loses last answers on crash | flush on `visibilitychange`/`beforeunload` + 30 s heartbeat; worst case = last ≤10 s |
+| Lab machines with old browsers | environment gate warns early; supported matrix published on instructions screen |
+| Proctor false positives | ladder + human review queue; copy/paste log-only |
+| Thin question pools | pool-health alerts pre-schedule; AI top-up through review; universal pool backstop |
+| OTP email cost/spam | resend caps, TTL sessions, passcode mode for mass drives |
+| Quota creep | hard rule: skills endpoints live on `api` router (documented + enforced in review) |
 
 ---
 
-## 16. Open questions (need answers before Phase 1)
+## 14. Open questions
 
-1. Default `assessmentMode` for newly onboarded technical colleges — `skills`?
-2. First pilot college + which assessment types they want on day one.
-3. Company cut-offs: platform defaults per company, or college-only entry?
-4. Proctoring tier for Skill Checks — light (default here) or full?
-5. Mastery visibility: hide radar until the first diagnostic baseline?
-6. Gamification (sprint streaks): offered as a college toggle, default off — agree?
+1. Default `assessmentMode` for newly onboarded tech colleges — `skills`?
+2. First pilot college + day-one assessment types.
+3. OTP email provider (transactional email service vs Firebase email-link
+   auth) — drives the per-OTP cost; passcode mode can be the default until decided.
+4. Proctor defaults: `maxTabSwitches=5`, auto-submit on breach — confirm.
+5. Coding graded-run cap: 25/problem default (range 10–50) — confirm.
+6. Company readiness cut-offs: college-only entry or platform seed defaults?
+7. Hide mastery radar until first diagnostic baseline?
+8. Sprint streak gamification: college toggle, default off — agree?
