@@ -25,9 +25,9 @@ const GROUP_BLURB: Partial<Record<StudentNavGroup, string>> = {
 
 export default function StudentHubPage({ group }: StudentHubPageProps) {
   const { t } = useTranslation()
-  const { profile, codingLabEnabled } = useStudentData()
+  const { profile, codingLabEnabled, assignmentsEnabled } = useStudentData()
   const definition = STUDENT_NAV_GROUPS.find((entry) => entry.id === group)
-  const items = navItemsInGroup(group, profile, codingLabEnabled)
+  const items = navItemsInGroup(group, profile, codingLabEnabled, assignmentsEnabled)
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-4">

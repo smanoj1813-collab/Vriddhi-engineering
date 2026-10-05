@@ -83,6 +83,7 @@ import { db } from '@/Firebase/config';
 import { isPwaStandalone, requestPwaInstall } from '../pwa/install';
 import { canAccessAdminPath, type AccessSettings } from '@/modules/auth/permissions';
 import { useAccessSettings } from '@/modules/admin/hooks/useAccessSettings';
+import { useCollegeModules } from '@/shared/hooks/useCollegeModules';
 
 const DRAWER_EXPANDED_WIDTH = 260;
 const DRAWER_COLLAPSED_WIDTH = 76;
@@ -898,16 +899,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const effectiveRole = user?.role || "admin";
   const showInstallApp = !isPwaStandalone();
 
+  // College-level optional modules (colleges/{id}/config/modules). When a
+  // college switches Assignments off, its nav entries disappear for every
+  // role; the callables stay the authoritative boundary.
+  const { assignmentsEnabled } = useCollegeModules();
+  const moduleHiddenPaths = React.useMemo(() => {
+    const hidden = new Set<string>();
+    if (!assignmentsEnabled) {
+      hidden.add('/faculty/assignments');
+      hidden.add('/admin/assignment-analytics');
+    }
+    return hidden;
+  }, [assignmentsEnabled]);
+
   const filteredNav = React.useMemo(() => {
     const seen = new Set<string>();
     return navItems
       .filter(item => item.roles.includes(effectiveRole))
+      .filter(item => !moduleHiddenPaths.has(item.path))
       .filter(item => {
         if (seen.has(item.path)) return false;
         seen.add(item.path);
         return true;
       });
-  }, [effectiveRole]);
+  }, [effectiveRole, moduleHiddenPaths]);
 
   // ─── Faculty collapsible groups ────────────────────────────────────────────
   // One open/closed set for the master groups. Landing on (or navigating to) a
@@ -921,10 +936,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     NAV_LABEL_KEYS[label] ? t(NAV_LABEL_KEYS[label]) : label;
 
   const { access } = useAccessSettings();
-  const collapsibleNav = React.useMemo(
-    () => filterNavForRole(collapsibleNavByRole[effectiveRole], effectiveRole as UserRole, access),
-    [effectiveRole, access]
-  );
+  const collapsibleNav = React.useMemo(() => {
+    const filtered = filterNavForRole(collapsibleNavByRole[effectiveRole], effectiveRole as UserRole, access);
+    if (!filtered || moduleHiddenPaths.size === 0) return filtered;
+    const out: SidebarEntry[] = [];
+    for (const entry of filtered) {
+      if (entry.kind === 'link') {
+        if (!moduleHiddenPaths.has(entry.path)) out.push(entry);
+      } else {
+        const children = entry.children.filter((c) => !moduleHiddenPaths.has(c.path));
+        if (children.length) out.push({ ...entry, children });
+      }
+    }
+    return out;
+  }, [effectiveRole, access, moduleHiddenPaths]);
 
   const activeGroup = React.useMemo(() => {
     if (!collapsibleNav) return null;

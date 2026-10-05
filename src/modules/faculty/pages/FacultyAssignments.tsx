@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { ExportButton } from '@/components/shared/ExportButton'
 import { useAuth } from '../../auth/context/AuthContext'
+import { useCollegeModules } from '@/shared/hooks/useCollegeModules'
 import {
   fetchFacultyAssignments,
   createAssignment,
@@ -63,6 +64,7 @@ function formatDeadline(value: string): string {
 
 export default function FacultyAssignments() {
   const { user } = useAuth()
+  const { assignmentsEnabled } = useCollegeModules()
   const [assignments, setAssignments] = useState<LocalAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -386,7 +388,24 @@ export default function FacultyAssignments() {
   ]
 
   // ─── Render ─────────────────────────────────────────────────────────────────
-  
+
+  // Deep-link guard for the college-level Assignments module toggle. The nav
+  // hides this page; a bookmarked URL must get the same answer.
+  if (!assignmentsEnabled) {
+    return (
+      <div className="p-6 lg:p-8 max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Assignments is switched off for this college</h2>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md mb-4">
+          This college does not use the Assignments module right now. A college administrator can turn it back on in Settings → Modules.
+        </p>
+        <Link to="/faculty/dashboard" className="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600">
+          Back to Dashboard
+        </Link>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="p-6 lg:p-8 max-w-7xl mx-auto flex flex-col items-center justify-center min-h-[60vh]">

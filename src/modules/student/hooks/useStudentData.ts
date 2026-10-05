@@ -38,6 +38,7 @@ import {
 } from '@/shared/utils/assessmentLifecycle';
 import { canStudentUseCodingLab, isBcaStudent } from '../codingLabAccess';
 import { fetchCollegeCodingLabAccess } from '@/shared/services/codingLabAccessService';
+import { fetchCollegeModuleSettings, isCollegeModuleEnabled } from '@/shared/services/collegeModulesService';
 
 export interface UseStudentDataReturn {
   student: StudentProfile | null;
@@ -62,6 +63,8 @@ export interface UseStudentDataReturn {
   collegeId: string;
   /** True only when this BCA student belongs to a college assigned the lab. */
   codingLabEnabled: boolean;
+  /** College-level optional module toggle; defaults ON (fail-open read). */
+  assignmentsEnabled: boolean;
 }
 
 const StudentDataContext = createContext<UseStudentDataReturn | null>(null);
@@ -194,6 +197,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
   const [collegeId, setCollegeId] = useState<string>(user?.collegeId || '');
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [codingLabEnabled, setCodingLabEnabled] = useState(false);
+  const [assignmentsEnabled, setAssignmentsEnabled] = useState(true);
   const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -266,6 +270,9 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
         isBcaStudent(mappedProfile)
           ? fetchCollegeCodingLabAccess(profileData.collegeId || user?.collegeId || '')
           : Promise.resolve(false),
+        // College module toggles (Assignments, ...). The read is fail-open:
+        // a missing config doc or a hiccup keeps the default (module ON).
+        fetchCollegeModuleSettings(profileData.collegeId || user?.collegeId || ''),
       ] as const);
 
       const serviceNames = [
@@ -276,6 +283,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
         'notifications',
         'assessments',
         'coding lab access',
+        'module settings',
       ];
       // Saying WHICH service failed is not enough: a Firestore rules denial and a
       // Cloud Function refusing the account look identical on screen, and they need
@@ -301,9 +309,11 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       const notificationData = results[4].status === 'fulfilled' ? results[4].value : [];
       const rawTestData = results[5].status === 'fulfilled' ? results[5].value : [];
       const codingLabAssigned = results[6].status === 'fulfilled' ? results[6].value : false;
+      const moduleSettings = results[7].status === 'fulfilled' ? results[7].value : null;
       const testData = rawTestData.map((test) => withEffectiveStudentAssessmentLifecycle(test));
 
       setCodingLabEnabled(canStudentUseCodingLab(mappedProfile, codingLabAssigned));
+      setAssignmentsEnabled(isCollegeModuleEnabled(moduleSettings, 'assignments'));
       setAttendance(mapAttendance(attendanceData));
       setAssignments(mapAssignments(assignmentData));
       setFeeSummary(feeData ? mapFees(feeData) : null);
@@ -341,6 +351,8 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       console.error('[useStudentData] Fetch error:', err);
       setProfile(null);
       setCodingLabEnabled(false);
+      // Fail open: an error must not hide a core module the college uses.
+      setAssignmentsEnabled(true);
       setStudentDocId('');
       setCollegeId('');
       setAttendance(null);
@@ -382,6 +394,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
     studentId: studentDocId,
     collegeId,
     codingLabEnabled,
+    assignmentsEnabled,
   };
 };
 

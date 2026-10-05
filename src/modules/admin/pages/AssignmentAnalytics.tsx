@@ -14,6 +14,7 @@ import {
   type AssignmentAnalyticsResult,
   type GroupCompletion,
 } from '../api/assignmentAnalyticsApi'
+import { useCollegeModules } from '@/shared/hooks/useCollegeModules'
 
 // ─── Small display helpers ───────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ function GroupSection({ title, icon: Icon, groups }: {
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function AssignmentAnalytics() {
+  const { assignmentsEnabled } = useCollegeModules()
   const [data, setData] = useState<AssignmentAnalyticsResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -101,8 +103,27 @@ export default function AssignmentAnalytics() {
   }, [])
 
   useEffect(() => {
+    if (!assignmentsEnabled) {
+      setLoading(false)
+      return
+    }
     load()
-  }, [load])
+  }, [load, assignmentsEnabled])
+
+  // Deep-link guard for the college-level Assignments module toggle.
+  if (!assignmentsEnabled) {
+    return (
+      <div className="max-w-lg mx-auto mt-16">
+        <div className="glass-card p-6 text-center">
+          <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Assignments is switched off for this college</h2>
+          <p className="text-sm text-vriddhi-muted">
+            This college does not use the Assignments module right now, so there is no completion report. A college administrator can turn it back on in Settings → Modules.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const handleExport = () => {
     if (!data) return

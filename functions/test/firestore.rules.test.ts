@@ -2204,6 +2204,31 @@ describe('course assignments and course progress', () => {
     await assertSucceeds(setDoc(assignmentPath(superadminDb, COLLEGE_A), { enabled: true }))
   })
 
+  it('college module toggles are readable by the college and writable only by its managers', async () => {
+    // config/modules gates optional product modules (Assignments, ...).
+    // Students need the read so navigation can hide a switched-off module;
+    // unlike codingLab, staff of the college also read it, and the college's
+    // own admin/hod/principal may write it (superadmin anywhere).
+    const modulesPath = (db: any, college: string) =>
+      doc(db, 'colleges', college, 'config', 'modules')
+    const payload = { assignments: { enabled: false } }
+
+    const studentDb = studentContext().firestore()
+    await assertSucceeds(getDoc(modulesPath(studentDb, COLLEGE_A)))
+    await assertFails(getDoc(modulesPath(studentDb, COLLEGE_B)))
+    await assertFails(setDoc(modulesPath(studentDb, COLLEGE_A), payload))
+
+    await assertSucceeds(getDoc(modulesPath(facultyContext().firestore(), COLLEGE_A)))
+    await assertFails(setDoc(modulesPath(facultyContext().firestore(), COLLEGE_A), payload))
+
+    await assertSucceeds(setDoc(modulesPath(adminContext().firestore(), COLLEGE_A), payload))
+    await assertSucceeds(setDoc(modulesPath(principalContext().firestore(), COLLEGE_A), payload))
+    await assertSucceeds(setDoc(modulesPath(hodContext().firestore(), COLLEGE_A), payload))
+    await assertFails(setDoc(modulesPath(adminContext().firestore(), COLLEGE_B), payload))
+
+    await assertSucceeds(setDoc(modulesPath(superadminContext().firestore(), COLLEGE_B), payload))
+  })
+
   it('students and college course managers can access only their college assignment settings', async () => {
     const studentDb = studentContext().firestore()
     const adminDb = adminContext().firestore()

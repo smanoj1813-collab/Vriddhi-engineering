@@ -23,6 +23,7 @@ import LanguageSettingsBlock from '../../../shared/components/LanguageSettingsBl
 import { useTranslation } from '../../../shared/contexts/LanguageProvider'
 import AiStudyContentTab from './AiStudyContentTab'
 import CompanyPrepVisibilityPanel from '@/shared/components/prep/CompanyPrepVisibilityPanel'
+import CollegeModulesPanel from '@/shared/components/modules/CollegeModulesPanel'
 import CourseAssignmentPanel from '@/shared/components/courses/CourseAssignmentPanel'
 import ResumeAddonPanel from '@/shared/components/resume/ResumeAddonPanel'
 import CollegeBrandingUpload from '@/shared/components/CollegeBrandingUpload'
@@ -707,6 +708,14 @@ export default function Settings() {
               {user?.collegeId && ['admin', 'principal', 'superadmin'].includes(user.role) && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700/50">
                   <ResumeAddonPanel collegeId={user.role === 'superadmin' ? user.collegeId : undefined} collegeName={collegeName} canEdit={user.role === 'superadmin'} embedded />
+                </div>
+              )}
+
+              {/* Optional modules — college-level toggles (Assignments, ...).
+                  Colleges that don't use a module switch it off here. */}
+              {user?.collegeId && ['admin', 'principal', 'hod', 'superadmin'].includes(user.role) && (
+                <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700/50">
+                  <CollegeModulesPanel collegeId={user.role === 'superadmin' ? user.collegeId : undefined} collegeName={collegeName} canEdit embedded />
                 </div>
               )}
             </SettingsCard>

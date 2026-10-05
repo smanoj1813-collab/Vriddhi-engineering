@@ -89,11 +89,19 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
 export function studentNavItemsForProfile(
   profile?: StudentProgramIdentity | null,
   codingLabEnabled?: boolean,
+  assignmentsEnabled: boolean = true,
 ): StudentNavItem[] {
   // Omitted profile is kept for static route-model callers/tests. Real student
   // surfaces pass the college-checked entitlement from StudentDataProvider.
   const canUseCodingLab = profile === undefined || (isBcaStudent(profile) && codingLabEnabled === true)
-  return STUDENT_NAV_ITEMS.filter((item) => item.id !== 'coding-lab' || canUseCodingLab)
+  // Assignments is a college-level optional module (colleges/{id}/config/modules).
+  // Defaults ON; only an explicit college decision hides it.
+  const canUseAssignments = assignmentsEnabled !== false
+  return STUDENT_NAV_ITEMS.filter(
+    (item) =>
+      (item.id !== 'coding-lab' || canUseCodingLab)
+      && (item.id !== 'assignments' || canUseAssignments)
+  )
 }
 
 /**
@@ -123,9 +131,10 @@ export function moreSheetItems(options: {
   showInstallApp?: boolean
   profile?: StudentProgramIdentity | null
   codingLabEnabled?: boolean
+  assignmentsEnabled?: boolean
 } = {}): StudentNavItem[] {
   const showInstallApp = options.showInstallApp !== false
-  return studentNavItemsForProfile(options.profile, options.codingLabEnabled).filter(
+  return studentNavItemsForProfile(options.profile, options.codingLabEnabled, options.assignmentsEnabled ?? true).filter(
     (item) =>
       !(MOBILE_TAB_IDS as readonly string[]).includes(item.id)
       && !item.hub
@@ -142,8 +151,9 @@ export function navItemsInGroup(
   group: StudentNavGroup,
   profile?: StudentProgramIdentity | null,
   codingLabEnabled?: boolean,
+  assignmentsEnabled: boolean = true,
 ): StudentNavItem[] {
-  return studentNavItemsForProfile(profile, codingLabEnabled).filter(
+  return studentNavItemsForProfile(profile, codingLabEnabled, assignmentsEnabled).filter(
     (item) => item.group === group && !item.hub && !(MOBILE_TAB_IDS as readonly string[]).includes(item.id)
   )
 }

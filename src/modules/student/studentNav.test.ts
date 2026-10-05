@@ -82,6 +82,20 @@ test('programme visibility: Coding Lab appears only in BCA student navigation', 
   assert.ok(!navItemsInGroup('practice', { course: 'B.Com' }, true).some((item) => item.id === 'coding-lab'))
 })
 
+test('module toggles: Assignments stays visible by default and hides when the college switches it off', () => {
+  // Default (no toggle configured) keeps the core module visible.
+  assert.ok(studentNavItemsForProfile({ course: 'BCA' }, true).some((item) => item.id === 'assignments'))
+  assert.ok(studentNavItemsForProfile(null).some((item) => item.id === 'assignments'))
+  // Explicit college decision: off everywhere the nav renders.
+  const hidden = studentNavItemsForProfile({ course: 'BCA' }, true, false)
+  assert.ok(!hidden.some((item) => item.id === 'assignments'))
+  assert.ok(!navItemsInGroup('academics', { course: 'BCA' }, true, false).some((item) => item.id === 'assignments'))
+  assert.ok(!moreSheetItems({ profile: { course: 'BCA' }, codingLabEnabled: true, assignmentsEnabled: false }).some((item) => item.id === 'assignments'))
+  // …without disturbing unrelated items.
+  assert.ok(hidden.some((item) => item.id === 'attendance'))
+  assert.ok(hidden.some((item) => item.id === 'coding-lab'))
+})
+
 test('nav model: every item belongs to a declared group', () => {
   const declared = new Set(STUDENT_NAV_GROUPS.map((g) => g.id))
   for (const item of STUDENT_NAV_ITEMS) {

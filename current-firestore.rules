@@ -512,9 +512,12 @@ service cloud.firestore {
         // config/library (loan rules) is likewise shown to borrowers; the
         // codingLab assignment flag is readable only by students of its college
         // so the BCA navigation can fail closed without a public settings API.
+        // config/modules (optional-module toggles, e.g. Assignments) is likewise
+        // readable by the college's own students so navigation can hide a module
+        // the college switched off.
         allow get: if isSignedIn() && (isSuperadmin()
           || (docId == 'courses' && role() in ['admin', 'hod', 'principal', 'student'] && collegeId() == collegeId)
-          || (docId == 'codingLab' && role() == 'student' && collegeId() == collegeId)
+          || (docId in ['codingLab', 'modules'] && role() == 'student' && collegeId() == collegeId)
           || (docId != 'courses' && docId != 'codingLab' && isStaff() && collegeId() == collegeId)
           || (isOffice() && collegeId() == collegeId)
           || (docId in ['branding', 'library', 'nodues'] && collegeId() == collegeId));
