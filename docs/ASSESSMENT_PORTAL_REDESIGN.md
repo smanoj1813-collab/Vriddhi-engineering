@@ -1,6 +1,12 @@
 # Assessment Portal — Design v3: Desktop-First, Cost-Engineered, Skills-Based
 
-Status: **Design specification — refinement round 2 (PrepInsta workflow absorbed)**
+Status: **PARKED — future reference only (decision 2026-10-05).**
+Vriddhi keeps its **current assessment flow**; the PrepInsta-style rebuild
+specified below is not the active direction. The active design direction is
+the unified platform: see `ONE_VRIDDHI_UNIFIED_STUDENT_EXPERIENCE.md`.
+Retained so the thinking (cost budgets, section-lock player spec, proctor
+ladder) stays available if an advanced assessment mode is ever green-lit as
+an opt-in college add-on.
 Date: 2026-10-05 · Project: `vriddhi-engineering` · Region: `asia-south1`
 
 > Reference source: PrepInsta assessment platform student-end workflow
