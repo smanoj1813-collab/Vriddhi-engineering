@@ -1,40 +1,74 @@
-# Create Test — staff-side assessment flow (design review)
+# Create Test — staff-side assessment flow (cost-engineered plan)
 
-**Status:** proposal for sign-off · 2026-10-05 · branch `arena/01a10cfa-vriddhi-engineering`
+**Status:** decisions locked 2026-10-05 · ready to build Phase 1 on your word
 **Scope:** the *staff* half of the assessment portal — Create Test → sections →
-add questions (custom / library, MCQ + coding) → proctoring → publish.
-The *student* half (section-lock player, palette, autosave, resume, proctor
-ladder, coding workspace, cost budgets) is already specified in
+add questions (custom / library, MCQ + coding) → publish.
+The *student* half (section-lock player, palette, autosave, resume, coding
+workspace, per-attempt cost budgets) is already specified in
 `docs/ASSESSMENT_PORTAL_REDESIGN.md`; this document **un-parks the authoring
-half of it** and does not repeat it. Where the student end matters, it is
-cited as REDESIGN §x.
+half** and does not repeat it. Citations below read REDESIGN §x.
 
 Companion context: `docs/PORTAL_ROLE_CLEANUP_HANDOFF.md` (role rounds),
 `docs/DEPLOY_ONE_VRIDDHI.md` + `docs/QUOTA_COMPATIBLE_DEPLOYMENT_PLAN.md`
-(deploy/quota rules).
+(deploy/quota rules), `docs/COSTING_AND_PRICING_ANALYSIS_2026-09-25.md`.
 
 ---
 
-## 1. TL;DR — the recommendation in six lines
+## 0. Decisions on record (2026-10-05)
 
-1. **Do not introduce a parallel "test" object.** The repo already stores
-   sectioned papers (`papers/{id}` with `sections[]`) and schedules them
-   (`scheduledTests`, callable-only). Create Test = *authoring a sectioned
-   paper*; Schedule = the existing flow. One object, two verbs.
-2. **Wizard = 2 steps, +1 when the college bought proctoring** (not a fixed
-   "Step 3 of 3"): Test details → Sections → (Proctoring).
-3. **Section count: add-only after creation**, never "locked forever" — the
-   stated lock is a support ticket waiting to happen.
-4. **Question editor and library picker already exist** (QuestionManager,
-   UniversalQuestionBank with multi-select) — they get a section-aware
-   "Add to Section N" mode and the live preview pane from your screenshot.
-5. **Coding questions can be authored now, but cannot be auto-graded until
-   the Judge0 decision is made** — `runStudentCode` is on the do-not-deploy
-   list. Authoring-first is safe and costs nothing; execution is a separate,
-   explicit decision (§7).
-6. **Phase 1 is hosting-only** (`papers`/`questions` are client-writable under
-   the current rules). Functions are touched only in Phase 3+, in line with
-   the 20,000 milliCPU quota plan.
+| # | Decision |
+|---|---|
+| D1 | **No HOD approval step.** A test goes from draft to scheduled without a review gate. (Paper Review stays out of the HOD portal.) |
+| D2 | **Who may create AND schedule a test:** `faculty`, `hod`, `admin` (= department head) and `employee` (Vriddhi internal staff). Nobody else; principal keeps the read-only oversight lane. |
+| D3 | **Proctoring is ON HOLD** — built only when a college asks and pays. Wizard is therefore **2 steps**, and the data model keeps a `proctoring` slot that stays absent until then. No camera/voice/streaming work is scheduled. |
+| D4 | The reference flow (your current company's tool) is the **baseline, not the target**: Vriddhi matches its usability and beats it on reuse, speed-to-create and reporting — **without taking on its cost structure**. |
+
+Still open: coding **execution** route (§7) — authoring is unaffected and costs nothing.
+
+---
+
+## 1. The governing rule: minimum marginal cost
+
+Every element below is chosen so that **creating and running tests adds no
+fixed cost to Vriddhi** — no new Cloud Run service (20,000 milliCPU cap), no
+new top-level collection, no new composite index, no media pipeline, no
+per-seat vendor.
+
+Where the reference platform spends money, Vriddhi's answer:
+
+| Reference platform spends on | Vriddhi's cheap equivalent | Marginal cost |
+|---|---|---|
+| A separate test/paper service + its own store | **Reuse `papers/{id}` with `sections[]`** (already client-writable by college staff under the current rules) | ₹0 — no backend, no migration |
+| Per-answer writes during the attempt | Debounced flush already engineered (REDESIGN §10.2): ~12–18 writes/attempt | ~₹0.002/attempt |
+| Serving all questions up front | Frozen chunk delivery per section (already live) | 3 reads/attempt |
+| A content team authoring question pools | **Bank-first authoring**: library picker + "save every custom question to the bank" + bulk paste/CSV import (`questionFileParser.ts`, `parseCSV.ts` already exist) | ₹0 |
+| AI generating every question | AI only on **measured shortfall**, capped per test, and every generated question is banked for reuse | the only variable cost — bounded by policy |
+| Video proctoring / SFU / per-candidate minutes | **On hold (D3)**; when sold: on-device signals + snapshots, never a media server | ₹0 today |
+| Code execution grid | Authoring-only until the Judge0 decision (§7) | ₹0 today |
+| New dashboards | Existing reports, grading queue, analytics, journey | ₹0 |
+
+**Dev cost is a cost too.** Phase 1–2 compose existing components
+(`UniversalQuestionBank` picker, `QuestionManager` form, `TestScheduler`,
+`paperReadiness`) instead of new ones; nothing is rewritten that already works.
+
+---
+
+## 1b. Running cost, numbered
+
+Firestore, asia-south1 (verify against the live pricing page):
+≈ **₹3 per 100,000 document reads**, ≈ **₹9 per 100,000 writes**.
+
+| Event | Reads | Writes | Cost |
+|---|---:|---:|---|
+| Author one 3-section, 60-question test (library picks + a few custom) | ~60 | ~45 | **< ₹0.01** |
+| Clone that test for the next section | ~2 | ~2 | ~₹0 |
+| One student attempt (REDESIGN §10.4) | ~9 | ~22–30 | ~₹0.003 |
+| **A 1,000-student drive on that test** | ~9,000 | ~26,000 | **≈ ₹2.6** |
+| Snapshot-free proctoring signals (T1, already built) | 0 | 2–4/attempt | ~₹0.0003 |
+| Cloud Run | — | — | **₹0 delta** (no new service; authoring is client-direct) |
+
+The only line that can grow is AI generation, so it is the only line with a
+policy: **bank first, AI on shortfall, capped, always banked afterwards**.
 
 ---
 
@@ -65,8 +99,11 @@ says "create a test" and walks out with something schedulable.
 
 ## 3. Information architecture
 
+Who sees "Create Test" (D2): `faculty`, `hod`, `admin`, `employee`,
+`superadmin`. Not `principal` (oversight only), not office roles.
+
 ```
-Sidebar (faculty + HOD)
+Sidebar (faculty + HOD + employee)
 └── Assessments
     ├── Create Test          ← NEW wizard  (/faculty/create-test, /admin/create-test)
     ├── My Tests             ← list of test templates (draft / ready / scheduled / completed)
@@ -128,39 +165,24 @@ Recommended changes:
 6. Section type union: `mcq | msq | numerical | descriptive | coding`
    (descriptive = manual grading queue, which already exists).
 
-### Step 3 — Proctoring (only when the college has the add-on)
+### Step 3 — Proctoring — **ON HOLD (D3)**
 
-Gate exactly like the Assignments module: a registry entry in
-`functions/src/collegeModules.ts` (`proctoring`) stored at
-`colleges/{id}/config/modules`, set when the college is created/billed, read
-client-side by `useCollegeModules()`. If the college does not have it, the
-wizard is 2 steps and the stepper says "Step 2 of 2" — no dead tab, no
-"upgrade" nag inside the flow.
+Not built now. The wizard is **Step 1 of 2 / Step 2 of 2**; no greyed tab, no
+upsell inside the flow. What is preserved so the hold costs nothing later:
 
-Within the page, the master toggle plus **three tiers** instead of a flat list
-of nine switches (cost and credibility differ by an order of magnitude):
-
-| Tier | Signals | How it runs | Marginal cost |
-|---|---|---|---|
-| **T1 Behavioural** (default, free) | Screen focus lost (SFL), tab switches, fullscreen exit, permission revoke (PR), copy/paste/bulk-insert, idle | Already implemented browser-side (`examLockdown`, tab counter); events batch into the attempt doc | ≈ 0 (2–4 writes/attempt) |
-| **T2 Camera evidence** (paid) | Face not present (FNP), multiple faces (MFD), face mismatch (FM), object detected (OD) | **On-device** detection (TF.js BlazeFace / COCO-SSD) in the student's browser; only *events* and the occasional JPEG snapshot are uploaded to Storage | Storage + egress only; no GPU, no new Cloud Run service |
-| **T3 Live monitoring** (paid, drives only) | Live video/screen streaming to a proctor console, voice detection (VD), ID authentication | Needs a media pipeline (WebRTC SFU or a vendor) — **not** Firebase-shaped | Real money: per-candidate-minute; must be priced before it is promised |
-
-Recommendations for the controls you listed:
-
-- Keep FM / FNP / MFD / PR / OD / SFL / VD as **per-test switches**, but grey
-  out the tier the college has not bought, with the price shown — honest and
-  it sells itself.
-- **Default to Image Snapshots** (your "Streaming Type") at a 20–30 s
-  interval. Live video for 1,000 candidates is a bandwidth bill, not a
-  feature. Make the interval a numeric field (10–120 s) as you specified.
-- **Enable Face Verification / ID Authentication** need a registered photo
-  for every student; only offer them when the college has student photos on
-  file (we can detect that) — otherwise every attempt flags FM on day one.
-- Every signal is **evidence for a human**, never an automatic zero
-  (REDESIGN §2.7) — the review queue pattern already exists.
-- Storage retention: snapshots auto-delete after N days (default 30,
-  college-configurable); say so on this page for DPDP hygiene.
+- the `proctoring` block stays **absent** from the saved test (§6) — an
+  absent block means "unproctored", which is exactly today's behaviour;
+- the integrity floor that already ships stays ON for every test, proctored
+  or not: clipboard / bulk-insert / long-press blocking (`examLockdown.ts`),
+  tab-switch counting, fullscreen and focus events, idle detection. This is
+  the free tier, already written, and it is what most internal tests need;
+- when a college asks and pays, it arrives as a module toggle
+  (`colleges/{id}/config/modules.proctoring`, the Assignments pattern) plus a
+  third wizard step, in three priced tiers — **T1 behavioural (free, built)**,
+  **T2 on-device camera evidence** (TF.js in the student's browser, snapshots
+  to Storage, no GPU, no new service), **T3 live monitoring / voice / ID**
+  (needs a vendor and a per-candidate-minute price). T3 is the only one that
+  changes Vriddhi's cost structure, and it is sold before it is built.
 
 ### Confirmation screen
 
@@ -258,13 +280,9 @@ render. Changes:
     "lockOnSubmit": true, "plannedQuestions": 20,
     "questions": [{ "questionId": "q_123", "order": 1, "marks": 2, "negativeMarks": 0.5 }]
   }],
-  "proctoring": {               // present only when the college has the add-on
-    "enabled": true, "tier": "camera",
-    "signals": { "sfl": true, "pr": true, "fnp": true, "mfd": true, "fm": false, "od": false, "vd": false },
-    "stream": { "mode": "camera", "type": "snapshots", "intervalSeconds": 30 },
-    "faceVerification": false, "idAuthentication": false,
-    "retentionDays": 30
-  }
+  // "proctoring": { … }        // ON HOLD (D3) — field intentionally ABSENT.
+  // Absent = unproctored = today's behaviour. The free integrity floor
+  // (clipboard lock, tab/focus counting) applies to every test regardless.
 }
 
 // questions/{id} — unchanged for MCQ; coding adds:
@@ -278,68 +296,74 @@ render. Changes:
   "starterCode": { "python": "…" }, "referenceSolution": { "python": "…" }
 }
 
-// colleges/{id}/config/modules  — paid add-on switch (existing pattern)
-{ "assignments": { "enabled": true }, "proctoring": { "enabled": true, "tier": "camera" } }
+// colleges/{id}/config/modules — unchanged today. A `proctoring` entry is
+// added only when a college buys it (D3); its absence is the default.
+{ "assignments": { "enabled": true } }
 ```
 
 `scheduledTests` is unchanged: the schedule step keeps going through the
-existing callable, and the proctoring block is copied (frozen) onto the
-scheduled test so later template edits cannot change a live exam.
+existing callable, and the delivery block (shuffle, tab cap, report
+visibility) is copied — frozen — onto the scheduled test, so editing the
+template later can never change a live exam. No new collection, no new
+composite index, no migration: existing papers keep working, and a paper
+without the new fields simply reads as a one-section test.
 
 ---
 
-## 7. The two decisions only you can make
+## 7. The one open decision: coding execution
 
-1. **Coding execution.** Authoring and preview cost nothing and can ship in
-   Phase 2. Grading a coding section requires running code, and
-   `runStudentCode` (Judge0) is excluded from deploys with its deletion
-   decision pending. Options:
-   a. **Authoring-first (recommended):** ship coding questions as content;
-      sections carry them, students see the workspace with "run" disabled, and
-      grading is manual against visible cases. No deploy, no cost.
-   b. **Re-enable Judge0** behind the proctoring-style paid toggle, with
-      per-attempt run caps (REDESIGN §2.8: 25 graded runs/problem) and a
-      quota-capped redeploy of exactly one function.
-   c. **Self-hosted runner** (Cloud Run job, gVisor) — the real long-term
-      answer for a placement-prep product, and the most expensive to build.
-2. **Proctoring tiers and price.** T1 is free and already half-built; T2 is
-   a few weeks and a storage line item; T3 needs a vendor and a per-minute
-   price. I need the commercial decision (what the college is sold at
-   college-creation time) before the toggle registry is written, because that
-   is what the toggle *means*.
+Authoring coding questions (statement, constraints, I/O, examples, test
+cases, marks per case, preview — exactly your spec) costs **₹0** and ships in
+Phase 2. *Running* student code is the decision:
 
----
-
-## 8. Build phases
-
-| Phase | Scope | Backend? | Deploy |
+| Route | What it buys | Cost to Vriddhi | Verdict |
 |---|---|---|---|
-| **1. Create Test wizard + My Tests** | Steps 1–2, section model extension, confirmation screen, section table, readiness gate, duplicate test; pure utils (test-code normalisation, marks/section totals, readiness) + node tests | none — `papers`/`questions` are client-writable | hosting only |
-| **2. Question doors** | Custom MCQ editor with live preview, library picker in "add to section" mode, random pick by filter, pool health, coding authoring + preview | none (Storage rules for images already exist) | hosting only |
-| **3. Schedule integration** | TestScheduler step 1 reads the new template; freeze proctoring + delivery settings onto `scheduledTests`; student instructions screen reads section plan | `scheduleAssessmentTest` payload grows | `api` + 1 function, quota batch ≤ 5 |
-| **4. Proctoring T1 → T2** | Module registry entry + wizard Step 3, event ladder in the player, on-device camera signals, snapshot upload + review queue | functions + Storage rules | staged, per quota plan |
-| **5. Coding execution** | Only after decision §7.1 | yes | separate decision |
+| **a. Authoring-first (recommended now)** | Coding sections exist; students write code in the workspace; grading is manual against visible cases, or the section is used as "write the logic" | ₹0, no deploy, no quota touch | **Default until a college needs auto-verdicts** |
+| b. Re-enable Judge0 (`runStudentCode`) behind a paid toggle | Real verdicts | 1 function redeploy inside the quota batch + per-run compute; needs the pending deletion decision resolved first | Only when sold |
+| c. Self-hosted runner (Cloud Run job, gVisor) | Verdicts at scale, no vendor | New service = quota + fixed cost | Not now |
 
-Phases 1–2 — the whole of what you specified as authoring — ship **without
-touching `functions/`**, which keeps this round inside the same
-hosting-only deploy posture as the principal and HOD rounds.
+Nothing in the data model changes between a → b: `mode: 'code'` simply starts
+being executed. Zero re-authoring, which is the point.
 
----
+## 8. Build phases (cheapest value first)
 
-## 9. Open questions
+| Phase | Scope | Backend? | Deploy | Marginal cost |
+|---|---|---|---|---|
+| **1. Create Test wizard + My Tests** | 2-step wizard (details → sections), extended section model, confirmation screen with the section table, readiness gate (`isPaperOnlineReady`), **duplicate test**, draft/ready lifecycle, role gate per D2; pure utils (test-code normalisation, section/test totals, readiness) + node tests | none — `papers`/`questions` are client-writable | **hosting only** | ₹0 |
+| **2. Question doors** | Custom MCQ editor with the live preview pane, library picker in "add to section" mode with filters + bulk select, **random pick by filter** ("add 10 medium DBMS MCQs"), pool-health meter, **bulk paste / CSV import**, coding question authoring + preview | none | **hosting only** | ₹0 |
+| **3. Schedule integration** | `TestScheduler` step 1 reads the new template; delivery settings (shuffle, tab cap, report visibility) freeze onto `scheduledTests`; student instructions screen reads the section plan | `scheduleAssessmentTest` payload grows | `api` + 1 function, quota batch ≤ 5 | ~₹0 |
+| **4. Reporting polish** | Section-wise and question-wise analytics on the existing reports page; "weak topic → practice" link into prep/Coding Lab | none | hosting only | ₹0 |
+| **5. Proctoring** | ON HOLD (D3) — T1 already live; T2/T3 only on a paying college's ask | — | — | priced then |
+| **6. Coding execution** | Only after §7 | yes | separate decision | priced then |
 
-1. Who may create a test: faculty for their own subjects only, HOD for the
-   department, both? Is there an approval step before scheduling (HOD's Paper
-   Review was removed this round — if tests need review, it comes back as a
-   tab inside Assessments, not as a separate page).
-2. Test code: college-wide unique, or per subject/semester?
-3. Negative marking default for internal tests — 0, or 1/4 of correct?
-4. Should "Show performance report" default to on for practice tests and off
-   for internal tests?
-5. Does a test ever span branches (shared first-year papers), or is one test
-   always one cohort?
-6. Proctoring commercials (§7.2) and snapshot retention period.
-7. Coding execution route (§7.1).
-8. Does "Generated Papers" (removed from the faculty sidebar this round) come
-   back as "My Tests", or do AI-generated papers land straight in the Create
-   Test flow as a pre-filled template? My assumption: the latter.
+### Enhancements over the baseline tool, and what each costs
+
+| Enhancement | Why it beats the reference flow | Cost |
+|---|---|---|
+| **Clone test / clone section** | IAT-2 is IAT-1 with new questions; the reference tool makes you retype everything | ₹0 (2 writes) |
+| **Random pick by filter** | 60-question paper in ~2 minutes instead of 60 manual picks | ₹0 (1 query) |
+| **Every custom question auto-banked** (tagged subject/topic/difficulty) | The pool grows as a by-product of teaching; test #2 is half the work | ₹0 |
+| **Bulk paste / CSV import** | A Word question list becomes a section in one paste — the free alternative to AI | ₹0 (parsers exist) |
+| **Pool-health meter** | Shows "only 6 hard questions match" *before* publishing; prevents the one genuinely expensive failure (a broken exam) | ₹0 |
+| **Readiness gate** | A test with an empty section cannot be scheduled | ₹0 |
+| **Running summary bar** (`3 sections · 60 Q · 120 marks · 90 min`) | Mistakes caught at authoring, not on exam morning | ₹0 |
+| **AI top-up on shortfall only**, capped, always banked | Uses the existing `/api/ai-questions`; spend is bounded and amortised | the only variable line |
+| **Section-wise + question-wise analytics** on existing reports | The reference tool stops at a score | ₹0 |
+| **Free integrity floor on every test** | Clipboard/bulk-insert/tab counting already enforced — unproctored ≠ open book | ₹0 |
+
+## 9. Remaining questions (small)
+
+1. **Test code** — college-wide unique, or unique per subject/semester?
+   (Default I will implement: college-wide unique, auto-suggested.)
+2. **Negative marking default** for internal tests — `0`, or `1/4` of the
+   correct mark? (Default: `0`, with the `1/4` chip one click away.)
+3. **Candidate report default** — on for practice/mock, off for internal
+   tests until results are finalised? (Default: that split.)
+4. Can one test span branches (shared first-year papers), or is one test
+   always one cohort? (Default: multi-cohort allowed — the picker supports it.)
+5. Coding execution route (§7) — authoring proceeds regardless.
+6. Does AI-generated paper output land straight in Create Test as a
+   pre-filled template? (Default: yes; "Generated Papers" does not return.)
+
+None of these block Phase 1 — each has a sane default that is one field to
+change later.
