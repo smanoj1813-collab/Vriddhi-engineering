@@ -39,6 +39,7 @@ import {
 import { canStudentUseCodingLab, isBcaStudent } from '../codingLabAccess';
 import { fetchCollegeCodingLabAccess } from '@/shared/services/codingLabAccessService';
 import { fetchCollegeModuleSettings, isCollegeModuleEnabled } from '@/shared/services/collegeModulesService';
+import { fetchCollegePlacementPrepAccess } from '@/shared/services/placementPrepAccessService';
 
 export interface UseStudentDataReturn {
   student: StudentProfile | null;
@@ -65,6 +66,8 @@ export interface UseStudentDataReturn {
   codingLabEnabled: boolean;
   /** College-level optional module toggle; defaults ON (fail-open read). */
   assignmentsEnabled: boolean;
+  /** Company-prep master switch for the college; defaults ON (server default). */
+  placementPrepEnabled: boolean;
 }
 
 const StudentDataContext = createContext<UseStudentDataReturn | null>(null);
@@ -198,6 +201,8 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [codingLabEnabled, setCodingLabEnabled] = useState(false);
   const [assignmentsEnabled, setAssignmentsEnabled] = useState(true);
+  // Fail closed: hidden until the college's prep switch confirms otherwise.
+  const [placementPrepEnabled, setPlacementPrepEnabled] = useState(false);
   const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -221,6 +226,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
     const uid = explicitStudentId || user?.uid;
     if (!uid) {
       setCodingLabEnabled(false);
+      setPlacementPrepEnabled(false);
       setLoading(false);
       return;
     }
@@ -228,6 +234,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
     try {
       setLoading(true);
       setCodingLabEnabled(false);
+      setPlacementPrepEnabled(false);
       setError(null);
       setWarnings([]);
 
@@ -235,6 +242,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       if (!profileData) {
         setProfile(null);
         setCodingLabEnabled(false);
+        setPlacementPrepEnabled(false);
         throw new Error(
           'Your account is not linked to a student profile. Contact your college administrator.'
         );
@@ -273,6 +281,9 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
         // College module toggles (Assignments, ...). The read is fail-open:
         // a missing config doc or a hiccup keeps the default (module ON).
         fetchCollegeModuleSettings(profileData.collegeId || user?.collegeId || ''),
+        // Placement Prep master switch (config/prep). Defaults ON; only an
+        // explicit switch-off hides the entry. Fails closed on read errors.
+        fetchCollegePlacementPrepAccess(profileData.collegeId || user?.collegeId || ''),
       ] as const);
 
       const serviceNames = [
@@ -284,6 +295,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
         'assessments',
         'coding lab access',
         'module settings',
+        'placement prep access',
       ];
       // Saying WHICH service failed is not enough: a Firestore rules denial and a
       // Cloud Function refusing the account look identical on screen, and they need
@@ -310,10 +322,12 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       const rawTestData = results[5].status === 'fulfilled' ? results[5].value : [];
       const codingLabAssigned = results[6].status === 'fulfilled' ? results[6].value : false;
       const moduleSettings = results[7].status === 'fulfilled' ? results[7].value : null;
+      const placementPrepAccess = results[8].status === 'fulfilled' ? results[8].value : false;
       const testData = rawTestData.map((test) => withEffectiveStudentAssessmentLifecycle(test));
 
       setCodingLabEnabled(canStudentUseCodingLab(mappedProfile, codingLabAssigned));
       setAssignmentsEnabled(isCollegeModuleEnabled(moduleSettings, 'assignments'));
+      setPlacementPrepEnabled(placementPrepAccess);
       setAttendance(mapAttendance(attendanceData));
       setAssignments(mapAssignments(assignmentData));
       setFeeSummary(feeData ? mapFees(feeData) : null);
@@ -351,6 +365,8 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       console.error('[useStudentData] Fetch error:', err);
       setProfile(null);
       setCodingLabEnabled(false);
+      // Fail closed: a gated section stays hidden when its check cannot run.
+      setPlacementPrepEnabled(false);
       // Fail open: an error must not hide a core module the college uses.
       setAssignmentsEnabled(true);
       setStudentDocId('');
@@ -395,6 +411,7 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
     collegeId,
     codingLabEnabled,
     assignmentsEnabled,
+    placementPrepEnabled,
   };
 };
 

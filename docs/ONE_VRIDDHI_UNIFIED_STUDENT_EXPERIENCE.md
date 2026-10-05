@@ -194,7 +194,7 @@ Concrete v1 links (all deep links, no new engines):
 
 | Phase | Scope | Acceptance |
 |---|---|---|
-| **A — Practice visible** | Placement Prep nav item → existing `/prep` viewer, governed by the college visibility panel | student of an enabled college reaches company prep in ≤ 2 taps from home; disabled college sees nothing, deep links refused |
+| **A — Practice visible** ✅ | Placement Prep nav item → existing `/prep` viewer, governed by the college visibility panel | student of an enabled college reaches company prep in ≤ 2 taps from home; disabled college sees nothing, deep links refused |
 | **B — Today strip** | three-pillar pulse on dashboard from existing data | strip renders from data already loaded; every row deep-links correctly |
 | **C — Loop links** | result → practice/learning links; prep → upcoming tests | every completed test offers ≥ 1 correct next step; links respect college toggles |
 | **D — Journey spine** | practice activity + company readiness rows in My Journey | one page answers "how am I doing" across all three pillars |

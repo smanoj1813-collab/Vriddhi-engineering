@@ -36,9 +36,9 @@ export default function StudentMoreSheet({
 }: StudentMoreSheetProps) {
   const { t } = useTranslation()
   const { resolvedMode, toggleMode } = useThemeMode()
-  const { profile, codingLabEnabled, assignmentsEnabled } = useStudentData()
+  const { profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled } = useStudentData()
   const showInstall = !isPwaStandalone()
-  const sheetItems = moreSheetItems({ showInstallApp: showInstall, profile, codingLabEnabled, assignmentsEnabled })
+  const sheetItems = moreSheetItems({ showInstallApp: showInstall, profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled })
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return undefined

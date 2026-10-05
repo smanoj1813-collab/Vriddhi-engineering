@@ -25,6 +25,7 @@ import {
   Award,
   Code2,
   IdCard,
+  Target,
   type LucideIcon,
 } from 'lucide-react'
 import type { TranslationKey } from '../../shared/i18n'
@@ -70,6 +71,12 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   { id: 'materials', label: 'Materials', path: '/student/materials', icon: Library, group: 'practice', translationKey: 'nav.materials', hint: 'Notes, slides and study material shared by faculty' },
   { id: 'courses', label: 'Courses', path: '/student/courses', icon: Award, group: 'practice', hint: 'Self-paced certificate programmes — lessons, labs, quizzes and projects' },
   { id: 'coding-lab', label: 'Coding Lab', path: '/student/coding-lab', icon: Code2, group: 'practice', hint: 'Practice C, C++, Java and Python with an in-browser code runner' },
+  // One Vriddhi Phase A: the company-prep pillar joins the unified nav.
+  // Opens the existing /prep viewer — college-scoped automatically because
+  // the prep endpoints resolve the signed-in student's college and apply its
+  // visibility panel (master switch + hidden companies). The nav entry is
+  // hidden only when that master switch is explicitly off.
+  { id: 'placement-prep', label: 'Placement Prep', path: '/prep', icon: Target, group: 'practice', hint: 'Company patterns, aptitude and mock practice' },
   { id: 'library', label: 'Library', path: '/student/library', icon: GraduationCap, group: 'practice', translationKey: 'nav.library', hint: 'Books, journals and e-resources' },
   { id: 'journey', label: 'My Journey', path: '/student/journey', icon: Milestone, group: 'practice', translationKey: 'nav.journey', hint: 'Your progress across the programme' },
   { id: 'resume', label: 'Resume Builder', path: '/student/resume', icon: Briefcase, group: 'practice', hint: 'ATS-friendly resume templates, live preview and PDF download (Placement Pack)' },
@@ -90,6 +97,7 @@ export function studentNavItemsForProfile(
   profile?: StudentProgramIdentity | null,
   codingLabEnabled?: boolean,
   assignmentsEnabled: boolean = true,
+  placementPrepEnabled: boolean = true,
 ): StudentNavItem[] {
   // Omitted profile is kept for static route-model callers/tests. Real student
   // surfaces pass the college-checked entitlement from StudentDataProvider.
@@ -97,10 +105,15 @@ export function studentNavItemsForProfile(
   // Assignments is a college-level optional module (colleges/{id}/config/modules).
   // Defaults ON; only an explicit college decision hides it.
   const canUseAssignments = assignmentsEnabled !== false
+  // Placement Prep reflects the company-prep master switch
+  // (colleges/{id}/config/prep → companyPrep.enabled). Defaults ON like the
+  // server-side catalogue; only an explicit switch-off hides it.
+  const canUsePlacementPrep = placementPrepEnabled !== false
   return STUDENT_NAV_ITEMS.filter(
     (item) =>
       (item.id !== 'coding-lab' || canUseCodingLab)
       && (item.id !== 'assignments' || canUseAssignments)
+      && (item.id !== 'placement-prep' || canUsePlacementPrep)
   )
 }
 
@@ -132,9 +145,15 @@ export function moreSheetItems(options: {
   profile?: StudentProgramIdentity | null
   codingLabEnabled?: boolean
   assignmentsEnabled?: boolean
+  placementPrepEnabled?: boolean
 } = {}): StudentNavItem[] {
   const showInstallApp = options.showInstallApp !== false
-  return studentNavItemsForProfile(options.profile, options.codingLabEnabled, options.assignmentsEnabled ?? true).filter(
+  return studentNavItemsForProfile(
+    options.profile,
+    options.codingLabEnabled,
+    options.assignmentsEnabled ?? true,
+    options.placementPrepEnabled ?? true,
+  ).filter(
     (item) =>
       !(MOBILE_TAB_IDS as readonly string[]).includes(item.id)
       && !item.hub
@@ -152,8 +171,9 @@ export function navItemsInGroup(
   profile?: StudentProgramIdentity | null,
   codingLabEnabled?: boolean,
   assignmentsEnabled: boolean = true,
+  placementPrepEnabled: boolean = true,
 ): StudentNavItem[] {
-  return studentNavItemsForProfile(profile, codingLabEnabled, assignmentsEnabled).filter(
+  return studentNavItemsForProfile(profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled).filter(
     (item) => item.group === group && !item.hub && !(MOBILE_TAB_IDS as readonly string[]).includes(item.id)
   )
 }
