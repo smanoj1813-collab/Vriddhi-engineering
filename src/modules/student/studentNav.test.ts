@@ -82,6 +82,45 @@ test('programme visibility: Coding Lab appears only in BCA student navigation', 
   assert.ok(!navItemsInGroup('practice', { course: 'B.Com' }, true).some((item) => item.id === 'coding-lab'))
 })
 
+test('module toggles: Assignments stays visible by default and hides when the college switches it off', () => {
+  // Default (no toggle configured) keeps the core module visible.
+  assert.ok(studentNavItemsForProfile({ course: 'BCA' }, true).some((item) => item.id === 'assignments'))
+  assert.ok(studentNavItemsForProfile(null).some((item) => item.id === 'assignments'))
+  // Explicit college decision: off everywhere the nav renders.
+  const hidden = studentNavItemsForProfile({ course: 'BCA' }, true, false)
+  assert.ok(!hidden.some((item) => item.id === 'assignments'))
+  assert.ok(!navItemsInGroup('academics', { course: 'BCA' }, true, false).some((item) => item.id === 'assignments'))
+  assert.ok(!moreSheetItems({ profile: { course: 'BCA' }, codingLabEnabled: true, assignmentsEnabled: false }).some((item) => item.id === 'assignments'))
+  // …without disturbing unrelated items.
+  assert.ok(hidden.some((item) => item.id === 'attendance'))
+  assert.ok(hidden.some((item) => item.id === 'coding-lab'))
+})
+
+test('placement prep: visible by default, hidden when the college switch is off', () => {
+  // Default (no switch configured) keeps the pillar visible — matches the
+  // server-side catalogue default (companyPrep.enabled = true).
+  assert.ok(studentNavItemsForProfile({ course: 'BCA' }, true).some((item) => item.id === 'placement-prep'))
+  assert.ok(studentNavItemsForProfile(null).some((item) => item.id === 'placement-prep'))
+  // Explicit switch-off hides it in every surface the nav model feeds.
+  const hidden = studentNavItemsForProfile({ course: 'BCA' }, true, true, false)
+  assert.ok(!hidden.some((item) => item.id === 'placement-prep'))
+  assert.ok(!navItemsInGroup('practice', { course: 'BCA' }, true, true, false).some((item) => item.id === 'placement-prep'))
+  assert.ok(!moreSheetItems({ profile: { course: 'BCA' }, codingLabEnabled: true, placementPrepEnabled: false }).some((item) => item.id === 'placement-prep'))
+  // …without disturbing unrelated items.
+  assert.ok(hidden.some((item) => item.id === 'resume'))
+  assert.ok(hidden.some((item) => item.id === 'library'))
+})
+
+test('placement prep: the entry lives in the Learning hub and resolves /prep deep links', () => {
+  const item = findNavItem('/prep')
+  assert.equal(item?.id, 'placement-prep')
+  assert.equal(item?.group, 'practice')
+  // Company deep links light up the same entry.
+  assert.equal(findNavItem('/prep/company/tcs-nqt')?.id, 'placement-prep')
+  assert.ok(navItemsInGroup('practice').some((entry) => entry.id === 'placement-prep'))
+  assert.equal(groupTilesByNavSection([{ to: '/prep' }])[0].label, 'Learning')
+})
+
 test('nav model: every item belongs to a declared group', () => {
   const declared = new Set(STUDENT_NAV_GROUPS.map((g) => g.id))
   for (const item of STUDENT_NAV_ITEMS) {

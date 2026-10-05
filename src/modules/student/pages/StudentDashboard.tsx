@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStudentData } from '../hooks/useStudentData';
 import StudentAcademicSummary from '../components/StudentAcademicSummary';
+import TodayStrip from '../components/TodayStrip';
 import {
   Calendar, BookOpen, FileText, CreditCard, Clock, CheckCircle, AlertTriangle,
   Bell, ChevronRight, TrendingUp, MapPin, BarChart3, Library, Settings, Receipt,
@@ -261,6 +262,7 @@ export default function StudentDashboard() {
     refresh,
     profile,
     codingLabEnabled,
+    assignmentsEnabled,
     attendance,
     assessments,
     assignments,
@@ -389,6 +391,10 @@ export default function StudentDashboard() {
           Renders nothing when the backend feature gate is off. */}
       <StudentAcademicSummary />
 
+      {/* One Vriddhi Phase B: the three-pillar pulse — what to do next across
+          Learning, Assessment and Practice, from data already loaded. */}
+      <TodayStrip />
+
       {/* Quick Actions — up to 15 destinations from the shared student nav,
           split into their nav groups. Programme-specific actions are filtered
           for this student before they are rendered. */}
@@ -398,7 +404,10 @@ export default function StudentDashboard() {
           {t('student.quickNav')} - Karnataka University
         </h2>
         <div className="space-y-4">
-          {groupTilesByNavSection(QUICK_ACTIONS.filter((action) => action.to !== '/student/coding-lab' || codingLabEnabled)).map((group) => (
+          {groupTilesByNavSection(QUICK_ACTIONS.filter((action) =>
+            (action.to !== '/student/coding-lab' || codingLabEnabled)
+            && (action.to !== '/student/assignments' || assignmentsEnabled)
+          )).map((group) => (
             <div key={group.id}>
               <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <span className="h-1 w-1 rounded-full bg-teal-500" aria-hidden="true" />

@@ -30,6 +30,7 @@ const Assessments = lazy(() => import('./pages/Assessments'));
 const AssessmentDetailPage = lazy(() => import('./pages/AssessmentDetailPage'));
 const OnlineAssessmentScheduler = lazy(() => import('../faculty/pages/FacultyAssessments'));
 const AssessmentTestReportsPage = lazy(() => import('./pages/AssessmentTestReports'));
+const BranchConductionPage = lazy(() => import('./pages/BranchConductionPage'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 // Staff (faculty) attendance — what the faculty themselves marked. Student
 // attendance stays on `attendance`.
@@ -118,8 +119,9 @@ function LazyPage({ children }: { children: ReactNode }) {
 // Question paper / question bank / question approval are HOD territory now.
 // The principal's sidebar drops them; these wrappers make sure a bookmarked
 // or hand-typed URL bounces the principal out too, instead of silently
-// rendering a page the nav no longer advertises. (AI Question Generator is
-// deliberately NOT in this list — principal keeps it.)
+// rendering a page the nav no longer advertises. Official Grade Records and
+// the AI Question Generator join the list (hidden from principal, kept for
+// a future plug-in — re-add 'principal' here and in Layout.tsx to restore).
 const QUESTION_WORKFLOW_ROLES: UserRole[] = ['admin', 'hod', 'superadmin', 'employee'];
 const questionWorkflowOnly = (node: ReactNode) => (
   <RoleRoute allowedRoles={QUESTION_WORKFLOW_ROLES}>{node}</RoleRoute>
@@ -148,7 +150,9 @@ export const adminRoutes: RouteObject[] = [
       { path: 'assessments/:id', element: <LazyPage><AssessmentDetailPage /></LazyPage> },
       { path: 'schedule-tests', element: <LazyPage><OnlineAssessmentScheduler /></LazyPage> },
       { path: 'test-reports', element: <LazyPage><AssessmentTestReportsPage /></LazyPage> },
-      { path: 'grade-records', element: <LazyPage><GradeRecords /></LazyPage> },
+      // Principal oversight: read-only branch-wise conduction picture.
+      { path: 'branch-conduction', element: <LazyPage><BranchConductionPage /></LazyPage> },
+      { path: 'grade-records', element: questionWorkflowOnly(<LazyPage><GradeRecords /></LazyPage>) },
       { path: 'fee-management', element: <LazyPage><AdminFeeManagement /></LazyPage> },
       { path: 'finance-settings', element: <LazyPage><FinanceSettings /></LazyPage> },
       // ── College office: library ──
@@ -181,7 +185,7 @@ export const adminRoutes: RouteObject[] = [
       { path: 'settings', element: <LazyPage><Settings /></LazyPage> },
       { path: 'hod-dashboard', element: <LazyPage><HODDashboard /></LazyPage> },
       { path: 'ai-agent', element: <LazyPage><AIAgentPage /></LazyPage> },
-      { path: 'ai-questions', element: <LazyPage><AIQuestionsPage /></LazyPage> },
+      { path: 'ai-questions', element: questionWorkflowOnly(<LazyPage><AIQuestionsPage /></LazyPage>) },
       { path: 'onboarding', element: <LazyPage><CollegeOnboarding /></LazyPage> },
       { path: 'admissions', element: <LazyPage><AdmissionCenter /></LazyPage> },
       { path: 'papers/builder', element: questionWorkflowOnly(<LazyPage><PaperBuilder /></LazyPage>) },

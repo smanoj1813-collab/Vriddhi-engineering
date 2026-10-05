@@ -6,6 +6,7 @@ import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { normalizeRole } from './identityShared'
+import { assertAssignmentsEnabled } from './collegeModules'
 
 interface NotificationPreferences {
   exams: boolean
@@ -371,6 +372,9 @@ export const getMyAssignments = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const student = await resolveStudentIdentity(uid, request.auth?.token || {})
+    // College-level module toggle: colleges that don't run the assignment flow
+    // switch it off in Settings → Modules. Server-side is the boundary.
+    await assertAssignmentsEnabled(student.collegeId)
     const db = getFirestore(admin.app(), 'default')
 
     const [assignmentSnapshot, submissionSnapshot] = await Promise.all([
@@ -421,6 +425,7 @@ export const beginMyAssignmentSubmission = onCall(
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const assignmentId = String(request.data?.assignmentId || '')
     const student = await resolveStudentIdentity(uid, request.auth?.token || {})
+    await assertAssignmentsEnabled(student.collegeId)
     const assignmentDoc = await getAssignmentForStudent(assignmentId, student, ['published', 'ongoing'])
     const assignment = assignmentDoc.data() || {}
     const db = getFirestore(admin.app(), 'default')
@@ -533,6 +538,7 @@ export const finalizeMyAssignmentSubmission = onCall(
     }
 
     const student = await resolveStudentIdentity(uid, request.auth?.token || {})
+    await assertAssignmentsEnabled(student.collegeId)
     const assignmentDoc = await getAssignmentForStudent(assignmentId, student, ['published', 'ongoing'])
     const assignment = assignmentDoc.data() || {}
     const expectedPrefix = `assignment-submissions/${student.studentId}/${assignmentId}/${sessionId}`
@@ -678,6 +684,7 @@ export const cancelMyAssignmentSubmission = onCall(
     if (!draftDoc.exists || draft?.studentUid !== uid) {
       throw new HttpsError('not-found', 'Submission upload session not found')
     }
+    await assertAssignmentsEnabled(String(draft?.collegeId || ''))
     if (draft.status === 'completed') {
       throw new HttpsError('failed-precondition', 'Completed submissions cannot be cancelled')
     }
@@ -765,6 +772,7 @@ export const gradeAssignmentSubmission = onCall(
       if (role !== 'superadmin' && submission.collegeId !== collegeId) {
         throw new HttpsError('permission-denied', 'Submission belongs to another college')
       }
+      await assertAssignmentsEnabled(String(submission.collegeId || collegeId))
       const assignmentRef = db.collection('assignments').doc(String(submission.assignmentId || ''))
       const assignmentDoc = await transaction.get(assignmentRef)
       const assignment = assignmentDoc.data()
@@ -957,6 +965,7 @@ export const createFacultyAssignment = onCall(
     const requestedCollege = String(request.data?.collegeId || '')
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
+    await assertAssignmentsEnabled(collegeId)
     const assignment = await sanitizeAssignmentAuthoringInput(request.data, collegeId, false)
     const assignmentRef = getFirestore(admin.app(), 'default').collection('assignments').doc()
     await assignmentRef.create({
@@ -988,6 +997,7 @@ export const updateFacultyAssignment = onCall(
     if (staff.role !== 'superadmin' && data.collegeId !== staff.collegeId) {
       throw new HttpsError('permission-denied', 'Assignment belongs to another college')
     }
+    await assertAssignmentsEnabled(String(data.collegeId || ''))
     if (staff.role === 'faculty' && data.facultyUid !== uid) {
       throw new HttpsError('permission-denied', 'Faculty may edit only their own assignments')
     }
@@ -1032,6 +1042,7 @@ export const transitionFacultyAssignment = onCall(
       if (staff.role !== 'superadmin' && data.collegeId !== staff.collegeId) {
         throw new HttpsError('permission-denied', 'Assignment belongs to another college')
       }
+      await assertAssignmentsEnabled(String(data.collegeId || ''))
       if (staff.role === 'faculty' && data.facultyUid !== uid) {
         throw new HttpsError('permission-denied', 'Faculty may manage only their own assignments')
       }
@@ -1215,6 +1226,7 @@ export const deleteFacultyAssignmentDraft = onCall(
       if (staff.role !== 'superadmin' && data.collegeId !== staff.collegeId) {
         throw new HttpsError('permission-denied', 'Assignment belongs to another college')
       }
+      await assertAssignmentsEnabled(String(data.collegeId || ''))
       if (staff.role === 'faculty' && data.facultyUid !== uid) {
         throw new HttpsError('permission-denied', 'Faculty may delete only their own assignments')
       }
@@ -1245,6 +1257,7 @@ export const getAssignmentSubmissionDownload = onCall(
     if (staff.role !== 'superadmin' && submission.collegeId !== staff.collegeId) {
       throw new HttpsError('permission-denied', 'Submission belongs to another college')
     }
+    await assertAssignmentsEnabled(String(submission.collegeId || staff.collegeId || ''))
     const assignmentDoc = await db.collection('assignments').doc(String(submission.assignmentId || '')).get()
     const assignment = assignmentDoc.data()
     if (!assignmentDoc.exists || !assignment) throw new HttpsError('failed-precondition', 'Assignment not found')

@@ -9,7 +9,7 @@
 // descriptive questions report "0/8 correct · 0/8 incorrect · 0/8 unattempted"
 // next to a perfectly good 15/20 score.
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Typography, Button, Card, CardContent, Chip, LinearProgress,
   Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead,
@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useStudentProfile } from '../hooks/useStudentProfile';
+import { useStudentData } from '../hooks/useStudentData';
 import { fetchTestResult } from '../api/testApi';
 import { MathRenderer } from '../components/MathRenderer';
 import TextSizeControl from '../../../shared/components/TextSizeControl';
@@ -212,6 +213,11 @@ const TestResultPage: React.FC = () => {
           <strong>Faculty feedback:</strong> {result.facultyFeedback}
         </Alert>
       )}
+
+      {/* One Vriddhi Phase C — a result is never a dead end. Every graded
+          paper offers at least one honest next step back into Practice or
+          Learning; links respect the college's module visibility. */}
+      <ResultNextSteps subject={result.subject} />
 
       {/* Tabs */}
       <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
@@ -448,6 +454,52 @@ const ResultToolbar: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     <TextSizeControl />
   </Box>
 );
+
+/**
+ * One Vriddhi Phase C — the assessment → practice/learning loop. Every graded
+ * paper ends with at least one honest next step: practice the same subject in
+ * Placement Prep (when the college keeps it visible) or open the study
+ * materials. Nothing here fabricates readiness — it only routes the student to
+ * the surfaces that already exist.
+ */
+const ResultNextSteps: React.FC<{ subject: string }> = ({ subject }) => {
+  const { placementPrepEnabled } = useStudentData();
+  const subjectLabel = String(subject || '').trim();
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3, mb: 4 }}>
+      <CardContent sx={{ p: { xs: 2.5, md: 3 }, '&:last-child': { pb: 3 } }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>
+          Next steps
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Turn this result into progress — one of these will move you forward.
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+          {placementPrepEnabled && (
+            <Button
+              variant="contained"
+              color="primary"
+              component={RouterLink}
+              to="/prep"
+              data-testid="result-loop-practice"
+            >
+              {subjectLabel ? `Practice ${subjectLabel} questions` : 'Practice similar questions'}
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            component={RouterLink}
+            to="/student/materials"
+            data-testid="result-loop-study"
+          >
+            {subjectLabel ? `Study ${subjectLabel} materials` : 'Open study materials'}
+          </Button>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
 
 /* ── Aligned metric primitives ───────────────────────────────────────── */
 

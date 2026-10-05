@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Clock, CheckCircle2, XCircle, AlertTriangle, FileUp, Upload, BookOpen, ChevronRight } from 'lucide-react';
 import { useStudentData } from '../hooks/useStudentData';
@@ -20,10 +21,29 @@ const statusConfig: Record<string, { icon: typeof Clock; color: string; bg: stri
 const courseOf = (a: Assignment): string => a.courseName?.trim() || a.subject?.trim() || 'General';
 
 export default function StudentAssignments() {
-  const { assignments, loading, error, warnings, refresh } = useStudentData();
+  const { assignments, loading, error, warnings, refresh, assignmentsEnabled } = useStudentData();
   const [filter, setFilter] = useState<FilterKey>('pending');
   const [courseFilter, setCourseFilter] = useState<string>('all');
   const [selected, setSelected] = useState<Assignment | null>(null);
+
+  // Deep-link guard: the nav hides this page when the college switches the
+  // Assignments module off, but a bookmarked URL must get the same answer.
+  if (!assignmentsEnabled) {
+    return (
+      <section className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-white p-6 text-center shadow-sm dark:border-amber-900/60 dark:bg-[#131b2e]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          <AlertTriangle className="h-6 w-6" />
+        </div>
+        <h1 className="mt-4 text-lg font-extrabold text-slate-900 dark:text-white">Assignments is switched off for your college</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+          This college does not use the Assignments module right now. If you think it should be available, contact your college administrator.
+        </p>
+        <Link to="/student/academics" className="mt-4 inline-flex rounded-xl bg-teal-600 px-4 py-2 text-xs font-bold text-white hover:bg-teal-700">
+          Back to Academics
+        </Link>
+      </section>
+    );
+  }
 
   const handleSubmitted = () => {
     refresh();

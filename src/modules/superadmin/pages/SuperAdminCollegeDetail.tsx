@@ -42,6 +42,7 @@ import FacultyLinkRepair from '../components/FacultyLinkRepair';
 import CompanyPrepVisibilityPanel from '@/shared/components/prep/CompanyPrepVisibilityPanel';
 import CourseAssignmentPanel from '@/shared/components/courses/CourseAssignmentPanel';
 import ResumeAddonPanel from '@/shared/components/resume/ResumeAddonPanel';
+import CollegeModulesPanel from '@/shared/components/modules/CollegeModulesPanel';
 import { downloadCsv } from '@/shared/utils/parseCSV';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -671,6 +672,7 @@ const SuperAdminCollegeDetail: React.FC = () => {
           <CompanyPrepVisibilityPanel collegeId={college.id} collegeName={college.name} />
           <CourseAssignmentPanel collegeId={college.id} collegeName={college.name} />
           <ResumeAddonPanel collegeId={college.id} collegeName={college.name} canEdit />
+          <CollegeModulesPanel collegeId={college.id} collegeName={college.name} canEdit />
           </div>
         )}
 

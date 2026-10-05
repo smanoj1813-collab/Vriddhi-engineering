@@ -128,17 +128,34 @@ test('the principal keeps a read-only university-exam lane and everything else',
   assert.equal(roleHasPermission('principal', 'universityExam.publish'), false)
   assert.equal(roleHasPermission('principal', 'universityExam.view'), true)
   // The change is scoped to that one route — academic oversight is untouched.
+  // (Official Grade Records and the AI Question Generator left the principal's
+  // sidebar too; they bounce at the route layer, not in this matrix.)
   for (const p of [
     '/admin/dashboard',
     '/admin/attendance',
     '/admin/analytics',
-    '/admin/grade-records',
+    '/admin/test-reports',
     '/admin/payroll',
     '/admin/fee-management',
   ]) {
     assert.equal(canAccessAdminPath('principal', p), true, p)
   }
   assert.equal(roleHasPermission('principal', 'payroll.approve'), true)
+})
+
+test('the whole University Exams group is out of the principal portal', () => {
+  for (const p of [
+    '/admin/exam-management',
+    '/admin/uucms-integration',
+    '/admin/bcu-compliance',
+    '/admin/result-importer',
+    '/admin/scheme-packs',
+  ]) {
+    assert.equal(canAccessAdminPath('principal', p), false, p)
+    assert.equal(canAccessAdminPath('admin', p), true, p)
+    assert.equal(canAccessAdminPath('hod', p), true, p)
+    assert.equal(canAccessAdminPath('superadmin', p), true, p)
+  }
 })
 
 test('engineering permissions are additive and obey deny-by-default', () => {

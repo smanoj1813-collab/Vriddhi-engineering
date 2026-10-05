@@ -512,9 +512,15 @@ service cloud.firestore {
         // config/library (loan rules) is likewise shown to borrowers; the
         // codingLab assignment flag is readable only by students of its college
         // so the BCA navigation can fail closed without a public settings API.
+        // config/modules (optional-module toggles, e.g. Assignments) is likewise
+        // readable by the college's own students so navigation can hide a module
+        // the college switched off.
+        // config/prep (company-prep master switch) is readable by the college's
+        // own students so the Placement Prep entry can hide when the platform
+        // team switches it off — the /prep endpoints stay the boundary.
         allow get: if isSignedIn() && (isSuperadmin()
           || (docId == 'courses' && role() in ['admin', 'hod', 'principal', 'student'] && collegeId() == collegeId)
-          || (docId == 'codingLab' && role() == 'student' && collegeId() == collegeId)
+          || (docId in ['codingLab', 'modules', 'prep'] && role() == 'student' && collegeId() == collegeId)
           || (docId != 'courses' && docId != 'codingLab' && isStaff() && collegeId() == collegeId)
           || (isOffice() && collegeId() == collegeId)
           || (docId in ['branding', 'library', 'nodues'] && collegeId() == collegeId));
@@ -526,10 +532,12 @@ service cloud.firestore {
         // calculation map from the UI or a direct client write.
         allow write: if docId == 'access'
           ? (isSuperadmin() || (role() == 'principal' && collegeId() == collegeId))
-          : docId in ['courses', 'codingLab']
-            // Course and Coding Lab assignments are PLATFORM access controls.
-            // Students can read their own college's setting, but only the
-            // platform superadmin may change it.
+          : docId in ['courses', 'codingLab', 'prep']
+            // Course, Coding Lab and company-prep assignments are PLATFORM
+            // access controls (prep visibility is managed through the
+            // superadmin-only /prep/companies/settings API). Students can
+            // read their own college's setting, but only the platform
+            // superadmin may change it.
             ? isSuperadmin()
           : docId in ['branding', 'tally']
             ? isFinance(collegeId)

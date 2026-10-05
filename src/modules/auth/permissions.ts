@@ -185,6 +185,12 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   // University Examination — admin/exam branch only; the principal keeps
   // read-only reporting via 'universityExam.view' but no longer owns the page.
   { path: '/admin/exam-management', permission: 'universityExam.manage' },
+  // The rest of the University Exams group left the principal's sidebar for
+  // the same reason; direct URLs bounce the principal too (HOD/admin keep in).
+  { path: '/admin/uucms-integration', permission: 'universityExam.manage' },
+  { path: '/admin/bcu-compliance', permission: 'universityExam.manage' },
+  { path: '/admin/result-importer', permission: 'universityExam.manage' },
+  { path: '/admin/scheme-packs', permission: 'engineering.schemePacks' },
   // Principal
   // Everyone in the shell
   { path: '/admin/install-app', permission: null },

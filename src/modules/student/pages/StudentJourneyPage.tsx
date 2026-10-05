@@ -4,7 +4,7 @@ import {
   CheckCircle2, Circle, Clock, AlertTriangle, RefreshCw,
   TrendingUp, Briefcase, Info, Lock, Download, Bell, FileText, CreditCard, Receipt
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMyJourney, buildJourneyStages, type StageState } from '../hooks/useMyJourney';
 import { useEffect, useState } from 'react';
 import { fetchStudentTimelineFromRealData } from '@/modules/admin/api/journeyMilestonesApi';
@@ -12,6 +12,9 @@ import PWAInstallCard from '@/shared/components/PWAInstallCard';
 import type { Milestone } from '@/modules/admin/api/journeyApi';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { useAuth } from '../../auth/context/AuthContext';
+import { useStudentData } from '../hooks/useStudentData';
+import { fetchLearnerProgress, type LearnerProgressData } from '@/shared/services/prepContentService';
+import { summarizePrepPractice } from '../utils/journeyPractice';
 
 // ------------------------------------------------------------------
 // Student journey: enrolment → placement, from real records.
@@ -96,6 +99,83 @@ function EmptyNote({ title, body }: { title: string; body: string }) {
     <div className="p-4 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
       <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{body}</p>
+    </div>
+  );
+}
+
+/**
+ * One Vriddhi Phase D — the practice pillar on the Journey spine.
+ *
+ * Reads the learner's existing Placement Prep progress (GET /prep/progress)
+ * and derives visit / completion / quiz counts — no new backend surface.
+ * The card hides itself entirely when the college has switched Placement Prep
+ * off, and on any read error it stays silent rather than showing invented
+ * numbers. An honest empty state invites the first practice session.
+ */
+function PracticeActivityCard() {
+  const { placementPrepEnabled } = useStudentData();
+  const [progress, setProgress] = useState<LearnerProgressData | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!placementPrepEnabled) return;
+    let cancelled = false;
+    fetchLearnerProgress()
+      .then((data) => !cancelled && setProgress(data))
+      .catch(() => !cancelled && setFailed(true));
+    return () => { cancelled = true; };
+  }, [placementPrepEnabled]);
+
+  if (!placementPrepEnabled || failed) return null;
+  const summary = summarizePrepPractice(progress);
+
+  const cells = [
+    { label: 'Topics visited', value: summary.topicsVisited },
+    { label: 'Topics completed', value: summary.topicsCompleted },
+    { label: 'Topic quizzes attempted', value: summary.quizzesAttempted },
+  ];
+
+  return (
+    <div className="p-5 md:p-6 rounded-3xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <h2 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+          <Target className="w-4 h-4 text-teal-500" /> Practice activity
+        </h2>
+        <Link
+          to="/prep"
+          className="text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline"
+        >
+          {summary.topicsVisited > 0 ? 'Continue practising →' : 'Start practising →'}
+        </Link>
+      </div>
+
+      {summary.topicsVisited === 0 ? (
+        <EmptyNote
+          title="No practice activity yet"
+          body="Placement prep topics, company guides and topic quizzes you complete will count here from day one — start with any topic."
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            {cells.map((cell) => (
+              <div
+                key={cell.label}
+                className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800"
+              >
+                <p className="text-xl font-extrabold text-slate-900 dark:text-white">{cell.value}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mt-0.5">
+                  {cell.label}
+                </p>
+              </div>
+            ))}
+          </div>
+          {summary.lastVisitedAt && (
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+              Last practised {new Date(summary.lastVisitedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -295,6 +375,13 @@ export default function StudentJourneyPage() {
           </div>
         </div>
       </div>
+
+      {/* One Vriddhi Phase D — the practice pillar joins the spine. Numbers
+          come from the learner's existing Placement Prep progress
+          (GET /prep/progress); the card renders only while the college keeps
+          Placement Prep visible, and hides itself on any read error instead
+          of showing stale or invented progress. */}
+      <PracticeActivityCard />
 
       {/* Connected Timeline - Fees, Challans, Hall Tickets, Results */}
       <div className="p-5 md:p-6 rounded-3xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 shadow-sm">

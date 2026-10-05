@@ -20,6 +20,7 @@ import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { resolveAssignmentStaff } from './studentPortal'
+import { assertAssignmentsEnabled } from './collegeModules'
 
 // ─── Input shapes (defensively parsed from documents) ───────────────────────
 
@@ -388,6 +389,7 @@ export const getAssignmentAnalytics = onCall(
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const staff = await resolveAssignmentStaff(uid, request.auth?.token || {})
+    await assertAssignmentsEnabled(staff.collegeId)
     const db = getFirestore(admin.app(), 'default')
 
     // Faculty see their own assignments; everyone else sees the college. Both

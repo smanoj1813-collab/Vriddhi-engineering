@@ -1123,6 +1123,27 @@ export default function PrepPublicViewer({
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <PrepHeader />
+      {/* One Vriddhi Phase C — the practice → assessment loop, reversed. A
+          signed-in student practising here is one tap from their scheduled
+          tests; the assessments page itself enforces the college toggles, so
+          this link never points at a hidden surface. */}
+      {user?.role === 'student' && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+          <Container maxWidth="lg" sx={{ py: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="body2" color="text.secondary">
+              Practising for a scheduled test?
+            </Typography>
+            <Button
+              size="small"
+              component={Link}
+              to="/student/assessments"
+              data-testid="prep-loop-assessments"
+            >
+              See my upcoming tests →
+            </Button>
+          </Container>
+        </Box>
+      )}
       {body}
       <Box component="footer" sx={{ py: 4, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">

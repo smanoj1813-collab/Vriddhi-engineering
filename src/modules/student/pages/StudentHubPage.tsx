@@ -20,14 +20,14 @@ interface StudentHubPageProps {
 
 const GROUP_BLURB: Partial<Record<StudentNavGroup, string>> = {
   academics: 'Attendance, assignments, grades, timetable and curriculum — everything your programme is measured on.',
-  practice: 'Study materials, sample programs, the coding lab, the library, your learning journey and faculty support.',
+  practice: 'Study materials, the coding lab, placement prep, the library, your learning journey and faculty support.',
 }
 
 export default function StudentHubPage({ group }: StudentHubPageProps) {
   const { t } = useTranslation()
-  const { profile, codingLabEnabled } = useStudentData()
+  const { profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled } = useStudentData()
   const definition = STUDENT_NAV_GROUPS.find((entry) => entry.id === group)
-  const items = navItemsInGroup(group, profile, codingLabEnabled)
+  const items = navItemsInGroup(group, profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled)
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-4">
