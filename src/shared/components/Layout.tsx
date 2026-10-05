@@ -186,11 +186,15 @@ const navItems: NavItem[] = [
   { label: "Attendance", path: "/admin/attendance", icon: <CalendarToday fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Faculty Attendance", path: "/admin/faculty-attendance", icon: <BadgeIcon fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
-  { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
-  { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["admin", "principal"], section: "Assessment Tools" },
-  { label: "Paper Review", path: "/admin/paper-review", icon: <Description fontSize="small" />, roles: ["admin", "principal"], section: "Assessment Tools" },
-  { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["admin", "principal"], section: "Assessment Tools" },
-  { label: "Paper Generator", path: "/admin/paper-generator", icon: <Description fontSize="small" />, roles: ["admin", "principal"], section: "Assessment Tools" },
+  { label: "Branch-wise Assessment Conduction", path: "/admin/branch-conduction", icon: <Assignment fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Academic" },
+  // Principal dropped from the five entries below (sidebar + search/quick-jump):
+  // the question/paper craft surface and Official Grade Records are HOD
+  // territory; the principal keeps oversight via the Assessments entry above.
+  { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" />, roles: ["admin"], section: "Academic" },
+  { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
+  { label: "Paper Review", path: "/admin/paper-review", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
+  { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
+  { label: "Paper Generator", path: "/admin/paper-generator", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
   { label: "Admission Center", path: "/admin/admissions", icon: <People fontSize="small" />, roles: ["admin", "principal"], section: "Students" },
@@ -335,13 +339,15 @@ const facultyNav: SidebarEntry[] = [
 ];
 
 /**
- * Principal — the original full college portal, with exactly three things
+ * Principal — the oversight portal. The question/paper craft surface is
  * removed (per product decision): the question-paper pages (Paper Review,
  * Paper Generator), the Question Bank (which also hosts question approval),
- * and by extension the question review/approval surface. Those belong to the
- * department HOD (`hodNav` below). Everything else — students, attendance,
- * academics, university exams, assessments, grades, finance, insights —
- * stays exactly as it was.
+ * Official Grade Records and the AI Question Generator belong to the
+ * department HOD (`hodNav` below) — hidden, not deleted, so they can be
+ * plugged back in later. The whole University Exams group likewise left the
+ * principal's sidebar (institution-office job; routes bounce deep links).
+ * The principal keeps the oversight lane (Assessments) plus students,
+ * attendance, academics, finance and insights — exactly as before.
  */
 const principalNav: SidebarEntry[] = [
   { kind: "link", label: "Dashboard", path: "/admin/dashboard", icon: <Dashboard fontSize="small" /> },
@@ -378,29 +384,26 @@ const principalNav: SidebarEntry[] = [
     ],
   },
 
-  {
-    kind: "group",
-    label: "University Exams",
-    icon: <AccountBalance fontSize="small" />,
-    children: [
-      { label: "Exam Management", path: "/admin/exam-management", icon: <Description fontSize="small" /> },
-      { label: "UUCMS Integration", path: "/admin/uucms-integration", icon: <Business fontSize="small" /> },
-      { label: "BCU Compliance", path: "/admin/bcu-compliance", icon: <CheckCircle fontSize="small" /> },
-      { label: "Scheme Packs", path: "/admin/scheme-packs", icon: <AccountBalance fontSize="small" /> },
-      { label: "Result Importer", path: "/admin/result-importer", icon: <Assessment fontSize="small" /> },
-    ],
-  },
+  // REMOVED for principal: the whole University Exams group (Exam Management,
+  // UUCMS Integration, BCU Compliance, Scheme Packs, Result Importer).
+  // University-exam compliance is an institution-office job run by the
+  // admin/exam branch; routes bounce the principal (see ADMIN_ROUTE_PERMISSIONS
+  // in src/modules/auth/permissions.ts). Re-add the group + role entries to
+  // plug it back.
 
   {
     kind: "group",
     label: "Assessments",
     icon: <Assignment fontSize="small" />,
     children: [
-      { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" /> },
-      { label: "Grade Records", path: "/admin/grade-records", icon: <Assessment fontSize="small" /> },
+      // The principal's single assessment surface: a read-only branch-wise
+      // conduction picture. Crafting, scheduling and reports live with HOD.
+      { label: "Branch-wise Assessment Conduction", path: "/admin/branch-conduction", icon: <Assignment fontSize="small" /> },
       // REMOVED for principal (live in hodNav instead):
       //   Question Bank · Paper Review · Paper Generator
-      { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" /> },
+      // HIDDEN for principal (plug back by re-adding the nav line + the role
+      // in routes.tsx): Official Grade Records · AI Question Generator —
+      // the principal oversees assessments; HOD/faculty craft them.
     ],
   },
 
@@ -808,10 +811,11 @@ const mobileTabsByRole: Record<string, MobileTab[]> = {
   principal: [
     // Original four tabs — the question/paper pages are NOT tabs, so nothing
     // to remove here; they were dropped from principalNav (the More sheet).
+    // The Assessments tab is the read-only branch-wise conduction picture.
     { label: "Dashboard", path: "/admin/dashboard", icon: <Dashboard fontSize="small" /> },
     { label: "Students", path: "/admin/students", icon: <People fontSize="small" /> },
     { label: "Attendance", path: "/admin/attendance", icon: <CalendarToday fontSize="small" /> },
-    { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" /> },
+    { label: "Assessments", path: "/admin/branch-conduction", icon: <Assignment fontSize="small" /> },
   ],
   hod: [
     { label: "HOD Dashboard", path: "/admin/hod-dashboard", icon: <Dashboard fontSize="small" /> },
