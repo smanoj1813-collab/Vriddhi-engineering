@@ -37,6 +37,15 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   'faculty.schedule': ['faculty', 'hod', 'principal', 'admin', 'employee'],
   'faculty.assessments': ['faculty', 'hod', 'principal', 'admin', 'employee'],
 
+  // ── Assessment authoring (Create Test) ────────────────────────
+  // Decision D2 (docs/ASSESSMENT_CREATE_TEST_FLOW.md §0): the people who set
+  // and schedule tests are faculty, HODs, college admins and Vriddhi
+  // employees. The principal stays oversight-only — reports and branch-wise
+  // conduction, never the authoring desk — and mentors are pastoral.
+  // Plug back for principal = add 'principal' here and the nav line in
+  // Layout.tsx (principalNav).
+  'assessment.authorTests': ['faculty', 'hod', 'admin', 'employee'],
+
   // ── Content authoring ─────────────────────────────────────────
   'question.manage': ['faculty', 'hod', 'principal', 'admin', 'employee'],
   'paper.manage': ['faculty', 'hod', 'principal', 'admin', 'employee'],
@@ -90,6 +99,10 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
 
   // ── Principal-only governance ─────────────────────────────────
   'access.settings': ['principal'],
+  // Assignment reporting left the HOD portal (HOD round): departments read
+  // Analytics + Journey; assignment-level reporting stays an institution
+  // lane. Add 'admin'/'hod' back here to plug it in again.
+  'analytics.assignments': ['principal'],
 };
 
 /** All permission identifiers known to the matrix. */
@@ -191,6 +204,13 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/bcu-compliance', permission: 'universityExam.manage' },
   { path: '/admin/result-importer', permission: 'universityExam.manage' },
   { path: '/admin/scheme-packs', permission: 'engineering.schemePacks' },
+  // Insights — Assignment Analytics is out of the HOD sidebar, so deep links
+  // bounce the department too (principal + superadmin keep it).
+  { path: '/admin/assignment-analytics', permission: 'analytics.assignments' },
+  // Create Test — authoring desk, not an oversight surface (see D2). Matches
+  // /admin/create-test, /admin/create-test/:id and /admin/my-tests.
+  { path: '/admin/create-test', permission: 'assessment.authorTests' },
+  { path: '/admin/my-tests', permission: 'assessment.authorTests' },
   // Principal
   // Everyone in the shell
   { path: '/admin/install-app', permission: null },

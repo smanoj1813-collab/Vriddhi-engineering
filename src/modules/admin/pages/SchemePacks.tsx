@@ -26,7 +26,7 @@ import {
   type ListedSchemePack,
 } from '../api/schemePackApi';
 import { useAuth } from '@/modules/auth/context/AuthContext';
-import { DEFAULT_SCHEME_PACK, SCHEME_PACK_PRESETS } from '@/shared/types/schemePack';
+import { DEFAULT_SCHEME_PACK, ENGINEERING_SCHEME_PACKS, SCHEME_PACK_PRESETS } from '@/shared/types/schemePack';
 import type {
   AttendanceMarksSlab,
   SchemeGrade,
@@ -212,6 +212,11 @@ function Num({ label, value, onChange, width = 120 }: { label: string; value: nu
   );
 }
 
+// A new custom pack starts from the engineering baseline (VTU 2022). The old
+// BCU starting point left the picker with the other non-engineering presets —
+// see src/shared/utils/schemePackVisibility.ts for the plug-back note.
+const NEW_PACK_TEMPLATE = ENGINEERING_SCHEME_PACKS[0] ?? DEFAULT_SCHEME_PACK;
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SchemePacks() {
@@ -351,7 +356,7 @@ export default function SchemePacks() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => { setError(''); setEditor(packToEditor(DEFAULT_SCHEME_PACK, 'CUSTOM_' + Math.random().toString(36).slice(2, 7).toUpperCase())); }}
+            onClick={() => { setError(''); setEditor(packToEditor(NEW_PACK_TEMPLATE, 'CUSTOM_' + Math.random().toString(36).slice(2, 7).toUpperCase())); }}
           >
             New Pack
           </Button>

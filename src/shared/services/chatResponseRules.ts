@@ -136,13 +136,15 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
     case 'questionBank':
       if (canAuthorPapers) {
         if (isFaculty) {
+          // Faculty round: Paper Generator left the faculty portal with the
+          // Generated Papers page; question drafting + the assessment hub stay.
           push(act('question-bank', 'Open Question Bank', '/faculty/question-bank', 'question-bank'));
-          push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
           push(act('ai-questions', 'AI Question Drafting', '/faculty/ai-questions', 'paper'));
         } else {
+          // HOD round: Paper Generator / Paper Review left the department
+          // portal, so the assistant stops offering them here.
           push(act('question-bank', 'Open Question Bank', '/admin/question-bank', 'question-bank'));
-          push(act('paper', 'Launch Paper Generator', '/admin/paper-generator', 'paper'));
-          push(act('review', 'Paper Review Queue', '/admin/paper-review', 'portal'));
+          push(act('ai-questions', 'AI Question Drafting', '/admin/ai-questions', 'paper'));
         }
       } else if (isStudent) {
         // Privacy boundary: students get their assessment + tutoring surface.
@@ -163,10 +165,11 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
         push(act('faculty', 'Book a Revision Slot', '/student/faculty-connect', 'faculty'));
       } else if (isFaculty) {
         push(act('assessments', 'Assessment Manager', '/faculty/assessments', 'assessments'));
-        if (canAuthorPapers) push(act('paper', 'Launch Paper Generator', '/faculty/paper-generator', 'paper'));
+        if (canAuthorPapers) push(act('question-bank', 'Open Question Bank', '/faculty/question-bank', 'question-bank'));
       } else {
         push(act('assessments', 'Assessments', '/admin/assessments', 'assessments'));
-        push(act('grades', 'Grade Records', '/admin/grade-records', 'grades'));
+        // Official Grade Records is no longer a department surface.
+        push(act('reports', 'Assessment Reports', '/admin/test-reports', 'analytics'));
       }
       break;
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, Component, type ReactNode } from 'react';
-import type { RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router-dom';
 import { RoleRoute } from '@/routes/components/RoleRoute';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import Layout from '@/shared/components/Layout';
@@ -20,6 +20,8 @@ const FacultyAttendanceMarking = lazy(() => import('./components/FacultyAttendan
 // is a teacher marking a class of students.
 const FacultySelfAttendance = lazy(() => import('./pages/FacultySelfAttendance'));
 const FacultyTopics = lazy(() => import('./pages/FacultyTopics'));
+// Kept for the plug-back path (see RETIRED_FACULTY_PATHS below) — the page
+// components are intact, only their routes redirect today.
 const FacultyPapers = lazy(() => import('./pages/FacultyPapers'));
 const FacultyQuestionBank = lazy(() => import('./pages/FacultyQuestionBank'));
 const FacultyPaperGenerator = lazy(() => import('./pages/FacultyPaperGenerator'));
@@ -40,6 +42,10 @@ const FacultyMySalary = lazy(() => import('./pages/FacultyMySalary'));
 const FacultyAppointmentsPage = lazy(() => import('./pages/FacultyAppointmentsPage'));
 const FacultyAutoGrading = lazy(() => import('./pages/FacultyAutoGrading'));
 const View360 = lazy(() => import('../admin/pages/View360'));
+// Create Test lives in the admin module and is mounted by both portals, so
+// faculty and HOD/admin author the same test object with one code path.
+const CreateTestWizard = lazy(() => import('../admin/pages/CreateTestWizard'));
+const MyTestsPage = lazy(() => import('../admin/pages/MyTestsPage'));
 const PWAInstallPage = lazy(() => import('./pages/PWAInstallPage'));
 const FacultyJourneyPage = lazy(() => import('./pages/FacultyJourneyPage'));
 
@@ -112,6 +118,37 @@ function LazyPage({ children }: { label: string; children: ReactNode }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Retired faculty surfaces (hidden, not deleted)
+//
+// Paper Generator, Generated Papers and Auto-Grading 5M/10M left the faculty
+// sidebar: test creation moves to the sectioned Create Test flow, and
+// descriptive auto-grading is parked until that flow lands. The page
+// components stay in the repo; their paths redirect to the assessment hub so
+// a bookmark or an old link never renders a surface the nav has dropped.
+//
+// Plug back = delete the entry here and re-add the nav line in Layout.tsx
+// (facultyNav, Assessments group).
+const RETIRED_FACULTY_PATHS: readonly string[] = [
+  'paper-generator',
+  'papers',
+  'auto-grading',
+];
+
+const retiredFacultyRoutes: RouteObject[] = RETIRED_FACULTY_PATHS.map((path) => ({
+  path,
+  element: <Navigate to="/faculty/assessments" replace />,
+}));
+
+// Create + schedule tests = faculty, HOD, admin, employee (+ superadmin).
+// Mentor is deliberately absent: mentoring is pastoral, not assessment.
+// Plug back = add 'mentor' here (and the nav lines in Layout.tsx).
+export const TEST_AUTHOR_ROLES = ['faculty', 'hod', 'admin', 'employee', 'superadmin'] as const;
+
+function TestAuthorsOnly({ children }: { children: ReactNode }) {
+  return <RoleRoute allowedRoles={[...TEST_AUTHOR_ROLES]}>{children}</RoleRoute>;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Faculty Routes — ONLY faculty, hod, and mentor can access these pages.
 // Principals, admins, and superadmins should use /admin/* routes instead.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -133,10 +170,8 @@ export const facultyRoutes: RouteObject[] = [
       { path: 'my-attendance', element: <LazyPage label="faculty/my-attendance"><FacultySelfAttendance /></LazyPage> },
       { path: 'self-attendance', element: <LazyPage label="faculty/self-attendance"><FacultySelfAttendance /></LazyPage> },
       { path: 'topics', element: <LazyPage label="faculty/topics"><FacultyTopics /></LazyPage> },
-      { path: 'papers', element: <LazyPage label="faculty/papers"><FacultyPapers /></LazyPage> },
       { path: 'question-bank', element: <LazyPage label="faculty/question-bank"><FacultyQuestionBank /></LazyPage> },
       { path: 'universal-bank', element: <LazyPage label="faculty/universal-bank"><FacultyUniversalBank /></LazyPage> },
-      { path: 'paper-generator', element: <LazyPage label="faculty/paper-generator"><FacultyPaperGenerator /></LazyPage> },
       { path: 'student-analysis', element: <LazyPage label="faculty/student-analysis"><FacultyStudentAnalysis /></LazyPage> },
       { path: 'appointments', element: <LazyPage label="faculty/appointments"><FacultyAppointmentsPage /></LazyPage> },
       { path: 'student-requests', element: <LazyPage label="faculty/student-requests"><FacultyAppointmentsPage /></LazyPage> },
@@ -146,17 +181,25 @@ export const facultyRoutes: RouteObject[] = [
       { path: 'announcements', element: <LazyPage label="faculty/announcements"><FacultyAnnouncements /></LazyPage> },
       { path: 'assignments', element: <LazyPage label="faculty/assignments"><FacultyAssignments /></LazyPage> },
       { path: 'assessments', element: <LazyPage label="faculty/assessments"><FacultyAssessments /></LazyPage> },
+      // ── Create Test ───────────────────────────────────────────────────
+      // Authoring is for staff who actually set papers. Mentors use the
+      // /faculty shell but never create tests, so these three paths carry
+      // their own guard inside the parent one (decision D2).
+      { path: 'create-test', element: <TestAuthorsOnly><LazyPage label="faculty/create-test"><CreateTestWizard /></LazyPage></TestAuthorsOnly> },
+      { path: 'create-test/:id', element: <TestAuthorsOnly><LazyPage label="faculty/create-test/:id"><CreateTestWizard /></LazyPage></TestAuthorsOnly> },
+      { path: 'my-tests', element: <TestAuthorsOnly><LazyPage label="faculty/my-tests"><MyTestsPage /></LazyPage></TestAuthorsOnly> },
       { path: 'calendar', element: <LazyPage label="faculty/calendar"><FacultyCalendar /></LazyPage> },
       { path: 'curriculum', element: <LazyPage label="faculty/curriculum"><FacultyCurriculum /></LazyPage> },
       { path: 'schedule', element: <LazyPage label="faculty/schedule"><FacultySchedule /></LazyPage> },
       { path: 'ai-questions', element: <LazyPage label="faculty/ai-questions"><FacultyAIQuestions /></LazyPage> },
-      { path: 'auto-grading', element: <LazyPage label="faculty/auto-grading"><FacultyAutoGrading /></LazyPage> },
       { path: 'view360', element: <LazyPage label="faculty/view360"><View360 /></LazyPage> },
       { path: 'journey', element: <LazyPage label="faculty/journey"><FacultyJourneyPage /></LazyPage> },
       { path: 'my-salary', element: <LazyPage label="faculty/my-salary"><FacultyMySalary /></LazyPage> },
       { path: 'settings', element: <LazyPage label="faculty/settings"><FacultySettings /></LazyPage> },
       { path: 'install-app', element: <LazyPage label="faculty/install-app"><PWAInstallPage /></LazyPage> },
       { path: 'pwa-install', element: <LazyPage label="faculty/pwa-install"><PWAInstallPage /></LazyPage> },
+      // Hidden surfaces — these redirect; see RETIRED_FACULTY_PATHS above.
+      ...retiredFacultyRoutes,
     ],
   },
 ];
