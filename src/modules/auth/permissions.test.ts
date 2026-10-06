@@ -201,3 +201,31 @@ test('the HOD paper-craft pages bounce at the route layer, not this matrix', () 
     assert.equal(canAccessAdminPath('student', p), false, p)
   }
 })
+
+test('Create Test is an authoring desk: principal and mentor stay out', () => {
+  // Decision D2 — faculty, HOD, admin and Vriddhi employees create AND
+  // schedule tests; the principal keeps oversight (reports, branch
+  // conduction) and the mentor lane is pastoral.
+  for (const role of ['faculty', 'hod', 'admin', 'employee'] as const) {
+    assert.equal(roleHasPermission(role, 'assessment.authorTests'), true, role)
+  }
+  assert.equal(roleHasPermission('principal', 'assessment.authorTests'), false)
+  assert.equal(roleHasPermission('mentor', 'assessment.authorTests'), false)
+  assert.equal(roleHasPermission('student', 'assessment.authorTests'), false)
+  assert.equal(roleHasPermission(null, 'assessment.authorTests'), false)
+
+  // Deep links bounce the same way, including the /:id edit route.
+  for (const p of ['/admin/create-test', '/admin/create-test/abc123', '/admin/my-tests']) {
+    assert.equal(canAccessAdminPath('hod', p), true, p)
+    assert.equal(canAccessAdminPath('admin', p), true, p)
+    assert.equal(canAccessAdminPath('employee', p), true, p)
+    assert.equal(canAccessAdminPath('principal', p), false, p)
+    assert.equal(canAccessAdminPath('accounts', p), false, p)
+    // Superadmin bypasses the matrix as everywhere else.
+    assert.equal(canAccessAdminPath('superadmin', p), true, p)
+  }
+
+  // The oversight surfaces the principal keeps are untouched.
+  assert.equal(canAccessAdminPath('principal', '/admin/test-reports'), true)
+  assert.equal(canAccessAdminPath('principal', '/admin/branch-conduction'), true)
+})

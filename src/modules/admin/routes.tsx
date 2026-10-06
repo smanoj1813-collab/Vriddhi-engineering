@@ -51,6 +51,8 @@ const _LegacyReviewQueuePage = lazy(() => import('./pages/ReviewQueuePage'));
 const _LegacyAdminUniversalBank = lazy(() => import('./pages/AdminUniversalBank'));
 const Settings = lazy(() => import('./pages/Settings'));
 const View360 = lazy(() => import('./pages/View360'));
+const CreateTestWizard = lazy(() => import('./pages/CreateTestWizard'));
+const MyTestsPage = lazy(() => import('./pages/MyTestsPage'));
 const ExamManagement = lazy(() => import('./pages/ExamManagement'));
 const UUCMSIntegration = lazy(() => import('./pages/UUCMSIntegration'));
 const BCUComplianceDashboard = lazy(() => import('./pages/BCUComplianceDashboard'));
@@ -160,6 +162,12 @@ export const adminRoutes: RouteObject[] = [
       { path: 'assessments', element: <LazyPage><Assessments /></LazyPage> },
       { path: 'assessments/:id', element: <LazyPage><AssessmentDetailPage /></LazyPage> },
       { path: 'schedule-tests', element: <LazyPage><OnlineAssessmentScheduler /></LazyPage> },
+      // ── Create Test (same pages the faculty portal mounts) ────────────
+      // Access is modelled in ADMIN_ROUTE_PERMISSIONS ('assessment.authorTests'),
+      // so the principal bounces on a deep link while HOD/admin/employee pass.
+      { path: 'create-test', element: <LazyPage><CreateTestWizard /></LazyPage> },
+      { path: 'create-test/:id', element: <LazyPage><CreateTestWizard /></LazyPage> },
+      { path: 'my-tests', element: <LazyPage><MyTestsPage /></LazyPage> },
       { path: 'test-reports', element: <LazyPage><AssessmentTestReportsPage /></LazyPage> },
       // Principal oversight: read-only branch-wise conduction picture.
       { path: 'branch-conduction', element: <LazyPage><BranchConductionPage /></LazyPage> },

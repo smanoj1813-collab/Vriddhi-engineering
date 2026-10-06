@@ -329,12 +329,39 @@ being executed. Zero re-authoring, which is the point.
 
 | Phase | Scope | Backend? | Deploy | Marginal cost |
 |---|---|---|---|---|
-| **1. Create Test wizard + My Tests** | 2-step wizard (details → sections), extended section model, confirmation screen with the section table, readiness gate (`isPaperOnlineReady`), **duplicate test**, draft/ready lifecycle, role gate per D2; pure utils (test-code normalisation, section/test totals, readiness) + node tests | none — `papers`/`questions` are client-writable | **hosting only** | ₹0 |
+| **1. Create Test wizard + My Tests** ✅ **SHIPPED 2026-10-06** | 2-step wizard (details → sections), extended section model, confirmation screen with the section table, readiness gate (`isPaperOnlineReady`), **duplicate test**, draft/ready lifecycle, role gate per D2; pure utils (test-code normalisation, section/test totals, readiness) + node tests | none — `papers`/`questions` are client-writable | **hosting only** | ₹0 |
 | **2. Question doors** | Custom MCQ editor with the live preview pane, library picker in "add to section" mode with filters + bulk select, **random pick by filter** ("add 10 medium DBMS MCQs"), pool-health meter, **bulk paste / CSV import**, coding question authoring + preview | none | **hosting only** | ₹0 |
 | **3. Schedule integration** | `TestScheduler` step 1 reads the new template; delivery settings (shuffle, tab cap, report visibility) freeze onto `scheduledTests`; student instructions screen reads the section plan | `scheduleAssessmentTest` payload grows | `api` + 1 function, quota batch ≤ 5 | ~₹0 |
 | **4. Reporting polish** | Section-wise and question-wise analytics on the existing reports page; "weak topic → practice" link into prep/Coding Lab | none | hosting only | ₹0 |
 | **5. Proctoring** | ON HOLD (D3) — T1 already live; T2/T3 only on a paying college's ask | — | — | priced then |
 | **6. Coding execution** | Only after §7 | yes | separate decision | priced then |
+
+### Phase 1 — what shipped (2026-10-06)
+
+| Piece | Path |
+|---|---|
+| Types (sections, delivery, lifecycle, provenance) | `src/shared/types/testTemplate.ts` |
+| Pure utils + 12 node tests (code normalisation, totals, validation, readiness, duplication) | `src/shared/utils/testTemplate.ts` / `.test.ts` |
+| Client-direct Firestore API (no callable, no new collection, no new index) | `src/modules/admin/api/testTemplateApi.ts` |
+| 2-step wizard + confirmation screen with the section table | `src/modules/admin/pages/CreateTestWizard.tsx` |
+| My Tests + **Create from Template** library | `src/modules/admin/pages/MyTestsPage.tsx` |
+| Routes `/faculty/create-test`, `/faculty/my-tests`, `/admin/*` equivalents | `src/modules/faculty/routes.tsx`, `src/modules/admin/routes.tsx` |
+| Role gate `assessment.authorTests` + nav lines | `src/modules/auth/permissions.ts`, `src/shared/components/Layout.tsx` |
+
+Constraints the implementation had to respect, found in `firestore.rules`:
+
+* `papers/{id}` **create** demands `status == 'draft'` **and** `verificationStatus == 'draft'`; **update** forbids any diff to `collegeId, createdBy, createdByName, status, verificationStatus, …`. So those two fields are pinned to `'draft'` for the life of a test and the authoring lifecycle lives in **our own `testStatus`** field (`draft | ready | archived`). Nothing about the HOD-approval machinery is reused — consistent with D1.
+* Every query is **equality-only and sorted in memory**, so no composite index is created.
+* Delete is admin/superadmin-only in the rules, so the UI archives (`testStatus: 'archived'`) instead.
+
+### Create from Template — the platform test library
+
+The Vriddhi assessment team authors a test, verifies it by taking it on the front end, and shares the **test code**. Any college's staff look that code up, read the pattern, press **Duplicate**, and schedule it to their own students.
+
+* Platform templates live in **`paperTemplates`**, whose rules already read `isSignedIn() && (isSuperadmin() || isStaff())` — i.e. **cross-college readable by design**. College tests stay in `papers`, college-scoped as always.
+* Questions are **embedded in `sections[].questions[]`** (a snapshot), never referenced by id. That is what makes a duplicate **1 read + 1 write at any size**, and it sidesteps the fact that College B's staff cannot read College A's `questions` docs.
+* A duplicate always becomes a **fresh college draft**: new section ids, ownership transferred, cohorts cleared (they are the copying college's decision), provenance recorded in `source: { kind: 'platform_template', refId, refCode, refTitle }`.
+* Publishing is gated in the UI to `superadmin` + `employee`. **Follow-up:** the `paperTemplates` rule currently allows any college staff to write; tightening it needs a rules deploy (Java + emulator, Windows side).
 
 ### Enhancements over the baseline tool, and what each costs
 

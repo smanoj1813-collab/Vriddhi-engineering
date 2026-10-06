@@ -42,6 +42,10 @@ const FacultyMySalary = lazy(() => import('./pages/FacultyMySalary'));
 const FacultyAppointmentsPage = lazy(() => import('./pages/FacultyAppointmentsPage'));
 const FacultyAutoGrading = lazy(() => import('./pages/FacultyAutoGrading'));
 const View360 = lazy(() => import('../admin/pages/View360'));
+// Create Test lives in the admin module and is mounted by both portals, so
+// faculty and HOD/admin author the same test object with one code path.
+const CreateTestWizard = lazy(() => import('../admin/pages/CreateTestWizard'));
+const MyTestsPage = lazy(() => import('../admin/pages/MyTestsPage'));
 const PWAInstallPage = lazy(() => import('./pages/PWAInstallPage'));
 const FacultyJourneyPage = lazy(() => import('./pages/FacultyJourneyPage'));
 
@@ -135,6 +139,15 @@ const retiredFacultyRoutes: RouteObject[] = RETIRED_FACULTY_PATHS.map((path) => 
   element: <Navigate to="/faculty/assessments" replace />,
 }));
 
+// Create + schedule tests = faculty, HOD, admin, employee (+ superadmin).
+// Mentor is deliberately absent: mentoring is pastoral, not assessment.
+// Plug back = add 'mentor' here (and the nav lines in Layout.tsx).
+export const TEST_AUTHOR_ROLES = ['faculty', 'hod', 'admin', 'employee', 'superadmin'] as const;
+
+function TestAuthorsOnly({ children }: { children: ReactNode }) {
+  return <RoleRoute allowedRoles={[...TEST_AUTHOR_ROLES]}>{children}</RoleRoute>;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Faculty Routes — ONLY faculty, hod, and mentor can access these pages.
 // Principals, admins, and superadmins should use /admin/* routes instead.
@@ -168,6 +181,13 @@ export const facultyRoutes: RouteObject[] = [
       { path: 'announcements', element: <LazyPage label="faculty/announcements"><FacultyAnnouncements /></LazyPage> },
       { path: 'assignments', element: <LazyPage label="faculty/assignments"><FacultyAssignments /></LazyPage> },
       { path: 'assessments', element: <LazyPage label="faculty/assessments"><FacultyAssessments /></LazyPage> },
+      // ── Create Test ───────────────────────────────────────────────────
+      // Authoring is for staff who actually set papers. Mentors use the
+      // /faculty shell but never create tests, so these three paths carry
+      // their own guard inside the parent one (decision D2).
+      { path: 'create-test', element: <TestAuthorsOnly><LazyPage label="faculty/create-test"><CreateTestWizard /></LazyPage></TestAuthorsOnly> },
+      { path: 'create-test/:id', element: <TestAuthorsOnly><LazyPage label="faculty/create-test/:id"><CreateTestWizard /></LazyPage></TestAuthorsOnly> },
+      { path: 'my-tests', element: <TestAuthorsOnly><LazyPage label="faculty/my-tests"><MyTestsPage /></LazyPage></TestAuthorsOnly> },
       { path: 'calendar', element: <LazyPage label="faculty/calendar"><FacultyCalendar /></LazyPage> },
       { path: 'curriculum', element: <LazyPage label="faculty/curriculum"><FacultyCurriculum /></LazyPage> },
       { path: 'schedule', element: <LazyPage label="faculty/schedule"><FacultySchedule /></LazyPage> },

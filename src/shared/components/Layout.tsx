@@ -192,6 +192,8 @@ const navItems: NavItem[] = [
   // Generator for `admin`/`hod` too — the department keeps the question bank
   // and AI drafting. Plug back = re-add the entries with their role strings
   // (and the roles in PAPER_CRAFT_ROLES, src/modules/admin/routes.tsx).
+  { label: "Create Test", path: "/admin/create-test", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
+  { label: "My Tests", path: "/admin/my-tests", icon: <Description fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["admin"], section: "Assessment Tools" },
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
@@ -216,6 +218,8 @@ const navItems: NavItem[] = [
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["hod"], section: "Academic" },
   // HOD round: Grade Records, Paper Review and Paper Generator removed here
   // too (same plug-back note as the admin block above).
+  { label: "Create Test", path: "/admin/create-test", icon: <Description fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
+  { label: "My Tests", path: "/admin/my-tests", icon: <Description fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
   { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
   { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Operations" },
@@ -312,6 +316,9 @@ const facultyNav: SidebarEntry[] = [
     label: "Assessments",
     icon: <Assignment fontSize="small" />,
     children: [
+      // Create Test — the sectioned authoring flow (faculty/HOD/admin/employee).
+      { label: "Create Test", path: "/faculty/create-test", icon: <Description fontSize="small" /> },
+      { label: "My Tests", path: "/faculty/my-tests", icon: <Description fontSize="small" /> },
       { label: "AI Question Generator", path: "/faculty/ai-questions", icon: <AutoAwesome fontSize="small" /> },
       { label: "Question Bank", path: "/faculty/question-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Universal Bank", path: "/faculty/universal-bank", icon: <QuestionAnswer fontSize="small" /> },
@@ -507,6 +514,10 @@ const hodNav: SidebarEntry[] = [
     icon: <Assignment fontSize="small" />,
     children: [
       { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" /> },
+      // Create Test — the sectioned authoring flow that replaces the retired
+      // Paper Generator lane (no HOD approval step: draft → schedule).
+      { label: "Create Test", path: "/admin/create-test", icon: <Description fontSize="small" /> },
+      { label: "My Tests", path: "/admin/my-tests", icon: <Description fontSize="small" /> },
       { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "AI Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" /> },
       // HIDDEN for HOD/admin (plug back by re-adding the nav line here, the
@@ -689,6 +700,10 @@ const employeeNav: SidebarEntry[] = [
     icon: <Assignment fontSize="small" />,
     children: [
       { label: "Assessments", path: "/admin/assessments", icon: <Assignment fontSize="small" /> },
+      // Create Test + the shared platform template library ("Create from
+      // template") — the Vriddhi assessment team publishes from here.
+      { label: "Create Test", path: "/admin/create-test", icon: <Description fontSize="small" /> },
+      { label: "My Tests", path: "/admin/my-tests", icon: <Description fontSize="small" /> },
       { label: "Schedule Test", path: "/admin/schedule-tests", icon: <Assignment fontSize="small" /> },
       { label: "Question Bank", path: "/admin/question-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Question Generator", path: "/admin/ai-questions", icon: <AutoAwesome fontSize="small" /> },
@@ -780,7 +795,7 @@ const mobileTabsByRole: Record<string, MobileTab[]> = {
       label: "Assessments",
       path: "/admin/assessments",
       icon: <Assignment fontSize="small" />,
-      aliases: ["/admin/schedule-tests", "/admin/question-bank", "/admin/paper-generator"],
+      aliases: ["/admin/schedule-tests", "/admin/create-test", "/admin/my-tests", "/admin/question-bank", "/admin/paper-generator"],
     },
   ],
   faculty: [
@@ -797,7 +812,7 @@ const mobileTabsByRole: Record<string, MobileTab[]> = {
       icon: <People fontSize="small" />,
       aliases: ["/faculty/appointments", "/faculty/student-requests", "/faculty/view360"],
     },
-    { label: "Assessments", path: "/faculty/assessments", icon: <Assignment fontSize="small" /> },
+    { label: "Assessments", path: "/faculty/assessments", icon: <Assignment fontSize="small" />, aliases: ["/faculty/create-test", "/faculty/my-tests"] },
   ],
   mentor: [
     { label: "Dashboard", path: "/faculty/dashboard", icon: <Dashboard fontSize="small" /> },
