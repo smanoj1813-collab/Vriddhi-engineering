@@ -600,8 +600,7 @@ export const listAdmissionApplications = onCall(
     const input = (request.data || {}) as Record<string, unknown>
     const collegeId = await resolveCollegeId(staff, input.collegeId)
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('admissionApplications')
       .where('collegeId', '==', collegeId)
       .limit(1000)
@@ -681,8 +680,7 @@ export const exportAdmittedApplicants = onCall(
       throw new HttpsError('invalid-argument', 'Unknown status filter')
     }
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('admissionApplications')
       .where('collegeId', '==', collegeId)
       .where('status', '==', wantedStatus)
@@ -942,8 +940,7 @@ function intakeEndpoint(): string {
 }
 
 async function loadAdmissionConfig(collegeId: string): Promise<admin.firestore.DocumentData> {
-  const doc = await admin
-    .firestore()
+  const doc = await getFirestore(admin.app(), 'default')
     .collection('colleges')
     .doc(collegeId)
     .collection('config')
@@ -1048,8 +1045,7 @@ export const saveAdmissionConfig = onCall(
     if (input.intakeDefaults !== undefined) update.intakeDefaults = serializeDefaults(input.intakeDefaults)
     if (input.intakeEnabled !== undefined) update.intakeEnabled = input.intakeEnabled === true
 
-    const ref = admin
-      .firestore()
+    const ref = getFirestore(admin.app(), 'default')
       .collection('colleges')
       .doc(collegeId)
       .collection('config')
@@ -1060,8 +1056,7 @@ export const saveAdmissionConfig = onCall(
     // carry the weights they were scored under. Re-stamp them so the score
     // shown for an applicant is always computed from the current policy.
     if (update.qualifyingWeight !== undefined) {
-      const snap = await admin
-        .firestore()
+      const snap = await getFirestore(admin.app(), 'default')
         .collection('admissionApplications')
         .where('collegeId', '==', collegeId)
         .limit(1000)

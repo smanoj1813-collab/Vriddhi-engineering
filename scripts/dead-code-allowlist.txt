@@ -2,3 +2,12 @@
 # Each entry is deliberate: either standalone tooling or a component that is
 # compiled and typechecked but not yet mounted on a route.
 # Regenerate with: node scripts/check-dead-code.cjs --write
+# Student Fees & Exams section removed from the student portal (routes redirect
+# to the dashboard). Pages kept so the section can be re-enabled later.
+src/modules/office/pages/StudentNoDues.tsx
+src/modules/student/hooks/useFeeData.ts
+src/modules/student/hooks/useMyChallans.ts
+src/modules/student/pages/StudentChallans.tsx
+src/modules/student/pages/StudentFeePortal.tsx
+src/modules/student/pages/StudentHallTickets.tsx
+src/shared/utils/paymentGateway.ts

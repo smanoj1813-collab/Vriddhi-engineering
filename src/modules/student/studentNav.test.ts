@@ -13,9 +13,9 @@ import {
 } from './studentNav'
 
 const DASHBOARD_TILES = [
-  '/student/hall-tickets', '/student/attendance', '/student/assessments', '/student/assignments',
+  '/student/attendance', '/student/assessments', '/student/assignments',
   '/student/grades', '/student/materials', '/student/coding-lab', '/student/timetable', '/student/curriculum',
-  '/student/fees', '/student/challans', '/student/no-dues', '/student/library', '/student/events', '/student/notifications',
+  '/student/library', '/student/events', '/student/notifications',
 ].map((to) => ({ to }))
 
 test('grouping: every dashboard tile lands under a heading, none dropped', () => {
@@ -24,13 +24,16 @@ test('grouping: every dashboard tile lands under a heading, none dropped', () =>
   assert.deepEqual(rendered, DASHBOARD_TILES.map((tile) => tile.to).sort())
 })
 
-test('grouping: money pages sit together, study pages with learning', () => {
+test('grouping: fee & exam pages are removed from the student portal', () => {
+  for (const path of ['/student/fees', '/student/fee-portal', '/student/challans', '/student/hall-tickets', '/student/no-dues']) {
+    assert.equal(findNavItem(path), undefined, `${path} is not in the student nav`)
+  }
+  assert.ok(!STUDENT_NAV_GROUPS.some((g) => g.label === 'Fees & exams'))
+})
+
+test('grouping: study pages sit with learning', () => {
   const groups = groupTilesByNavSection(DASHBOARD_TILES)
   const of = (path: string) => groups.find((g) => g.tiles.some((tile) => tile.to === path))?.label
-  assert.equal(of('/student/challans'), 'Fees & exams')
-  assert.equal(of('/student/fees'), 'Fees & exams')
-  assert.equal(of('/student/hall-tickets'), 'Fees & exams')
-  assert.equal(of('/student/no-dues'), 'Fees & exams')
   assert.equal(of('/student/materials'), 'Learning')
   assert.equal(of('/student/coding-lab'), 'Learning')
   assert.equal(of('/student/attendance'), 'Academics')
@@ -52,86 +55,6 @@ test('grouping: an unknown route is kept under "More" instead of vanishing', () 
   assert.deepEqual(last.tiles.map((tile) => tile.to), ['/student/brand-new-page'])
 })
 
-test('grouping: alias routes resolve to the group of the page they duplicate', () => {
-  // /student/fee-portal is the old spelling of Fees; a tile or a link using it
-  // must not end up orphaned under "More".
-  assert.equal(findNavItem('/student/fee-portal')?.group, 'money')
-  assert.equal(groupTilesByNavSection([{ to: '/student/fee-portal' }])[0].label, 'Fees & exams')
-})
-
-test('coding lab: the student route is reachable from the Learning group', () => {
-  const item = findNavItem('/student/coding-lab')
-  assert.equal(item?.id, 'coding-lab')
-  assert.equal(item?.group, 'practice')
-  assert.equal(item?.path, '/student/coding-lab')
-  assert.ok(item?.hint)
-  assert.ok(navItemsInGroup('practice').some((entry) => entry.id === 'coding-lab'))
-  assert.equal(groupTilesByNavSection([{ to: '/student/coding-lab' }])[0].label, 'Learning')
-})
-
-test('programme visibility: Coding Lab appears only in BCA student navigation', () => {
-  const bcaItems = studentNavItemsForProfile({ course: 'BCA' }, true)
-  const unassignedBcaItems = studentNavItemsForProfile({ course: 'BCA' }, false)
-  const baItems = studentNavItemsForProfile({ course: 'BA' }, true)
-  const unknownItems = studentNavItemsForProfile(null, true)
-  assert.ok(bcaItems.some((item) => item.id === 'coding-lab'))
-  assert.ok(!unassignedBcaItems.some((item) => item.id === 'coding-lab'))
-  assert.ok(!baItems.some((item) => item.id === 'coding-lab'))
-  assert.ok(!unknownItems.some((item) => item.id === 'coding-lab'))
-  assert.ok(moreSheetItems({ profile: { branch: 'BCA' }, codingLabEnabled: true }).some((item) => item.id === 'coding-lab'))
-  assert.ok(!navItemsInGroup('practice', { course: 'B.Com' }, true).some((item) => item.id === 'coding-lab'))
-})
-
-test('module toggles: Assignments stays visible by default and hides when the college switches it off', () => {
-  // Default (no toggle configured) keeps the core module visible.
-  assert.ok(studentNavItemsForProfile({ course: 'BCA' }, true).some((item) => item.id === 'assignments'))
-  assert.ok(studentNavItemsForProfile(null).some((item) => item.id === 'assignments'))
-  // Explicit college decision: off everywhere the nav renders.
-  const hidden = studentNavItemsForProfile({ course: 'BCA' }, true, false)
-  assert.ok(!hidden.some((item) => item.id === 'assignments'))
-  assert.ok(!navItemsInGroup('academics', { course: 'BCA' }, true, false).some((item) => item.id === 'assignments'))
-  assert.ok(!moreSheetItems({ profile: { course: 'BCA' }, codingLabEnabled: true, assignmentsEnabled: false }).some((item) => item.id === 'assignments'))
-  // …without disturbing unrelated items.
-  assert.ok(hidden.some((item) => item.id === 'attendance'))
-  assert.ok(hidden.some((item) => item.id === 'coding-lab'))
-})
-
-test('placement prep: visible by default, hidden when the college switch is off', () => {
-  // Default (no switch configured) keeps the pillar visible — matches the
-  // server-side catalogue default (companyPrep.enabled = true).
-  assert.ok(studentNavItemsForProfile({ course: 'BCA' }, true).some((item) => item.id === 'placement-prep'))
-  assert.ok(studentNavItemsForProfile(null).some((item) => item.id === 'placement-prep'))
-  // Explicit switch-off hides it in every surface the nav model feeds.
-  const hidden = studentNavItemsForProfile({ course: 'BCA' }, true, true, false)
-  assert.ok(!hidden.some((item) => item.id === 'placement-prep'))
-  assert.ok(!navItemsInGroup('practice', { course: 'BCA' }, true, true, false).some((item) => item.id === 'placement-prep'))
-  assert.ok(!moreSheetItems({ profile: { course: 'BCA' }, codingLabEnabled: true, placementPrepEnabled: false }).some((item) => item.id === 'placement-prep'))
-  // …without disturbing unrelated items.
-  assert.ok(hidden.some((item) => item.id === 'resume'))
-  assert.ok(hidden.some((item) => item.id === 'library'))
-})
-
-test('placement prep: the entry lives in the Learning hub and resolves /prep deep links', () => {
-  const item = findNavItem('/prep')
-  assert.equal(item?.id, 'placement-prep')
-  assert.equal(item?.group, 'practice')
-  // Company deep links light up the same entry.
-  assert.equal(findNavItem('/prep/company/tcs-nqt')?.id, 'placement-prep')
-  assert.ok(navItemsInGroup('practice').some((entry) => entry.id === 'placement-prep'))
-  assert.equal(groupTilesByNavSection([{ to: '/prep' }])[0].label, 'Learning')
-})
-
-test('nav model: every item belongs to a declared group', () => {
-  const declared = new Set(STUDENT_NAV_GROUPS.map((g) => g.id))
-  for (const item of STUDENT_NAV_ITEMS) {
-    assert.ok(declared.has(item.group), `${item.id} has group "${item.group}"`)
-  }
-})
-
-// ── Phone bottom bar ────────────────────────────────────────────────────
-// The bar carries Dashboard, Academics, Assessments, Learning and "More".
-// Fees and Notifications moved inside "More"; Academics and Learning were
-// pulled out as their own section hubs.
 test('bottom bar: the four tabs are Dashboard, Academics, Assessments, Learning', () => {
   assert.deepEqual([...MOBILE_TAB_IDS], ['dashboard', 'academics', 'assessments', 'learning'])
   const labels = mobileTabItems().map((item) => item.label)
@@ -145,9 +68,9 @@ test('bottom bar: every tab resolves to a real route and an icon', () => {
   }
 })
 
-test('More sheet: fees and notifications are inside More, not tabs', () => {
+test('More sheet: notifications are inside More, not tabs', () => {
   const ids = moreSheetItems().map((item) => item.id)
-  assert.ok(ids.includes('fees'), 'Fees is reachable from More')
+  assert.ok(!ids.includes('fees'), 'Fees is removed')
   assert.ok(ids.includes('notifications'), 'Notifications is reachable from More')
   for (const tabId of MOBILE_TAB_IDS) {
     assert.ok(!ids.includes(tabId), `${tabId} is a tab, so it is not repeated in More`)

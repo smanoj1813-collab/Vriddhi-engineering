@@ -287,7 +287,7 @@ export default function MemberLibrary({ memberType = 'student' }: { memberType?:
         <div className="space-y-3">
           {unpaid.some(f => f.status === 'posted') && isStudent && (
             <div className="rounded-xl p-3 bg-blue-500/10 border border-blue-500/30 text-sm text-blue-700 dark:text-blue-300">
-              Some fines were added to your fee account — pay them from the <Link to="/student/fees" className="underline font-medium">Fee Portal</Link>.
+              Some fines were added to your fee account — please clear them at the college accounts office.
             </div>
           )}
           <div className="glass-card divide-y divide-vriddhi-border/60">

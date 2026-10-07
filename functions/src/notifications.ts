@@ -449,8 +449,7 @@ export const listCollegeAnnouncements = onCall(
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('notifications')
       .where('collegeId', '==', collegeId)
       .limit(200)
@@ -513,8 +512,7 @@ const MAX_FEED = 100
 async function loadAddressedAnnouncements(
   student: NotificationStudent
 ): Promise<Array<{ id: string; data: admin.firestore.DocumentData }>> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore(admin.app(), 'default')
     .collection('notifications')
     .where('collegeId', '==', student.collegeId)
     .limit(200)

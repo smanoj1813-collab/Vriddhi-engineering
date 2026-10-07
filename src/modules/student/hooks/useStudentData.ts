@@ -303,6 +303,8 @@ const useStudentDataSource = (explicitStudentId?: string): UseStudentDataReturn 
       const failures = results
         .map((result, index) => {
           if (result.status === 'fulfilled') return '';
+          // Fees are no longer shown in the student portal; never warn about them.
+          if (serviceNames[index] === 'fees') return '';
           const reason = result.reason as { code?: string; message?: string } | undefined;
           const detail = reason?.code || reason?.message || String(reason ?? 'unknown error');
           return `${serviceNames[index]} (${detail})`;

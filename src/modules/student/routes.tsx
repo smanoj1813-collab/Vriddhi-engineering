@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { RoleRoute } from '@/routes/components/RoleRoute';
 import ErrorBoundary from '@/shared/components/ErrorBoundary';
 import StudentLayout from './components/StudentLayout';
@@ -16,11 +17,8 @@ const StudentResumePage = lazy(() => import('./pages/StudentResumePage'));
 const StudentTimetable = lazy(() => import('./pages/StudentTimetable'));
 const StudentIdCard = lazy(() => import('./pages/StudentIdCard'));
 const MemberLibrary = lazy(() => import('@/modules/office/pages/MemberLibrary'));
-const StudentNoDues = lazy(() => import('@/modules/office/pages/StudentNoDues'));
 const StudentEvents = lazy(() => import('./pages/StudentEvents'));
 const StudentNotificationsPage = lazy(() => import('./pages/StudentNotificationsPage'));
-const StudentFeePortal = lazy(() => import('./pages/StudentFeePortal'));
-const StudentChallans = lazy(() => import('./pages/StudentChallans'));
 const StudentTestDashboard = lazy(() => import('./pages/StudentTestDashboard'));
 const TestInstructionsPage = lazy(() => import('./pages/TestInstructionsPage'));
 const ActiveTestPage = lazy(() => import('./pages/ActiveTestPage'));
@@ -30,7 +28,6 @@ const StudentAssignments = lazy(() => import('./pages/StudentAssignments'));
 const StudentFacultyConnectPage = lazy(() => import('./pages/StudentFacultyConnectPage'));
 const StudentJourneyPage = lazy(() => import('./pages/StudentJourneyPage'));
 const StudentCurriculumPage = lazy(() => import('./pages/StudentCurriculumPage'));
-const StudentHallTickets = lazy(() => import('./pages/StudentHallTickets'));
 const PWAInstallPage = lazy(() => import('./pages/PWAInstallPage'));
 // Phone section hubs — the "Academics" and "Learning" bottom-bar tabs.
 const StudentHubPage = lazy(() => import('./pages/StudentHubPage'));
@@ -86,12 +83,12 @@ export const studentRoutes: RouteObject[] = [
       { path: 'resume', element: <StudentResumePage /> },
       { path: 'timetable', element: <StudentTimetable /> },
       { path: 'id-card', element: <StudentIdCard /> },
-      { path: 'fees', element: <StudentFeePortal /> },
-      { path: 'fee-portal', element: <StudentFeePortal /> },
-      { path: 'challans', element: <StudentChallans /> },
-      { path: 'hall-tickets', element: <StudentHallTickets /> },
+      { path: 'fees', element: <Navigate to="/student/dashboard" replace /> },
+      { path: 'fee-portal', element: <Navigate to="/student/dashboard" replace /> },
+      { path: 'challans', element: <Navigate to="/student/dashboard" replace /> },
+      { path: 'hall-tickets', element: <Navigate to="/student/dashboard" replace /> },
       { path: 'library', element: <MemberLibrary memberType="student" /> },
-      { path: 'no-dues', element: <StudentNoDues /> },
+      { path: 'no-dues', element: <Navigate to="/student/dashboard" replace /> },
       { path: 'events', element: <StudentEvents /> },
       { path: 'notifications', element: <StudentNotificationsPage /> },
       { path: 'settings', element: <StudentSettings /> },
