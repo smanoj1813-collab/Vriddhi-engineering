@@ -37,12 +37,39 @@ export interface FacultyOption {
   name: string;
   email: string;
   department: string;
+  /** Every branch the faculty member belongs to / may teach (primary first). */
+  branches: string[];
   firstName?: string;
   lastName?: string;
   /** Subjects the faculty can teach (UG + PG). Used to guide course mapping,
    *  NOT to restrict — a faculty may teach across branches/batches/years. */
   subjectsUG?: unknown[];
   subjectsPG?: unknown[];
+}
+
+/** Primary department/branch first, then every additional branch — deduped. */
+export function facultyBranchList(data: Record<string, unknown>): string[] {
+  const raw: unknown[] = [
+    data.department,
+    data.branch,
+    ...(Array.isArray(data.branches) ? data.branches : []),
+    ...(Array.isArray(data.departments) ? data.departments : []),
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of raw) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (!text || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    out.push(text);
+  }
+  return out;
+}
+
+/** "Name — CSE, ISE" label used wherever a faculty is picked. */
+export function facultyBranchLabel(f: { branches?: string[]; department?: string }): string {
+  const list = f.branches && f.branches.length ? f.branches : f.department ? [f.department] : [];
+  return list.join(', ') || 'No branch set';
 }
 
 // ─── Hook: Admin Curriculum Mapping ────────────────────────────────────
@@ -83,7 +110,8 @@ export function useCurriculumMapping(collegeId: string | undefined) {
             uid: typeof data.uid === 'string' && data.uid ? data.uid : undefined,
             name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.name || 'Unknown',
             email: data.email || '',
-            department: data.department || 'General',
+            department: data.department || data.branch || 'General',
+            branches: facultyBranchList(data),
             firstName: data.firstName || '',
             lastName: data.lastName || '',
             subjectsUG: Array.isArray(data.subjectsUG) ? data.subjectsUG : [],

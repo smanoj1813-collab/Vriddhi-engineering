@@ -321,7 +321,6 @@ const facultyNav: SidebarEntry[] = [
       { label: "My Tests", path: "/faculty/my-tests", icon: <Description fontSize="small" /> },
       { label: "AI Question Generator", path: "/faculty/ai-questions", icon: <AutoAwesome fontSize="small" /> },
       { label: "Question Bank", path: "/faculty/question-bank", icon: <QuestionAnswer fontSize="small" /> },
-      { label: "Universal Bank", path: "/faculty/universal-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Assessment Schedule", path: "/faculty/assessments", icon: <Assignment fontSize="small" /> },
       // HIDDEN for faculty (plug back = re-add the nav line + drop the path
       // from RETIRED_FACULTY_PATHS in src/modules/faculty/routes.tsx):

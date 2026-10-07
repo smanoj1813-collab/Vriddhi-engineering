@@ -64,7 +64,7 @@ interface Props {
   open: boolean
   collegeId: string
   prefill: SlotPrefill | null
-  facultyOptions: { id: string; uid?: string; name: string }[]
+  facultyOptions: { id: string; uid?: string; name: string; department?: string; branches?: string[] }[]
   divisionOptions?: string[]
   onClose: () => void
   onSaved: (payload: { slot: WeeklyClassSchedule; generated: number; sessionsError?: string }) => void
@@ -274,6 +274,7 @@ const ScheduleSlotDialog: React.FC<Props> = ({
               {facultyOptions.map(faculty => (
                 <MenuItem key={faculty.id} value={faculty.id}>
                   {faculty.name}
+                  {(faculty.branches?.length || faculty.department) ? ` — ${(faculty.branches?.length ? faculty.branches : [faculty.department]).join(', ')}` : ''}
                 </MenuItem>
               ))}
             </Select>

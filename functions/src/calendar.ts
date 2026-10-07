@@ -37,7 +37,7 @@ import * as logger from 'firebase-functions/logger'
 import {
   isValidDateKey,
   daysBetween,
-  dateKeysInRange,
+  addDays,
   resolveSchedulingStaff,
   cancelScheduledSessionsForHolidayRange,
 } from './classSchedule'
@@ -226,6 +226,21 @@ export function weekdayKeyOf(dateKey: string): DayOfWeek {
  * Only `suspendsClasses` events count against teachingDays; a fest with
  * suspendsClasses:false is listed as context but costs zero teaching days.
  */
+/** Calendar views cover a whole semester / academic year, so — unlike the
+ *  92-day session-generation guard in dateKeysInRange — they walk up to two
+ *  years and never throw: an over-long or reversed span is clipped, not fatal.
+ *  (A plain Error escaping a callable surfaces to the browser as "internal".) */
+const MAX_CALENDAR_VIEW_DAYS = 731
+export function calendarDateKeys(from: string, to: string, maxDays = MAX_CALENDAR_VIEW_DAYS): string[] {
+  if (!isValidDateKey(from) || !isValidDateKey(to)) return []
+  const span = daysBetween(from, to)
+  if (!Number.isFinite(span) || span < 0) return []
+  const keys: string[] = []
+  const last = Math.min(span, maxDays - 1)
+  for (let offset = 0; offset <= last; offset += 1) keys.push(addDays(from, offset))
+  return keys
+}
+
 export function buildCalendarView(
   events: CalendarEventLite[],
   gridDays: DayOfWeek[],
@@ -243,7 +258,7 @@ export function buildCalendarView(
   if (from && to) {
     const daySet = new Set(gridDays)
     let teaching = 0
-    for (const date of dateKeysInRange(from, to)) {
+    for (const date of calendarDateKeys(from, to)) {
       if (!daySet.has(weekdayKeyOf(date))) continue
       const covering = inWindow.filter((e) => eventCoversDate(e, date))
       const suspending = covering.find((e) => e.suspendsClasses)
@@ -273,7 +288,7 @@ export function buildCalendarView(
   for (const e of inWindow) {
     const titles = weekdayTitles.get(weekdayKeyOf(e.startDate)) ?? []
     // Cover every weekday the range touches (multi-day study holidays).
-    for (const date of dateKeysInRange(e.startDate, e.endDate)) {
+    for (const date of calendarDateKeys(e.startDate, e.endDate, 7)) {
       const day = weekdayKeyOf(date)
       const list = weekdayTitles.get(day) ?? []
       if (!list.includes(e.title)) list.push(e.title)

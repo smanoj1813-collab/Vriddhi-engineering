@@ -22,7 +22,9 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 export function normalizeSchemePack(value: unknown): UniversitySchemePack {
   if (!value || typeof value !== 'object') return DEFAULT_SCHEME_PACK;
   const partial = value as Partial<UniversitySchemePack>;
-  const base = DEFAULT_SCHEME_PACK;
+  // Structural fallback for half-written docs stays the historical shape so
+  // existing custom packs normalise exactly as before.
+  const base = BCU_SEP_2024;
   const attendance = { ...base.attendance, ...(partial.attendance ?? {}) };
   if (!Array.isArray(attendance.marksSlabs) || attendance.marksSlabs.length === 0) {
     attendance.marksSlabs = base.attendance.marksSlabs;

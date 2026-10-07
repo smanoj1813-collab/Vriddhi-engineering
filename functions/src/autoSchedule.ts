@@ -1398,6 +1398,23 @@ export function assertTimetableOccupancyComplete(count: number, limit = MAX_SCHE
 export const autoGenerateWeeklySchedule = onCall(
   { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 90 },
   async (request) => {
+    try {
+      return await runAutoGenerateWeeklySchedule(request)
+    } catch (err) {
+      if (err instanceof HttpsError) throw err
+      // A bare Error reaches the browser as the opaque "internal" code; log the
+      // real cause and hand the operator a readable message instead.
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[autoGenerateWeeklySchedule] unexpected failure', err)
+      throw new HttpsError('failed-precondition', `Auto-schedule could not complete: ${message}`)
+    }
+  },
+)
+
+async function runAutoGenerateWeeklySchedule(
+  request: { auth?: { uid?: string; token?: Record<string, unknown> } | null; data: unknown },
+) {
+  {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
     const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
@@ -1679,5 +1696,5 @@ export const autoGenerateWeeklySchedule = onCall(
       warnings: responseWarnings,
       ...(plan.randomSeed ? { randomSeed: plan.randomSeed } : {}),
     }
-  },
-)
+  }
+}

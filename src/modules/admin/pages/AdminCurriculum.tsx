@@ -78,7 +78,7 @@ import {
 } from '@mui/icons-material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/context/AuthContext'
-import { useCurriculumMapping } from '../hooks/useCurriculumMapping'
+import { useCurriculumMapping, facultyBranchLabel } from '../hooks/useCurriculumMapping'
 import { fetchDivisionsFromStudents, fetchWeeklySchedules } from '../api/scheduleApi'
 import { divisionOptions as buildDivisionOptions, divisionSelection, divisionSelectionValue } from '@/shared/utils/divisionGroups'
 import {
@@ -242,19 +242,28 @@ const AdminCurriculum: React.FC = () => {
     return course?.name || ''
   }, [formData.courseId, formData.curriculumId, curriculumList])
 
+  const selectedCurriculumBranch = useMemo(
+    () => (curriculumList.find(c => c.id === formData.curriculumId)?.branch || '').trim().toLowerCase(),
+    [curriculumList, formData.curriculumId],
+  )
+
   const facultyOptions = useMemo(() => {
     const q = selectedCourseName.trim().toLowerCase()
+    const branchKey = selectedCurriculumBranch
     return facultyList
       .map(f => {
         const subjects = getFacultySubjects(f.id)
         const matches = q.length > 0 && subjects.some(s => s.toLowerCase() === q)
-        return { ...f, subjects, matches }
+        const branchList = (f.branches && f.branches.length ? f.branches : [f.department]).map(b => String(b || '').toLowerCase())
+        const sameBranch = Boolean(branchKey) && branchList.some(b => b === branchKey || b.includes(`(${branchKey})`) || branchKey.includes(b))
+        return { ...f, subjects, matches, sameBranch }
       })
       .sort((a, b) => {
+        if (a.sameBranch !== b.sameBranch) return a.sameBranch ? -1 : 1
         if (a.matches !== b.matches) return a.matches ? -1 : 1
         return a.name.localeCompare(b.name)
       })
-  }, [facultyList, getFacultySubjects, selectedCourseName])
+  }, [facultyList, getFacultySubjects, selectedCourseName, selectedCurriculumBranch])
 
   // ─── Handlers: faculty assignment ────────────────────────────────────
   const handleOpenMapping = (curriculum: CurriculumDoc, course?: ParsedCourse, existing?: CourseFlowRow['mapping']) => {
@@ -948,10 +957,21 @@ const AdminCurriculum: React.FC = () => {
                 value={formData.facultyId}
                 label="Faculty"
                 onChange={e => setFormData(prev => ({ ...prev, facultyId: e.target.value }))}
+                renderValue={(value) => {
+                  const f = facultyOptions.find(x => (x.uid || x.id) === value)
+                  return f ? `${f.name} — ${facultyBranchLabel(f)}` : String(value || '')
+                }}
               >
                 {facultyOptions.map(f => (
-                  <MenuItem key={f.uid || f.id} value={f.uid || f.id}>
-                    {f.name} {f.matches && <Chip label="match" size="small" variant="outlined" sx={{ ml: 1 }} />}
+                  <MenuItem key={f.uid || f.id} value={f.uid || f.id} sx={{ display: 'block' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{f.name}</Typography>
+                      {f.sameBranch && <Chip label="this branch" size="small" color="primary" variant="outlined" />}
+                      {f.matches && <Chip label="subject match" size="small" variant="outlined" />}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Branch: {facultyBranchLabel(f)}
+                    </Typography>
                   </MenuItem>
                 ))}
               </Select>

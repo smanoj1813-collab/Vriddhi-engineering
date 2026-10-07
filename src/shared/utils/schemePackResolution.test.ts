@@ -55,7 +55,7 @@ describe('scheme pack assignment resolution', () => {
 
   it('uses the college default and then the platform default when no scope matches', () => {
     assert.equal(resolveSchemePackId(assignments, { programId: 'MCA' }, 'COLLEGE_DEFAULT'), 'COLLEGE_DEFAULT');
-    assert.equal(resolveSchemePackId(assignments, { programId: 'MCA' }), 'BCU_SEP_2024');
+    assert.equal(resolveSchemePackId(assignments, { programId: 'MCA' }), 'VTU_2022_BE_BTECH');
   });
 
   it('requires a complete cohort scope and uses stable normalized keys', () => {

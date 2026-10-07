@@ -57,7 +57,7 @@ import type { DayOfWeek, WeeklyClassSchedule } from '../types/schedule'
 interface Props {
   open: boolean
   slot: WeeklyClassSchedule | null
-  facultyOptions: { id: string; uid?: string; name: string }[]
+  facultyOptions: { id: string; uid?: string; name: string; department?: string; branches?: string[] }[]
   onClose: () => void
   onDone: (result: RescheduleClassResult) => void
 }
@@ -305,6 +305,7 @@ const RescheduleClassDialog: React.FC<Props> = ({ open, slot, facultyOptions, on
               {facultyOptions.map(faculty => (
                 <MenuItem key={faculty.id} value={faculty.id}>
                   {faculty.name}
+                  {(faculty.branches?.length || faculty.department) ? ` — ${(faculty.branches?.length ? faculty.branches : [faculty.department]).join(', ')}` : ''}
                 </MenuItem>
               ))}
             </Select>

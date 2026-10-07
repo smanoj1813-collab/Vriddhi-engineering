@@ -599,5 +599,7 @@ export const ENGINEERING_SCHEME_PACKS: UniversitySchemePack[] = [
   AUTONOMOUS_ENGINEERING_5050,
 ];
 
-/** Pack applied when a college has none assigned — pre-G1 behaviour. */
-export const DEFAULT_SCHEME_PACK = BCU_SEP_2024;
+/** Pack applied when a college has none assigned. This product serves
+ *  B.E./B.Tech colleges, so the fallback is the VTU engineering scheme — the
+ *  legacy BCU preset is still resolvable when explicitly assigned. */
+export const DEFAULT_SCHEME_PACK = VTU_2022_BE_BTECH;

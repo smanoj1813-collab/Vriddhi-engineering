@@ -103,6 +103,7 @@ describe('validateSchemePackDoc', () => {
       'BCU_SEP_2024',
       'KUD_NEP_CBAE',
       'GENERIC_NEP_2020',
+      'VTU_2022_BE_BTECH',
       'VTU_BE_2022_5050',
       'AUTONOMOUS_ENGINEERING_5050',
     ])
