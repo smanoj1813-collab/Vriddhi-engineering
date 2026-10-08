@@ -3,4 +3,6 @@
 // default of 100 max instances (x 1 vCPU) is rejected at deploy time.
 import { setGlobalOptions } from 'firebase-functions/v2'
 
-setGlobalOptions({ maxInstances: 10 })
+// 'gcf_gen1' sizes CPU by memory (256MiB → 0.167 vCPU) instead of a full
+// vCPU per instance, so ~100 services fit within the regional CPU quota.
+setGlobalOptions({ maxInstances: 10, cpu: 'gcf_gen1' })
