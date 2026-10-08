@@ -1,6 +1,7 @@
 // functions/src/index.ts
 // Main entry point — V2 HTTPS + Callable functions
 
+import './globalOptions'
 import { onRequest } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
 import express from 'express'

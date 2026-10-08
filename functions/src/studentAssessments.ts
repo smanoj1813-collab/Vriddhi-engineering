@@ -730,7 +730,7 @@ function serializeCard(
 }
 
 export const getMyStudentTests = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -773,7 +773,7 @@ export const getMyStudentTests = onCall(
 )
 
 export const getMyTestInstructions = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -821,7 +821,7 @@ export const getMyTestInstructions = onCall(
 )
 
 export const startMyStudentTest = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -969,7 +969,7 @@ export const startMyStudentTest = onCall(
 )
 
 export const getMyActiveStudentTest = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1069,7 +1069,7 @@ async function assertAttemptOwnership(
  *    the full `answers` map): same as before — test + N question reads.
  */
 export const autosaveMyStudentTest = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1201,7 +1201,7 @@ function outcome(row: admin.firestore.DocumentData) {
 }
 
 export const submitMyStudentTest = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 60 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1358,7 +1358,7 @@ export const submitMyStudentTest = onCall(
  * types are batched into autosave. Cost: 1 attempt read + 1 write.
  */
 export const logMyStudentTestEvent = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 15, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 15, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1394,7 +1394,7 @@ export const logMyStudentTestEvent = onCall(
 )
 
 export const getMyStudentTestResult = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1516,7 +1516,7 @@ export const getMyStudentTestResult = onCall(
 )
 
 export const listManagedAssessmentTests = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1614,7 +1614,7 @@ export function isApprovedPaperReusableByCollegeStaff(
 }
 
 export const checkPaperScheduling = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1901,7 +1901,7 @@ export const scheduleAssessmentTest = onCall(
 )
 
 export const publishAssessmentTest = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1934,7 +1934,7 @@ export const publishAssessmentTest = onCall(
 )
 
 export const cancelAssessmentTest = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1970,7 +1970,7 @@ export const cancelAssessmentTest = onCall(
 )
 
 export const gradeStudentAssessmentSubmission = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -2116,7 +2116,7 @@ export const gradeStudentAssessmentSubmission = onCall(
 )
 
 export const listPendingAssessmentSubmissions = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -2223,7 +2223,7 @@ export const listPendingAssessmentSubmissions = onCall(
  * totalSubmitted tracking) with a one-time backfill write.
  */
 export const getAssessmentTestReport = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -2932,7 +2932,7 @@ export function parsePerformanceCategories(input: unknown): PerformanceCategory[
 }
 
 export const getAssessmentConfig = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -2950,7 +2950,7 @@ export const getAssessmentConfig = onCall(
 )
 
 export const saveAssessmentConfig = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

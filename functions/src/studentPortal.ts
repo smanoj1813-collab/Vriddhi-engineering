@@ -366,7 +366,7 @@ export const getMyAssignments = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -426,7 +426,7 @@ export const beginMyAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -533,7 +533,7 @@ export const finalizeMyAssignmentSubmission = onCall(
     memory: '512MiB',
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -677,7 +677,7 @@ export const cancelMyAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -751,7 +751,7 @@ export const gradeAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -965,7 +965,7 @@ async function sanitizeAssignmentAuthoringInput(
 }
 
 export const createFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -991,7 +991,7 @@ export const createFacultyAssignment = onCall(
 )
 
 export const updateFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1031,7 +1031,7 @@ const ASSIGNMENT_TRANSITIONS: Record<string, string[]> = {
 }
 
 export const transitionFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1219,7 +1219,7 @@ async function createAssignmentPublishedNotification(
 
 
 export const deleteFacultyAssignmentDraft = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1248,7 +1248,7 @@ export const deleteFacultyAssignmentDraft = onCall(
 )
 
 export const getAssignmentSubmissionDownload = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1348,7 +1348,7 @@ export const listMentorDirectory = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication is required')
