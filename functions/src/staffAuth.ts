@@ -366,8 +366,7 @@ export const bulkProvisionStaff = onCall(
         // A faculty ID is the profile document key. Never allow a new email to
         // overwrite somebody else's profile merely because the operator typed
         // an existing ID in the single-create form or CSV.
-        const idProfile = await admin
-          .firestore()
+        const idProfile = await getFirestore(admin.app(), 'default')
           .collection(STAFF_PROFILE_COLLECTION)
           .doc(facultyId)
           .get()
@@ -386,8 +385,7 @@ export const bulkProvisionStaff = onCall(
         //              already works, we simply cannot hand out its password.
         //              The importer gets a "send reset link" action instead.
         //    'reset' → reclaim: new credential + claims re-issued.
-        const existingProfile = await admin
-          .firestore()
+        const existingProfile = await getFirestore(admin.app(), 'default')
           .collection(STAFF_PROFILE_COLLECTION)
           .where('email', '==', email)
           .limit(1)

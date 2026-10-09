@@ -23,7 +23,7 @@ const FacultyTopics = lazy(() => import('./pages/FacultyTopics'));
 // Kept for the plug-back path (see RETIRED_FACULTY_PATHS below) — the page
 // components are intact, only their routes redirect today.
 const FacultyPapers = lazy(() => import('./pages/FacultyPapers'));
-const FacultyQuestionBank = lazy(() => import('./pages/FacultyQuestionBank'));
+const UnifiedQuestionBank = lazy(() => import('@/shared/components/question-bank/UnifiedQuestionBank'));
 const FacultyPaperGenerator = lazy(() => import('./pages/FacultyPaperGenerator'));
 const FacultyStudentAnalysis = lazy(() => import('./pages/FacultyStudentAnalysis'));
 const FacultyReschedule = lazy(() => import('./pages/FacultyReschedule'));
@@ -36,7 +36,6 @@ const FacultyCalendar = lazy(() => import('./pages/FacultyCalendar'));
 const FacultyCurriculum = lazy(() => import('./pages/FacultyCurriculum'));
 const FacultySchedule = lazy(() => import('./pages/FacultySchedule'));
 const FacultyAIQuestions = lazy(() => import('./pages/FacultyAIQuestions'));
-const FacultyUniversalBank = lazy(() => import('./pages/FacultyUniversalBank'));
 const FacultySettings = lazy(() => import('./pages/FacultySettings'));
 const FacultyMySalary = lazy(() => import('./pages/FacultyMySalary'));
 const FacultyAppointmentsPage = lazy(() => import('./pages/FacultyAppointmentsPage'));
@@ -170,8 +169,8 @@ export const facultyRoutes: RouteObject[] = [
       { path: 'my-attendance', element: <LazyPage label="faculty/my-attendance"><FacultySelfAttendance /></LazyPage> },
       { path: 'self-attendance', element: <LazyPage label="faculty/self-attendance"><FacultySelfAttendance /></LazyPage> },
       { path: 'topics', element: <LazyPage label="faculty/topics"><FacultyTopics /></LazyPage> },
-      { path: 'question-bank', element: <LazyPage label="faculty/question-bank"><FacultyQuestionBank /></LazyPage> },
-      { path: 'universal-bank', element: <LazyPage label="faculty/universal-bank"><FacultyUniversalBank /></LazyPage> },
+      { path: 'question-bank', element: <LazyPage label="faculty/question-bank"><UnifiedQuestionBank initialTab="college" /></LazyPage> },
+      { path: 'universal-bank', element: <LazyPage label="faculty/universal-bank"><UnifiedQuestionBank initialTab="universal" /></LazyPage> },
       { path: 'student-analysis', element: <LazyPage label="faculty/student-analysis"><FacultyStudentAnalysis /></LazyPage> },
       { path: 'appointments', element: <LazyPage label="faculty/appointments"><FacultyAppointmentsPage /></LazyPage> },
       { path: 'student-requests', element: <LazyPage label="faculty/student-requests"><FacultyAppointmentsPage /></LazyPage> },

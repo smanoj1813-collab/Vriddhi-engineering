@@ -81,10 +81,6 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   { id: 'journey', label: 'My Journey', path: '/student/journey', icon: Milestone, group: 'practice', translationKey: 'nav.journey', hint: 'Your progress across the programme' },
   { id: 'resume', label: 'Resume Builder', path: '/student/resume', icon: Briefcase, group: 'practice', hint: 'ATS-friendly resume templates, live preview and PDF download (Placement Pack)' },
   { id: 'faculty-connect', label: 'Faculty Connect', path: '/student/faculty-connect', icon: UserCheck, group: 'practice', aliases: ['/student/mentorship'], hint: 'Ask a mentor or a faculty member' },
-  { id: 'fees', label: 'Fees', path: '/student/fees', icon: CreditCard, group: 'money', translationKey: 'nav.fees', aliases: ['/student/fee-portal'], hint: 'Dues, payments and receipts' },
-  { id: 'challans', label: 'My Challans', path: '/student/challans', icon: Receipt, group: 'money', hint: 'Fee challans issued to you' },
-  { id: 'halltickets', label: 'Hall Tickets', path: '/student/hall-tickets', icon: Download, group: 'money', hint: 'Download your exam hall tickets' },
-  { id: 'no-dues', label: 'No-Dues Clearance', path: '/student/no-dues', icon: FileText, group: 'money', hint: 'Submit and track requests to clear campus dues' },
   { id: 'id-card', label: 'My ID Card', path: '/student/id-card', icon: IdCard, group: 'account', hint: 'Digital student ID with library barcode — download as PDF' },
   { id: 'events', label: 'Events', path: '/student/events', icon: CalendarDays, group: 'account', translationKey: 'nav.events', hint: 'Campus events and activities' },
   { id: 'notifications', label: 'Notifications', path: '/student/notifications', icon: Bell, group: 'account', translationKey: 'nav.notifications', badge: 'notifications', hint: 'Announcements and alerts for you' },
@@ -181,7 +177,6 @@ export function navItemsInGroup(
 export const STUDENT_NAV_GROUPS: Array<{ id: StudentNavGroup; label: string }> = [
   { id: 'academics', label: 'Academics' },
   { id: 'practice', label: 'Learning' },
-  { id: 'money', label: 'Fees & exams' },
   { id: 'account', label: 'Account' },
 ]
 

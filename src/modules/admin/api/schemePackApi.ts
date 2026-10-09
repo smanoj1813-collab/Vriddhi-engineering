@@ -69,7 +69,7 @@ export async function fetchSchemePacks(collegeId?: string): Promise<ListedScheme
  *   colleges/{cid}.schemePackId
  *     → preset code? return the preset
  *     → custom doc id? read schemePacks/{id} (normalised)
- *     → unset/missing → DEFAULT_SCHEME_PACK (BCU — pre-G1 behaviour)
+ *     → unset/missing → DEFAULT_SCHEME_PACK (VTU 2022 engineering)
  * Also returns the raw binding so the page can show "assigned" chips.
  */
 export async function getCollegeSchemePack(

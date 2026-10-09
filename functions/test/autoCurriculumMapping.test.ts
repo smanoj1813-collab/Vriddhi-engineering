@@ -14,6 +14,8 @@ import {
   hoursPerWeek,
   normalizeText,
   runAutoMapping,
+  branchCode,
+  facultyTeachesBranch,
   significantTokens,
   subjectFitRatio,
   validateAutoMapPayload,
@@ -572,5 +574,51 @@ describe('runAutoMapping — guest faculty (G5)', () => {
     assert.ok(assigned.some((p) => p.flags.includes('overload-risk')))
     const guestLoad = result.facultyLoad.find((f) => f.uid === 'g1')
     assert.ok((guestLoad?.totalWeeklyHours ?? 0) >= 12)
+  })
+})
+
+// ─── Strict branch gate ──────────────────────────────────────────────────────
+
+describe('branch gate', () => {
+  it('treats common spellings of a branch as the same code', () => {
+    assert.equal(branchCode('CSE'), 'cse')
+    assert.equal(branchCode('Computer Science & Engineering'), 'cse')
+    assert.equal(branchCode('Dept. of Computer Science and Engineering'), 'cse')
+    assert.equal(branchCode('Electronics and Communication Engineering'), 'ece')
+    assert.equal(branchCode('EEE'), 'eee')
+    assert.equal(branchCode('Civil Engineering'), 'civil')
+    assert.equal(branchCode('B.Tech (CSE)'), 'cse')
+    assert.equal(branchCode('B.E (CSE)'), 'cse')
+    assert.equal(branchCode('BE CSE'), 'cse')
+    assert.equal(branchCode('B.Tech in Computer Science and Engineering'), 'cse')
+    assert.equal(branchCode('MECHANICAL'), 'mech')
+  })
+
+  it('falls back to department when a faculty has no branches', () => {
+    assert.equal(facultyTeachesBranch({ branches: [], department: 'Computer Science' }, 'CSE'), true)
+    assert.equal(facultyTeachesBranch({ branches: [], department: 'ECE' }, 'CSE'), false)
+  })
+
+  it('only proposes faculty of the curriculum branch', () => {
+    const ece = fac({ branches: ['ECE'], department: 'ECE', subjectsUG: ['Engineering Mathematics'] })
+    const cse = fac({ branches: ['CSE'], department: 'CSE' })
+    const result = runAutoMapping(
+      opts({
+        branch: 'CSE',
+        courses: [course({ code: 'BMAT101', name: 'Engineering Mathematics', branch: 'CSE' })],
+        faculty: [ece, cse],
+      }),
+    )
+    assert.equal(result.proposals[0].faculty?.uid, cse.uid)
+  })
+
+  it('leaves a course unassigned when the branch has no faculty', () => {
+    const eee = fac({ branches: ['EEE'], department: 'EEE' })
+    const result = runAutoMapping(
+      opts({ branch: 'CSE', courses: [course({ branch: 'CSE' })], faculty: [eee] }),
+    )
+    const p = result.proposals[0]
+    assert.equal(p.faculty, null)
+    assert.match(p.reasons[0], /No CSE faculty/)
   })
 })

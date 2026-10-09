@@ -425,7 +425,7 @@ export async function nextApplicationNo(db: admin.firestore.Firestore, collegeId
 }
 
 export const saveAdmissionApplication = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -522,7 +522,7 @@ export const saveAdmissionApplication = onCall(
 )
 
 export const transitionAdmissionStage = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -592,7 +592,7 @@ export const transitionAdmissionStage = onCall(
 )
 
 export const listAdmissionApplications = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -600,8 +600,7 @@ export const listAdmissionApplications = onCall(
     const input = (request.data || {}) as Record<string, unknown>
     const collegeId = await resolveCollegeId(staff, input.collegeId)
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('admissionApplications')
       .where('collegeId', '==', collegeId)
       .limit(1000)
@@ -639,7 +638,7 @@ export const listAdmissionApplications = onCall(
 )
 
 export const deleteAdmissionApplication = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -668,7 +667,7 @@ export const deleteAdmissionApplication = onCall(
 )
 
 export const exportAdmittedApplicants = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -681,8 +680,7 @@ export const exportAdmittedApplicants = onCall(
       throw new HttpsError('invalid-argument', 'Unknown status filter')
     }
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('admissionApplications')
       .where('collegeId', '==', collegeId)
       .where('status', '==', wantedStatus)
@@ -715,7 +713,7 @@ export const exportAdmittedApplicants = onCall(
 )
 
 export const markAdmissionExported = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -942,8 +940,7 @@ function intakeEndpoint(): string {
 }
 
 async function loadAdmissionConfig(collegeId: string): Promise<admin.firestore.DocumentData> {
-  const doc = await admin
-    .firestore()
+  const doc = await getFirestore(admin.app(), 'default')
     .collection('colleges')
     .doc(collegeId)
     .collection('config')
@@ -974,7 +971,7 @@ function serializeDefaults(value: unknown): IntakeDefaults {
 }
 
 export const getAdmissionConfig = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1005,7 +1002,7 @@ export const getAdmissionConfig = onCall(
 )
 
 export const saveAdmissionConfig = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1048,8 +1045,7 @@ export const saveAdmissionConfig = onCall(
     if (input.intakeDefaults !== undefined) update.intakeDefaults = serializeDefaults(input.intakeDefaults)
     if (input.intakeEnabled !== undefined) update.intakeEnabled = input.intakeEnabled === true
 
-    const ref = admin
-      .firestore()
+    const ref = getFirestore(admin.app(), 'default')
       .collection('colleges')
       .doc(collegeId)
       .collection('config')
@@ -1060,8 +1056,7 @@ export const saveAdmissionConfig = onCall(
     // carry the weights they were scored under. Re-stamp them so the score
     // shown for an applicant is always computed from the current policy.
     if (update.qualifyingWeight !== undefined) {
-      const snap = await admin
-        .firestore()
+      const snap = await getFirestore(admin.app(), 'default')
         .collection('admissionApplications')
         .where('collegeId', '==', collegeId)
         .limit(1000)
@@ -1084,7 +1079,7 @@ export const saveAdmissionConfig = onCall(
 )
 
 export const rotateAdmissionIngestToken = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1133,7 +1128,7 @@ export const rotateAdmissionIngestToken = onCall(
 )
 
 export const disableAdmissionIntake = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

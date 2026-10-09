@@ -168,7 +168,7 @@ export function bandFor(cgpa: number): ReadinessBand {
 // ─── Callable ───────────────────────────────────────────────────────────────
 
 export const getMyAcademicJourney = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

@@ -97,7 +97,7 @@ export function resolveSchemePackId(
   assignments: readonly SchemePackAssignment[] | null | undefined,
   context: SchemePackContext,
   collegeDefaultId?: string | null,
-  platformDefaultId = 'BCU_SEP_2024',
+  platformDefaultId = 'VTU_2022_BE_BTECH',
 ): string {
   const scoped = findSchemePackAssignment(assignments, context);
   return scoped?.schemePackId || collegeDefaultId?.trim() || platformDefaultId;

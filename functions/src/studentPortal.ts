@@ -366,7 +366,7 @@ export const getMyAssignments = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -378,13 +378,21 @@ export const getMyAssignments = onCall(
     const db = getFirestore(admin.app(), 'default')
 
     const [assignmentSnapshot, submissionSnapshot] = await Promise.all([
+      // collegeId-only read + in-memory status filter: no composite index can
+      // be missing, so a fresh project never fails this callable as "internal".
       db
         .collection('assignments')
         .where('collegeId', '==', student.collegeId)
-        .where('status', 'in', ASSIGNMENT_STATUSES)
-        .limit(200)
-        .get(),
-      db.collection('submissions').where('studentId', '==', student.studentId).limit(500).get(),
+        .limit(500)
+        .get()
+        .then((snap) => ({
+          docs: snap.docs.filter((d) => ASSIGNMENT_STATUSES.includes(String(d.data().status || ''))),
+        })),
+      db.collection('submissions').where('studentId', '==', student.studentId).limit(500).get()
+        .catch((err) => {
+          logger.warn('[getMyAssignments] submissions read failed; returning assignments without status', err)
+          return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }
+        }),
     ])
 
     const submissions = new Map<string, admin.firestore.DocumentData>()
@@ -418,7 +426,7 @@ export const beginMyAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -525,7 +533,7 @@ export const finalizeMyAssignmentSubmission = onCall(
     memory: '512MiB',
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -669,7 +677,7 @@ export const cancelMyAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -743,7 +751,7 @@ export const gradeAssignmentSubmission = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     const uid = request.auth?.uid
@@ -957,7 +965,7 @@ async function sanitizeAssignmentAuthoringInput(
 }
 
 export const createFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -983,7 +991,7 @@ export const createFacultyAssignment = onCall(
 )
 
 export const updateFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1023,7 +1031,7 @@ const ASSIGNMENT_TRANSITIONS: Record<string, string[]> = {
 }
 
 export const transitionFacultyAssignment = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1211,7 +1219,7 @@ async function createAssignmentPublishedNotification(
 
 
 export const deleteFacultyAssignmentDraft = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1240,7 +1248,7 @@ export const deleteFacultyAssignmentDraft = onCall(
 )
 
 export const getAssignmentSubmissionDownload = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 40 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -1340,29 +1348,29 @@ export const listMentorDirectory = onCall(
     memory: '256MiB',
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 30,
+    maxInstances: 20,
   },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication is required')
     const token = request.auth.token
-    if (normalizeRole(token.role, '') !== 'student') {
+    let collegeId = ''
+    if (normalizeRole(token.role, '') === 'student' && token.collegeId) {
+      collegeId = String(token.collegeId)
+    } else if (!token.role || normalizeRole(token.role, '') === 'student') {
+      // Older student accounts carry no custom claims. Resolve tenancy from
+      // the server-side users + students linkage (never a client argument).
+      const student = await resolveStudentIdentity(request.auth.uid, token as Record<string, unknown>)
+      collegeId = student.collegeId
+    } else {
       throw new HttpsError(
         'permission-denied',
         'The mentor directory is a student view; staff manage faculty from their own pages.'
       )
     }
-    // Tenancy is the claim only — never a client argument, never a profile doc.
-    const collegeId = String(token.collegeId || '')
     if (!collegeId) {
-      throw new HttpsError(
-        'failed-precondition',
-        'This sign-in carries no college to scope the directory to. Sign out and back in so the ' +
-          'token is refreshed; if it persists, an administrator must link this account to a ' +
-          'college (Access Control → Identity repair).'
-      )
+      throw new HttpsError('failed-precondition', 'Your account is not linked to a college. Contact your college administrator.')
     }
-    const snapshot = await admin
-      .firestore()
+    const snapshot = await getFirestore(admin.app(), 'default')
       .collection('faculty')
       .where('collegeId', '==', collegeId)
       .limit(300)

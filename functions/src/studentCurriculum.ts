@@ -450,7 +450,7 @@ const UPCOMING_DAYS = 14
 const RECENT_DAYS = 45
 
 export const getMyCurriculum = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request): Promise<StudentCurriculumResult> => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

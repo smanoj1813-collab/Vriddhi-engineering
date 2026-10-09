@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_SUSPENDS_CLASSES,
   buildCalendarView,
+  calendarDateKeys,
   eventCoversDate,
   eventOverlapsRange,
   suspendingEventOn,
@@ -169,5 +170,29 @@ describe('buildCalendarView', () => {
     assert.equal(view.blockedDays, undefined)
     assert.equal(view.events.length, 1)
     assert.equal(view.blockedDates.length, 0)
+  })
+})
+
+describe('buildCalendarView over semester-length spans', () => {
+  it('does not throw for a full-semester dateRange (> 92 days)', () => {
+    const view = buildCalendarView([], ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], {
+      from: '2026-08-01',
+      to: '2027-01-31',
+    })
+    assert.ok((view.teachingDays ?? 0) > 100)
+  })
+
+  it('does not throw for a calendar event longer than 92 days', () => {
+    const view = buildCalendarView(
+      [{ id: 'sem', title: 'Odd semester', type: 'exam', startDate: '2026-08-01', endDate: '2027-01-31', suspendsClasses: false }],
+      ['monday', 'friday'],
+    )
+    assert.deepEqual(view.blockedWeekdays.map((row) => row.day), ['monday', 'friday'])
+  })
+
+  it('calendarDateKeys clips reversed or invalid spans to an empty list', () => {
+    assert.deepEqual(calendarDateKeys('2026-02-10', '2026-02-01'), [])
+    assert.deepEqual(calendarDateKeys('bad', '2026-02-01'), [])
+    assert.equal(calendarDateKeys('2026-01-01', '2026-01-03').length, 3)
   })
 })

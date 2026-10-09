@@ -303,7 +303,7 @@ function stringifyList(value: unknown, cap: number): string[] {
 }
 
 export const sendAnnouncement = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -440,7 +440,7 @@ export const sendAnnouncement = onCall(
 )
 
 export const listCollegeAnnouncements = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -449,8 +449,7 @@ export const listCollegeAnnouncements = onCall(
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
 
-    const snap = await admin
-      .firestore()
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('notifications')
       .where('collegeId', '==', collegeId)
       .limit(200)
@@ -463,7 +462,7 @@ export const listCollegeAnnouncements = onCall(
 )
 
 export const deleteAnnouncement = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -484,7 +483,7 @@ export const deleteAnnouncement = onCall(
 )
 
 export const setAnnouncementPinned = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -513,8 +512,7 @@ const MAX_FEED = 100
 async function loadAddressedAnnouncements(
   student: NotificationStudent
 ): Promise<Array<{ id: string; data: admin.firestore.DocumentData }>> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore(admin.app(), 'default')
     .collection('notifications')
     .where('collegeId', '==', student.collegeId)
     .limit(200)
@@ -561,7 +559,7 @@ export const getMyNotifications = onCall(
 )
 
 export const markMyNotificationRead = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 30, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -602,7 +600,7 @@ export const markMyNotificationRead = onCall(
 )
 
 export const markAllMyNotificationsRead = onCall(
-  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 30 },
+  { region: 'asia-south1', memory: '256MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 20 },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')

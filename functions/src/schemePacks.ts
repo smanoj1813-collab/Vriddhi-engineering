@@ -479,10 +479,13 @@ export const PRESET_SCHEME_CODES = [
   'BCU_SEP_2024',
   'KUD_NEP_CBAE',
   'GENERIC_NEP_2020',
+  'VTU_2022_BE_BTECH',
   'VTU_BE_2022_5050',
   'AUTONOMOUS_ENGINEERING_5050',
 ]
-export const ENGINEERING_PRESET_CODES = ['VTU_BE_2022_5050', 'AUTONOMOUS_ENGINEERING_5050'] as const
+// VTU_2022_BE_BTECH is the client preset id (src/shared/types/schemePack.ts);
+// VTU_BE_2022_5050 is kept for rows seeded under the older id.
+export const ENGINEERING_PRESET_CODES = ['VTU_2022_BE_BTECH', 'VTU_BE_2022_5050', 'AUTONOMOUS_ENGINEERING_5050'] as const
 
 export interface SchemePackResolveContext {
   programId?: string | null
@@ -541,9 +544,11 @@ function customPackDocId(collegeId: string, code: string): string {
   return `${collegeId}__${code}`
 }
 
+// Engineering product: an unassigned college resolves to the VTU 2022 preset
+// (bundled client-side, so it needs no Firestore row).
 const PLATFORM_DEFAULT_PACK: ResolvedSchemePack = {
-  id: 'BCU_SEP_2024',
-  code: 'BCU_SEP_2024',
+  id: 'VTU_2022_BE_BTECH',
+  code: 'VTU_2022_BE_BTECH',
   resolution: 'platform',
 }
 
@@ -560,7 +565,7 @@ export async function resolveSchemePackForCollege(
     : []
   const scoped = selectSchemePackAssignment(assignments, context)
   const collegeDefaultId = String(college.schemePackId ?? '').trim()
-  const packId = String(scoped?.schemePackId ?? (collegeDefaultId || 'BCU_SEP_2024')).trim()
+  const packId = String(scoped?.schemePackId ?? (collegeDefaultId || PLATFORM_DEFAULT_PACK.id)).trim()
   const resolution: ResolvedSchemePack['resolution'] = scoped
     ? (scopeValue(scoped.branchId) && scopeValue(scoped.admissionBatch) ? 'cohort' : 'programme')
     : collegeDefaultId ? 'college' : 'platform'
@@ -611,7 +616,7 @@ export const saveSchemePack = onCall(REGION, async (request) => {
     throw new HttpsError('invalid-argument', 'Preset codes are reserved — pick a custom code')
   }
   if (isGlobal && !ENGINEERING_PRESET_CODES.includes(submittedCode as typeof ENGINEERING_PRESET_CODES[number])) {
-    throw new HttpsError('invalid-argument', 'Only the two engineering presets may be saved as global packs')
+    throw new HttpsError('invalid-argument', 'Only the engineering presets may be saved as global packs')
   }
 
   const pack = validateSchemePackDoc(raw.pack)

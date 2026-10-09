@@ -56,7 +56,22 @@ const toDate = (value: unknown): Date => {
   return new Date();
 };
 
+// Engineering (VTU / autonomous OBE) internal-assessment presets. Picking one
+// prefixes the title and suggests the usual duration; the faculty can still
+// edit both.
+const ENGINEERING_ASSESSMENT_TYPES: { value: string; label: string; minutes: number }[] = [
+  { value: 'CIE-1', label: 'CIE 1 (Internal test 1)', minutes: 60 },
+  { value: 'CIE-2', label: 'CIE 2 (Internal test 2)', minutes: 60 },
+  { value: 'CIE-3', label: 'CIE 3 (Internal test 3)', minutes: 60 },
+  { value: 'Quiz', label: 'Quiz', minutes: 20 },
+  { value: 'Assignment test', label: 'Assignment / AAT', minutes: 45 },
+  { value: 'Lab internal', label: 'Lab internal (CIE)', minutes: 90 },
+  { value: 'Mock SEE', label: 'Mock SEE', minutes: 180 },
+  { value: 'Other', label: 'Other', minutes: 0 },
+];
+
 const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
+  const [assessmentType, setAssessmentType] = useState('CIE-1');
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const deepLinkHandled = useRef(false);
@@ -78,6 +93,16 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
   const [startDateTime, setStartDateTime] = useState<Date | null>(new Date());
   const [endDateTime, setEndDateTime] = useState<Date | null>(new Date(Date.now() + 3600000));
   const [durationMinutes, setDurationMinutes] = useState(30);
+  const applyAssessmentType = (value: string) => {
+    const previous = ENGINEERING_ASSESSMENT_TYPES.find((t) => t.value === assessmentType);
+    const next = ENGINEERING_ASSESSMENT_TYPES.find((t) => t.value === value);
+    setAssessmentType(value);
+    setTestTitle((title) => {
+      const base = previous && title.startsWith(`${previous.value} · `) ? title.slice(previous.value.length + 3) : title;
+      return next && next.value !== 'Other' ? `${next.value} · ${base}` : base;
+    });
+    if (next && next.minutes > 0) setDurationMinutes(next.minutes);
+  };
   // Cohort the test is labelled for (optional). The program scope lets the
   // server freeze the matching scheme pack at schedule time; branch and batch
   // narrow that assignment when supplied.
@@ -217,6 +242,13 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
         console.warn('[TestScheduler] scheduling check unavailable', err);
       } finally {
         setCheckingPaper(false);
+      }
+      // Pre-fill an engineering-style title ("CIE-1 · <paper>") when empty.
+      if (!testTitle.trim()) {
+        const preset = ENGINEERING_ASSESSMENT_TYPES.find((t) => t.value === assessmentType);
+        const base = selectedPaper.title || selectedPaper.subject || 'Test';
+        setTestTitle(preset && preset.value !== 'Other' ? `${preset.value} · ${base}` : base);
+        if (preset && preset.minutes > 0) setDurationMinutes(preset.minutes);
       }
     }
     if (activeStep === 1) {
@@ -395,9 +427,9 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>Test Scheduler</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Scheduled CIE tests & quizzes</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Schedule and manage tests for students
+                  Internal assessments for your branch, semester and sections
                 </Typography>
               </Box>
               <Button
@@ -575,6 +607,19 @@ const TestScheduler: React.FC<TestSchedulerProps> = ({ collegeId }) => {
                 <StepLabel>Set Schedule</StepLabel>
                 <StepContent>
                   <Stack spacing={3}>
+                    <FormControl fullWidth>
+                      <InputLabel id="test-assessment-type-label">Assessment type</InputLabel>
+                      <Select
+                        labelId="test-assessment-type-label"
+                        label="Assessment type"
+                        value={assessmentType}
+                        onChange={(e) => applyAssessmentType(String(e.target.value))}
+                      >
+                        {ENGINEERING_ASSESSMENT_TYPES.map((t) => (
+                          <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                     <TextField label="Test Title" value={testTitle} onChange={(e) => setTestTitle(e.target.value)} fullWidth required />
                     <TextField label="Description" multiline rows={2} value={description} onChange={(e) => setDescription(e.target.value)} fullWidth />
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>

@@ -26,7 +26,8 @@ import {
   type ListedSchemePack,
 } from '../api/schemePackApi';
 import { useAuth } from '@/modules/auth/context/AuthContext';
-import { DEFAULT_SCHEME_PACK, ENGINEERING_SCHEME_PACKS, SCHEME_PACK_PRESETS } from '@/shared/types/schemePack';
+import { DEFAULT_SCHEME_PACK, ENGINEERING_SCHEME_PACKS } from '@/shared/types/schemePack';
+import { isHiddenSchemePack } from '@/shared/utils/schemePackVisibility';
 import type {
   AttendanceMarksSlab,
   SchemeGrade,
@@ -257,10 +258,8 @@ export default function SchemePacks() {
   });
   const seedMutation = useMutation({
     mutationFn: async () => {
-      const presets = SCHEME_PACK_PRESETS.filter((pack) =>
-        pack.code === 'VTU_BE_2022_5050' || pack.code === 'AUTONOMOUS_ENGINEERING_5050'
-      );
-      if (presets.length !== 2) throw new Error('Both engineering presets must be available before seeding.');
+      const presets = ENGINEERING_SCHEME_PACKS;
+      if (presets.length === 0) throw new Error('No engineering presets are bundled.');
       // Each write goes through saveSchemePack's superadmin-only callable.
       return Promise.all(presets.map((pack) =>
         saveSchemePack(pack as unknown as Record<string, unknown>, { global: true })
@@ -276,7 +275,11 @@ export default function SchemePacks() {
   });
 
   const assignedId = assignedQuery.data?.schemePackId ?? null;
-  const assignedName = assignedQuery.data?.pack.name ?? '…';
+  const assignedName = assignedQuery.data
+    ? (isHiddenSchemePack(assignedQuery.data.pack.code) && !isSuperadmin
+        ? `${DEFAULT_SCHEME_PACK.name} (please assign an engineering pack)`
+        : assignedQuery.data.pack.name)
+    : '…';
   const packs = packsQuery.data ?? [];
   const assignments = assignmentsQuery.data ?? [];
 
@@ -581,6 +584,13 @@ export default function SchemePacks() {
               ))}
               <Button size="small" onClick={() => setEditor({ ...editor, grades: [...editor.grades, { grade: 'P', gradePoint: 4, minPercentage: 35, description: 'Pass' }] })}>+ Add grade</Button>
 
+              {/* Raw JSON engineering rules are a platform-support tool. College
+                  users never see code: their packs inherit the course-type
+                  weightages, CGPA rules, paper template and NBA/OBE settings
+                  from the engineering baseline they started from (the editor
+                  state carries them through untouched on save). */}
+              {isSuperadmin ? (
+                <>
               <Divider sx={{ my: 2 }} />
               <Typography variant="overline" color="text.secondary">Engineering extension (optional)</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -645,6 +655,17 @@ export default function SchemePacks() {
                 </Grid>
               </Grid>
 
+                </>
+              ) : (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Alert severity="info" variant="outlined">
+                    Course-type weightages, CGPA conversion, question-paper template and NBA/OBE attainment rules
+                    are inherited from the engineering baseline ({NEW_PACK_TEMPLATE.name}). Contact Vriddhi support
+                    if your university needs these customised.
+                  </Alert>
+                </>
+              )}
               <Divider sx={{ my: 2 }} />
               <TextField fullWidth size="small" label="Source note (syllabus / regulations reference)" value={editor.sourceNote} onChange={(e) => setEditor({ ...editor, sourceNote: e.target.value })} />
 

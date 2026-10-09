@@ -234,7 +234,6 @@ const QUICK_ACTIONS: Array<{
   label: string;
   labelKey?: TranslationKey;
 }> = [
-  { to: '/student/hall-tickets', icon: FileText, label: 'Hall Tickets', color: 'rose' },
   { to: '/student/attendance', icon: Calendar, label: 'Attendance', labelKey: 'nav.attendance', color: 'teal' },
   { to: '/student/assessments', icon: BookOpen, label: 'Assessments', labelKey: 'nav.assessments', color: 'blue' },
   { to: '/student/assignments', icon: FileText, label: 'Assignments', labelKey: 'nav.assignments', color: 'amber' },
@@ -243,10 +242,7 @@ const QUICK_ACTIONS: Array<{
   { to: '/student/coding-lab', icon: Code2, label: 'Coding Lab', color: 'teal' },
   { to: '/student/timetable', icon: Clock, label: 'Timetable', labelKey: 'nav.timetable', color: 'rose' },
   { to: '/student/curriculum', icon: BookMarked, label: 'Curriculum', labelKey: 'nav.curriculum', color: 'violet' },
-  { to: '/student/fees', icon: CreditCard, label: 'Fees', labelKey: 'student.feePortal', color: 'teal' },
-  { to: '/student/challans', icon: Receipt, label: 'Challans', color: 'emerald' },
   { to: '/student/library', icon: BookOpen, label: 'Library', labelKey: 'student.eLibrary', color: 'blue' },
-  { to: '/student/no-dues', icon: FileText, label: 'No-Dues', color: 'emerald' },
   { to: '/student/events', icon: CalendarDays, label: 'Events', labelKey: 'student.campusEvents', color: 'amber' },
   { to: '/student/notifications', icon: Bell, label: 'Notifications', labelKey: 'student.alerts', color: 'violet' },
 ];
@@ -266,7 +262,6 @@ export default function StudentDashboard() {
     attendance,
     assessments,
     assignments,
-    fees,
     schedule,
     notifications,
     unreadNotifications,
@@ -275,11 +270,6 @@ export default function StudentDashboard() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'notifications'>('overview');
 
-  const paidFees = fees?.paidFees || 0;
-  const pendingFees = fees?.pendingFees || 0;
-  const totalFees = fees?.totalFees || 0;
-  const paidPercent = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0;
-  const pendingPercent = totalFees > 0 ? Math.round((pendingFees / totalFees) * 100) : 0;
 
   if (loading) {
     return (
@@ -356,7 +346,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-5">
         <StatCard
           icon={Calendar}
           label={t('student.attendanceRate')}
@@ -377,13 +367,6 @@ export default function StudentDashboard() {
           value={String(assignments?.length ?? 0)}
           subtext={t('student.pendingSubmissions')}
           color="amber"
-        />
-        <StatCard
-          icon={CreditCard}
-          label={t('student.feeBalance')}
-          value={`₹${pendingFees.toLocaleString()}`}
-          subtext={pendingFees > 0 ? t('student.pendingPayment') : t('student.fullyCleared')}
-          color={pendingFees > 0 ? 'rose' : 'emerald'}
         />
       </div>
 
@@ -570,40 +553,6 @@ export default function StudentDashboard() {
           {/* Right Column */}
           <div className="space-y-6">
             {/* Fee Status Card */}
-            <div className="rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 p-5 md:p-6 shadow-sm">
-              <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2 text-base">
-                <CreditCard className="w-5 h-5 text-teal-600" /> {t('student.feeSummary')}
-              </h3>
-              <div className="space-y-3.5">
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-500 dark:text-slate-400">Total Paid</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">₹{paidFees.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${paidPercent}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-slate-500 dark:text-slate-400">Pending Amount</span>
-                    <span className="text-rose-600 dark:text-rose-400 font-extrabold">₹{pendingFees.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                    <div className="h-full rounded-full bg-rose-500 transition-all duration-500" style={{ width: `${pendingPercent}%` }} />
-                  </div>
-                </div>
-              </div>
-
-              <Link
-                to="/student/fees"
-                className="mt-5 block w-full py-2.5 rounded-xl text-center bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/50 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-300 font-bold text-xs border border-teal-200/80 dark:border-teal-800/80 transition-colors"
-              >
-                {t('student.goFeePortal')}
-              </Link>
-            </div>
-
             {/* Recent Notifications */}
             <div className="rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 p-5 md:p-6 shadow-sm">
               <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2 text-base">
