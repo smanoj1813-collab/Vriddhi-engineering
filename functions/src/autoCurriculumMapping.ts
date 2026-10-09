@@ -937,7 +937,11 @@ function toAutoMapCourses(curriculum: Record<string, unknown>): {
       modulesCount: Array.isArray(o.modules) ? o.modules.length : 0,
     }
   })
-  return { branch, courses }
+  // Semester gate: a "Semester 1" curriculum maps only Semester-1 courses even
+  // when the document carries the full 8-semester scheme.
+  const curSemester = Number(curriculum.semester ?? 0) || 0
+  const scoped = curSemester > 0 ? courses.filter((c) => !c.semester || c.semester === curSemester) : courses
+  return { branch, courses: scoped }
 }
 
 /** Shared read path for preview + apply: one curriculum doc, one roster, one mapping scan. */

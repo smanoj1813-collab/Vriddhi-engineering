@@ -410,7 +410,7 @@ export function buildSlots(grid: ScheduleGrid): PlannedSlot[] {
   return slots
 }
 
-const LAB_NAME_RE = /\b(lab|laboratory|practical|practicum)\b/i
+const LAB_NAME_RE = /\b(lab|labs|laboratory|practical|practicals|practicum|workshop)\b|\bpractice\s*$/i
 
 const busyKey = (day: DayOfWeek, startTime: string) => `${day}|${startTime}`
 const facultyBusyKey = (facultyId: string, slotKey: string) => `${facultyId}|${slotKey}`
@@ -742,7 +742,10 @@ export function planAutoSchedule(input: AutoScheduleInput): AutoSchedulePlan {
       })
       continue
     }
-    const periods = hoursPerWeek({ totalHours: course.totalHours, credits: course.credits }, input.semesterWeeks)
+    const derived = hoursPerWeek({ totalHours: course.totalHours, credits: course.credits }, input.semesterWeeks)
+    // A lab is a contiguous block: never shorter than the configured lab span
+    // (a 1-credit lab must still meet as one 2–4 period session, not 1 hour).
+    const periods = LAB_NAME_RE.test(course.courseName) ? Math.max(derived, Math.min(input.grid.labSpan, input.grid.periodsPerDay ?? input.grid.labSpan)) : derived
     demandRows.push({ ...rowBase, periodsRequested: periods, included: true, source: 'derived' })
     placeable.push({ course, periods })
   }
@@ -1431,6 +1434,16 @@ async function runAutoGenerateWeeklySchedule(
     }
     const branch = String(curriculum.branch ?? '').trim()
     const semester = Number(curriculum.semester ?? 0) || 0
+    // Course → its own semester (a curriculum doc can bundle all 8 semesters,
+    // and older mappings were stamped with the header semester).
+    const courseSemesterById = new Map<string, number>()
+    for (const raw of Array.isArray(curriculum.courses) ? curriculum.courses : []) {
+      const o = (raw || {}) as Record<string, unknown>
+      const sem = Number(o.semester ?? 0) || 0
+      if (!sem) continue
+      if (o.id != null) courseSemesterById.set(String(o.id), sem)
+      if (o.code) courseSemesterById.set(`code:${String(o.code).trim().toLowerCase()}`, sem)
+    }
 
     // 2. Active course ↔ faculty mappings for this cohort. The stored
     // division letter list is the teaching group: explicit A,B stays one
@@ -1463,6 +1476,9 @@ async function runAutoGenerateWeeklySchedule(
       .filter((mapping) => {
         if (String(mapping.status ?? 'active') === 'removed' || String(mapping.status) === 'inactive') return false
         if (!batchListMatches(payload.batch, mapping.batch)) return false
+        // Semester gate: a Sem-1 run schedules only Sem-1 courses.
+        const mappingSemester = courseSemesterById.get(String(mapping.courseId ?? '')) ?? courseSemesterById.get(`code:${String(mapping.courseCode ?? '').trim().toLowerCase()}`) ?? (Number(mapping.semester ?? 0) || 0)
+        if (semester > 0 && mappingSemester > 0 && mappingSemester !== semester) return false
         if (hasGroupLetters(requestedScope) && !divisionScopesOverlap(mapping, requestedScope)) return false
         return Boolean(String(mapping.facultyId ?? '').trim())
       })
