@@ -377,6 +377,47 @@ function mergeToFitReason(input: {
     : prefix + `; even this leaves ${finalLoad}/${capacity}, so also reassign another course.`
 }
 
+// Common engineering branch spellings → one code, so "CSE", "CS" and
+// "Computer Science & Engineering" are treated as the same branch.
+const BRANCH_ALIASES: Record<string, string> = {
+  cse: 'cse', cs: 'cse', computerscience: 'cse', computerscienceengineering: 'cse',
+  computerscienceandengineering: 'cse',
+  ise: 'ise', is: 'ise', informationscience: 'ise', informationscienceengineering: 'ise',
+  informationscienceandengineering: 'ise',
+  ece: 'ece', ec: 'ece', electronicscommunication: 'ece', electronicsandcommunication: 'ece',
+  electronicsandcommunicationengineering: 'ece', electronicscommunicationengineering: 'ece',
+  eee: 'eee', ee: 'eee', electrical: 'eee', electricalengineering: 'eee',
+  electricalandelectronics: 'eee', electricalandelectronicsengineering: 'eee',
+  electricalelectronicsengineering: 'eee',
+  civil: 'civil', cv: 'civil', ce: 'civil', civilengineering: 'civil',
+  mech: 'mech', me: 'mech', mechanical: 'mech', mechanicalengineering: 'mech',
+  aiml: 'aiml', artificialintelligenceandmachinelearning: 'aiml',
+  artificialintelligencemachinelearning: 'aiml',
+  aids: 'aids', artificialintelligenceanddatascience: 'aids', artificialintelligencedatascience: 'aids',
+}
+
+/** Canonical branch code ('' when unknown/blank). */
+export function branchCode(value: unknown): string {
+  const key = String(value ?? '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\b(department|dept|of|branch)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, '')
+  return BRANCH_ALIASES[key] ?? key
+}
+
+/**
+ * Strict branch gate for auto-mapping: a faculty member is only considered
+ * for a course when one of their branches (or, if none are set, their
+ * department) is the course's branch. A blank course branch disables the gate.
+ */
+export function facultyTeachesBranch(faculty: Pick<AutoMapFaculty, 'branches' | 'department'>, branch: string): boolean {
+  const target = branchCode(branch)
+  if (!target) return true
+  const own = faculty.branches.length > 0 ? faculty.branches : [faculty.department]
+  return own.some((b) => branchCode(b) === target)
+}
+
 function branchFitPoints(branch: string, faculty: AutoMapFaculty): number {
   const bTokens = significantTokens(branch)
   if (bTokens.length === 0) return 0
@@ -548,9 +589,12 @@ export function runAutoMapping(options: AutoMapOptions): AutoMapResult {
   const contractActiveFaculty = options.faculty.filter(contractActive)
   const contractExpiredGuests = options.faculty.length - contractActiveFaculty.length
 
+  const branchFacultyFor = (c: AutoMapCourse): AutoMapFaculty[] =>
+    contractActiveFaculty.filter((f) => facultyTeachesBranch(f, c.branch || options.branch))
+
   const candidatesFor = (c: AutoMapCourse): AutoMapFaculty[] => {
     const blocked = blockedFor(c)
-    return contractActiveFaculty.filter((f) => !blocked.has(f.uid))
+    return branchFacultyFor(c).filter((f) => !blocked.has(f.uid))
   }
 
   // Most-constrained-first: fewest candidates, then heavier courses, then a
@@ -598,7 +642,9 @@ export function runAutoMapping(options: AutoMapOptions): AutoMapResult {
         reasons:
           options.faculty.length === 0
             ? ['No active faculty found in the college']
-            : contractExpiredGuests > 0
+            : branchFacultyFor(course).length === 0
+              ? [`No ${course.branch || options.branch} faculty found — only faculty of this branch are considered`]
+              : contractExpiredGuests > 0
               ? ['Already mapped to others this batch, or guest contracts expired']
               : ['Every faculty is already mapped to this course in this batch'],
         flags: [],
