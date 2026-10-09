@@ -401,7 +401,9 @@ export function branchCode(value: unknown): string {
   const key = String(value ?? '')
     .toLowerCase()
     .replace(/&/g, 'and')
-    .replace(/\b(department|dept|of|branch)\b/g, ' ')
+    // Degree prefixes: "B.Tech (CSE)", "B.E CSE", "M.Tech - CSE" → "CSE".
+    .replace(/\b(b|m)\s*\.?\s*(tech|e|sc|s)\b\.?/g, ' ')
+    .replace(/\b(department|dept|of|branch|in)\b/g, ' ')
     .replace(/[^a-z0-9]+/g, '')
   return BRANCH_ALIASES[key] ?? key
 }

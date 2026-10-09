@@ -587,6 +587,11 @@ describe('branch gate', () => {
     assert.equal(branchCode('Electronics and Communication Engineering'), 'ece')
     assert.equal(branchCode('EEE'), 'eee')
     assert.equal(branchCode('Civil Engineering'), 'civil')
+    assert.equal(branchCode('B.Tech (CSE)'), 'cse')
+    assert.equal(branchCode('B.E (CSE)'), 'cse')
+    assert.equal(branchCode('BE CSE'), 'cse')
+    assert.equal(branchCode('B.Tech in Computer Science and Engineering'), 'cse')
+    assert.equal(branchCode('MECHANICAL'), 'mech')
   })
 
   it('falls back to department when a faculty has no branches', () => {
