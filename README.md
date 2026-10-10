@@ -225,6 +225,11 @@ VITE_API_BASE_URL=/api npm run dev
 `npm --prefix functions run test:unit` (backend, including the Puppeteer renderer). Both run on
 plain `node --test` via `tsx`.
 
+**Rules tests:** `npm --prefix functions run test:rules` runs the full Firestore rules suite
+(~95 tests) against the Firebase emulators — it needs **Java 17+** installed locally
+(CI provisions Java 21; per-PR CI runs the faster `test:rules:course-security` slice,
+and the full suite runs nightly).
+
 ## Firebase setup
 
 1. Enable **Authentication → Email/Password** sign-in.
