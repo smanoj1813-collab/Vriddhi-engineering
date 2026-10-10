@@ -394,7 +394,7 @@ describe('idempotent intake ids', () => {
 
 describe('Apps Script snippet', () => {
   const script = buildAppsScriptSnippet(
-    'https://asia-south1-vriddhi-academic.cloudfunctions.net/api/admissions/ingest',
+    'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api/admissions/ingest',
     'tok_123'
   )
 
@@ -402,7 +402,7 @@ describe('Apps Script snippet', () => {
     assert.ok(script.includes('function onFormSubmit('), 'missing onFormSubmit')
     assert.ok(script.includes('UrlFetchApp.fetch'), 'missing UrlFetchApp.fetch')
     assert.ok(
-      script.includes('https://asia-south1-vriddhi-academic.cloudfunctions.net/api/admissions/ingest'),
+      script.includes('https://asia-south1-vriddhi-engineering.cloudfunctions.net/api/admissions/ingest'),
       'missing endpoint'
     )
     assert.ok(script.includes('tok_123'), 'missing token')

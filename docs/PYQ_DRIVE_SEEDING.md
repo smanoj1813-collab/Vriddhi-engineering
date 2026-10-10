@@ -77,8 +77,8 @@ git pull --ff-only origin main
 npm ci
 npm --prefix functions ci
 npm run pyq:prepare
-firebase deploy --only functions:api --project vriddhi-academic
-firebase deploy --only hosting --project vriddhi-academic
+firebase deploy --only functions:api --project vriddhi-engineering
+firebase deploy --only hosting --project vriddhi-engineering
 ```
 
 Deployment hooks build Functions and Hosting automatically. Only the `api`

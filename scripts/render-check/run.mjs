@@ -451,7 +451,7 @@ globalThis.__RC_CALLABLE_DATA = {
         source: 'Google Form',
         department: 'Computer Science',
       },
-      endpoint: 'https://asia-south1-vriddhi-academic.cloudfunctions.net/api/admissions/ingest',
+      endpoint: 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api/admissions/ingest',
       mappableFields: ['applicantName', 'phone'],
       lastSubmissionAt: '2026-09-10T09:30:00.000Z',
       submissionCount: 17,

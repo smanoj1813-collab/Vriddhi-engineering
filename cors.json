@@ -1,8 +1,8 @@
 [
   {
-    "origin": ["https://vriddhi-academic.web.app", "http://localhost:5173"],
+    "origin": ["https://vriddhi-engineering.web.app", "https://vriddhi-engineering.firebaseapp.com", "http://localhost:5173"],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "maxAgeSeconds": 3600,
     "responseHeader": ["Content-Type", "Authorization", "x-goog-resumable"]
   }
-]   
+]

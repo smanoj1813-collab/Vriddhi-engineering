@@ -13,7 +13,7 @@ import {
   validatePrepImage,
 } from './prepMedia'
 
-const URL = 'https://vriddhi-academic.appspot.com/prep-media/123-abc123.png'
+const URL = 'https://vriddhi-engineering.appspot.com/prep-media/123-abc123.png'
 
 describe('prepImageExtension', () => {
   it('prefers the MIME type', () => {

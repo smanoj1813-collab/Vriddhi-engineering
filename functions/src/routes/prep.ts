@@ -1,7 +1,7 @@
 // functions/src/routes/prep.ts
 //
 // PrepInsta-style Prep-Content API for UG/PG Commerce & Management.
-// Shared backbone on Firebase project vriddhi-academic:
+// Shared backbone on Firebase project vriddhi-engineering:
 //   - prep_subjects/{subjectId}
 //   - prep_subjects/{subjectId}/topics/{topicId}
 //   - universalQuestions (practice pool linkage via prepTags.topicIds)

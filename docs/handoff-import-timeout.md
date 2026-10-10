@@ -186,5 +186,5 @@ may be cheaper than regenerating credentials cohort by cohort.
 - Works from `C:\Projects\Vriddhi` on **Windows PowerShell**; `/home/user/Vriddhi`
   is the sandbox clone and never touches his Firebase project.
 - His Windows username is `Manoj s` — **quote every path containing it**.
-- Project: `vriddhi-academic`. Functions region `asia-south1`.
-- Hosted at `https://vriddhi-academic.web.app`.
+- Project: `vriddhi-engineering`. Functions region `asia-south1`.
+- Hosted at `https://vriddhi-engineering.web.app`.

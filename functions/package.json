@@ -50,5 +50,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.3.0"
   },
+  "overrides": {
+    "proxy-addr": "^2.0.8"
+  },
   "private": true
 }

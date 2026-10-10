@@ -85,6 +85,6 @@ The fixture's nominal 200-student scenario is 30,000 reads, 4,400 writes and 2,4
 
 ## Context the next session needs
 
-- Firebase project `vriddhi-academic`, region `asia-south1`, live at https://vriddhi-academic.web.app. No admin creds / CLI in the sandbox — cannot inspect live data; all changes code-level, user deploys from Windows PowerShell.
+- Firebase project `vriddhi-engineering`, region `asia-south1`, live at https://vriddhi-engineering.web.app. No admin creds / CLI in the sandbox — cannot inspect live data; all changes code-level, user deploys from Windows PowerShell.
 - Node 20 Functions runtime is decommissioned 2026-10-30; upgrade to Node 22 + latest `firebase-functions` is a separate pending item (do it before or together with this deploy if convenient, but don't block on it).
 - FCM push is deferred by the user.

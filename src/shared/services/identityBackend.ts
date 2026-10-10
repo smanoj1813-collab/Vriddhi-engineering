@@ -30,7 +30,7 @@ import { sendPasswordResetEmail } from 'firebase/auth'
 export const EXPECTED_IDENTITY_API_VERSION = 'identity-2026.09.04-a'
 
 export const DEPLOY_COMMAND =
-  'firebase deploy --only firestore:rules,functions,hosting --project vriddhi-academic'
+  'firebase deploy --only firestore:rules,functions,hosting --project vriddhi-engineering'
 
 /** Rows the importer hands to the user; a password is shown once, never stored. */
 export interface CredentialRow {

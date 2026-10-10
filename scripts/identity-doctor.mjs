@@ -28,7 +28,7 @@
  *   (bash/zsh equivalent for the first line: export GOOGLE_APPLICATION_CREDENTIALS=~/Downloads/vriddhi-serviceAccount.json)
  *
  * FLAGS
- *   --project <id>            Firebase project id (default: vriddhi-academic)
+ *   --project <id>            Firebase project id (default: vriddhi-engineering)
  *   --service-account <path>  service-account JSON (else ADC / env var)
  *   --college <id>            restrict to one tenant
  *   --email <addr>            restrict to one person (repeatable)
@@ -113,7 +113,7 @@ function parseArgs(argv) {
 }
 
 const args = parseArgs(process.argv.slice(2))
-const PROJECT = args.project || process.env.GCLOUD_PROJECT || 'vriddhi-academic'
+const PROJECT = args.project || process.env.GCLOUD_PROJECT || 'vriddhi-engineering'
 const COLLECT = (args.collections || 'students,faculty,admins,hods,mentors,superadmins')
   .split(',')
   .map((s) => s.trim())
@@ -207,7 +207,7 @@ function buildCredential() {
     console.error(
       `\nCould not load service-account credentials. Tried: ${tried}\n` +
         `  • point it at the REAL downloaded file, e.g.\n` +
-        `      $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\\Users\\you\\Downloads\\vriddhi-academic-firebase-admin-sdk.json"\n` +
+        `      $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\\Users\\you\\Downloads\\vriddhi-engineering-firebase-admin-sdk.json"\n` +
         `    or pass --service-account "C:\\path\\to\\key.json" (that flag wins)\n` +
         `  • PowerShell env vars live per-window: set them in the SAME session that runs the script\n` +
         `  • the key must be a service account with Editor/Cloud Datastore access, downloaded intact\n` +
