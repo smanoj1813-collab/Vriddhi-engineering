@@ -323,12 +323,11 @@ const facultyNav: SidebarEntry[] = [
       { label: "Create Test", path: "/faculty/create-test", icon: <Description fontSize="small" /> },
       { label: "My Tests", path: "/faculty/my-tests", icon: <Description fontSize="small" /> },
       { label: "AI Question Generator", path: "/faculty/ai-questions", icon: <AutoAwesome fontSize="small" /> },
-      { label: "Question Bank", path: "/faculty/question-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Universal Bank", path: "/faculty/universal-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Assessment Schedule", path: "/faculty/assessments", icon: <Assignment fontSize="small" /> },
       // HIDDEN for faculty (plug back = re-add the nav line + drop the path
       // from RETIRED_FACULTY_PATHS in src/modules/faculty/routes.tsx):
-      //   Paper Generator · Generated Papers · Auto-Grading 5M/10M
+      //   Paper Generator · Generated Papers · Auto-Grading 5M/10M · Question Bank
       // Test creation moves to the sectioned Create Test flow; descriptive
       // auto-grading is parked until that flow lands.
     ],

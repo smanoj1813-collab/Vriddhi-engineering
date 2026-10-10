@@ -28,6 +28,22 @@ function normalizeRun(id: string, data: Record<string, unknown>): ObeRunDoc {
   return { ...data, id } as ObeRunDoc;
 }
 
+/**
+ * Turns a Firestore list failure into the actual fix. "Check your connection"
+ * sent the principal chasing wifi when the real cause was a missing composite
+ * index (failed-precondition) — the two production causes get their remedy.
+ */
+export function describeObeListError(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code ?? '';
+  if (code === 'failed-precondition') {
+    return 'The database index for this list is missing — an admin must run "npm run deploy:indexes", then try again in a few minutes.';
+  }
+  if (code === 'permission-denied') {
+    return 'This sign-in lacks the staff role or college link for the data — sign out and back in, or ask a superadmin to repair the identity.';
+  }
+  return 'Check your connection, then try again.';
+}
+
 /** All mappings of the college, most recently updated first. */
 export async function fetchObeMappings(collegeId?: string): Promise<ObeMappingDoc[]> {
   const cid = collegeId || currentCollegeId();

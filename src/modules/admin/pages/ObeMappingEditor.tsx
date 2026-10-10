@@ -189,8 +189,40 @@ export default function ObeMappingEditor() {
     return validateMapping(draft.mapping, draft.cos.map((c) => c.code.trim().toUpperCase()).filter(Boolean), columns);
   }, [draft, columns]);
 
+  // Draft identity — the server keys the draft doc on course + year + term, so
+  // these two (and only these two) can block a SAVE. Mirrors partial mode in
+  // validateObeMappingDoc; everything else is a publish-time concern.
+  const saveBlockers = useMemo(() => {
+    if (!draft) return [];
+    const blockers: string[] = [];
+    const code = draft.courseCode.trim().toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-Z0-9-]{2,20}$/.test(code)) {
+      blockers.push('Course code is required to save (2–20 letters, digits or dashes).');
+    }
+    if (!draft.academicYear.trim()) blockers.push('Academic year is required to save.');
+    return blockers;
+  }, [draft]);
+
+  // Publish-time gaps: the matrix validator plus non-empty CO statements (the
+  // server requires statements in full mode). Rendered as a neutral checklist
+  // until a publish is actually attempted — a fresh draft wearing fourteen red
+  // errors reads as broken, not as work-to-do.
+  const publishGaps = useMemo(() => {
+    if (!draft) return [];
+    const gaps = [...validation.errors];
+    for (const co of draft.cos) {
+      const code = co.code.trim().toUpperCase();
+      if (code && !co.statement.trim()) gaps.push(`${code} needs a statement before publishing.`);
+    }
+    return gaps;
+  }, [draft, validation.errors]);
+
   async function handleSave() {
     if (!draft || busy) return;
+    if (saveBlockers.length > 0) {
+      setError('Fill the course code and academic year before saving — they identify the draft.');
+      return;
+    }
     setBusy('save');
     setError(null);
     setNotice(null);

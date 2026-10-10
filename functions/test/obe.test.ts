@@ -144,6 +144,30 @@ describe('obe mapping validation', () => {
       /has no PO\/PSO mapping/,
     )
   })
+
+  it('partial mode allows empty CO statements; strict mode requires them', () => {
+    const draft = validateObeMappingDoc(
+      {
+        framework: 'NBA-GAPC-v4.0',
+        courseCode: 'CS301',
+        academicYear: '2025-26',
+        cos: [{ code: 'CO1', statement: '   ' }],
+      },
+      { allowPartial: true },
+    )
+    assert.equal(draft.cos[0]?.statement, '')
+    assert.throws(
+      () =>
+        validateObeMappingDoc({
+          framework: 'NBA-GAPC-v4.0',
+          courseCode: 'CS301',
+          academicYear: '2025-26',
+          cos: [{ code: 'CO1', statement: '' }],
+          mapping: { CO1: { PO1: 3 } },
+        }),
+      /CO1\.statement is required/,
+    )
+  })
 })
 
 describe('obe score validation', () => {

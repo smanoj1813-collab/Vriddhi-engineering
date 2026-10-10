@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../auth/context/AuthContext'
 import { useFacultyAttendance } from '../hooks/useFacultyAttendance'
-import { completeClassSession } from '../../admin/api/classSessionApi'
+import { completeClassSession, ensureClassSession } from '../../admin/api/classSessionApi'
+import { normalizeSessionDate, parseSlotDateKey } from '@/shared/utils/sessionDate'
 import { fetchSessionTopicOptions, type SessionTopicOption } from '../api/sessionTopicsApi'
 import { isPermissionDeniedError } from '../../../shared/utils/identityClaims'
 import { useAttendanceExport } from '../hooks/useAttendanceExport'
@@ -287,14 +288,53 @@ export default function FacultyAttendance() {
 
   const handleMarkComplete = async () => {
     if (!selectedClass) return
-    // A session must exist before it can be completed; a recurring class that
-    // has never been marked has only a virtual row so far.
-    if (!selectedClass.materialised) {
+    // Attendance is what earns a completion: a class that was never marked has
+    // no session worth completing. Gate on the SAVED RECORD (which survives
+    // reloads) rather than the in-memory `materialised` flag (which goes stale
+    // the moment a save materialises the session without a refetch — the old
+    // gate told freshly-saved classes to "save first", forever).
+    if (!existingAttendance) {
       setCompleteNotice('Save the attendance for this class first — that is what creates the session to complete.')
       return
     }
     setCompleting(true)
     setCompleteNotice(null)
+    // Repair path: the save's own ensure can fail silently (attendance is
+    // never lost for it), leaving a saved class with no session document.
+    // ensureClassSession is idempotent get-or-create, so this is free when the
+    // session already exists and a heal when it does not. Mirrors the
+    // saveAttendance input mapping in facultyApi.ts.
+    let sessionId = selectedClass.id
+    if (!selectedClass.materialised) {
+      try {
+        const ensured = await ensureClassSession({
+          date: normalizeSessionDate(selectedClass.date) || selectedClass.date,
+          weeklyScheduleId: selectedClass.source === 'weekly'
+            ? (selectedClass.weeklyScheduleId || parseSlotDateKey(selectedClass.id)?.weeklyScheduleId)
+            : undefined,
+          facultyId: selectedClass.facultyId || facultyId,
+          facultyName: selectedClass.facultyName || undefined,
+          subject: selectedClass.subject,
+          subjectCode: selectedClass.subjectCode,
+          branch: selectedClass.branch,
+          batch: selectedClass.batch,
+          semester: selectedClass.semester,
+          division: selectedClass.division,
+          section: selectedClass.section,
+          room: selectedClass.room,
+          startTime: selectedClass.startTime,
+          endTime: selectedClass.endTime,
+        })
+        sessionId = ensured.id
+        setSelectedClass(prev => prev && prev.id === selectedClass.id
+          ? { ...prev, id: ensured.id, materialised: true }
+          : prev)
+      } catch (err) {
+        setCompleteNotice(err instanceof Error ? err.message : 'Could not prepare this class session — please try again.')
+        setCompleting(false)
+        return
+      }
+    }
     const chosen = topicOptions.filter(option => selectedTopicIds.includes(option.id))
     // Pairs first: a curriculum option's id is a COMPOSITE
     // (curriculumId__module__topicKey), which the server cannot resolve
@@ -307,7 +347,7 @@ export default function FacultyAttendance() {
     }))
     if (extraTopic.trim()) topics.push({ topicId: '', title: extraTopic.trim() })
     const payload = {
-      sessionId: selectedClass.id,
+      sessionId,
       topics,
       topicIds: chosen.filter(option => option.source === 'curriculum').map(option => option.id),
       topicTitles: [

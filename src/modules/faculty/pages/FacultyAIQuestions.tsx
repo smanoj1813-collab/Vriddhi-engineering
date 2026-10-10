@@ -284,10 +284,10 @@ export default function FacultyAIQuestions() {
                 </p>
                 <div className="flex items-center gap-2">
                   <Link
-                    to="/faculty/question-bank"
+                    to="/faculty/universal-bank"
                     className="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 inline-flex items-center gap-1"
                   >
-                    Open Question Bank <ArrowRight size={12} />
+                    Open Universal Bank <ArrowRight size={12} />
                   </Link>
                   <button
                     onClick={() => setSaveSummary(null)}

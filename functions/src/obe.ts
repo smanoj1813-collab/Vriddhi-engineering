@@ -138,7 +138,9 @@ export function validateObeMappingDoc(raw: unknown, opts?: { allowPartial?: bool
     if (!CO_CODE.test(code)) throw new HttpsError('invalid-argument', `CO code "${code}" must look like CO1`)
     if (seen.has(code)) throw new HttpsError('invalid-argument', `Duplicate CO code "${code}"`)
     seen.add(code)
-    const statement = boundedString(co.statement, `${code}.statement`, MAX_STATEMENT)
+    // Drafts save with gaps: a statement rides along when filled, but an empty
+    // one must not block a draft save — publish (full mode) still requires it.
+    const statement = boundedString(co.statement, `${code}.statement`, MAX_STATEMENT, !allowPartial)
     const bloomRaw = String(co.bloomLevel ?? '').trim().toUpperCase()
     if (bloomRaw && !BLOOM_CODES.has(bloomRaw)) {
       throw new HttpsError('invalid-argument', `${code}.bloomLevel must be L1–L6`)

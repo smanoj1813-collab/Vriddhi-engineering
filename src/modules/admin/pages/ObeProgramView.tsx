@@ -14,7 +14,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Info, Loader2, Printer } from 'lucide-react';
 import type { ObeMappingDoc } from '@/shared/types/obe';
 import { GAPC_V4_PROGRAM_OUTCOMES } from '@/shared/types/obe';
-import { fetchObeMappings, fetchObeRuns } from '../api/obeApi';
+import { describeObeListError, fetchObeMappings, fetchObeRuns } from '../api/obeApi';
 import {
   buildSarOutcomeTable,
   calculateProgramOutcomeAttainment,

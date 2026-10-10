@@ -20,7 +20,7 @@
     "build": "tsc && vite build",
     "build:functions": "npm --prefix functions run build",
     "check:dead-code": "node scripts/check-dead-code.cjs",
-    "deploy:all": "firebase deploy --only firestore:rules,storage,functions,hosting --project vriddhi-engineering",
+    "deploy:all": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions,hosting --project vriddhi-engineering",
     "deploy:functions": "firebase deploy --only functions --project vriddhi-engineering",
     "deploy:hosting": "firebase deploy --only hosting --project vriddhi-engineering",
     "deploy:indexes": "firebase deploy --only firestore:indexes --project vriddhi-engineering",

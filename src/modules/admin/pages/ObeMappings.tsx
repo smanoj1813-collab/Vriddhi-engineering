@@ -9,7 +9,7 @@ import { Loader2, Plus, Target } from 'lucide-react';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { roleHasPermission } from '@/modules/auth/permissions';
 import type { ObeMappingStatus } from '@/shared/types/obe';
-import { fetchObeMappings } from '../api/obeApi';
+import { describeObeListError, fetchObeMappings } from '../api/obeApi';
 
 const STATUS_STYLES: Record<ObeMappingStatus, string> = {
   draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
