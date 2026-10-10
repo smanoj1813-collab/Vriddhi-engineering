@@ -5,6 +5,8 @@ import { onRequest } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import { apiCorsOptions } from './middleware/cors'
 
 // ─── Load .env BEFORE anything else ───
 import * as dotenv from 'dotenv'
@@ -114,6 +116,8 @@ import { autoMapCurriculum, applyAutoMapping } from './autoCurriculumMapping'
 import { bulkImportWeeklySchedules } from './scheduleImport'
 // ─── University scheme packs: custom packs + college assignment (G1) ───
 import { saveSchemePack, assignCollegeSchemePack } from './schemePacks'
+// ─── OBE attainment: mapping authorship + trusted compute (Slice 2) ───
+import { saveObeMapping, publishObeMapping, archiveObeMapping, computeObeAttainment, previewObeScoresFromTests } from './obe'
 // ─── Auto slot scheduler: day×period grid placement + coverage (G4) ───
 import { autoGenerateWeeklySchedule } from './autoSchedule'
 // ─── Academic calendar: holidays, fests, exam windows (Auto-Scheduler v2) ────
@@ -150,17 +154,23 @@ import {
 
 const app = express()
 
-// API is protected by Firebase auth tokens, so reflect the caller's origin
-// rather than hard-coding a host list. This keeps the Firebase Hosting app,
-// local development and preview environments all working.
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-College-Id'],
+// Security headers for a cross-origin JSON API: keep HSTS / frameguard /
+// nosniff, but leave resource-sharing to the CORS config below — the hosting
+// app and preview environments call this function cross-origin, so helmet's
+// same-origin CORP default would block legitimate frontend reads.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }))
 
-app.options('*', cors())
+// CORS allow-list (middleware/cors): prod hosting origins, preview channels
+// and localhost. Auth is Bearer-token based, but reflecting any origin with
+// credentials is unnecessary exposure — the preflight handler uses the same
+// options so a denied origin fails closed on OPTIONS too.
+app.use(cors(apiCorsOptions()))
+
+app.options('*', cors(apiCorsOptions()))
 app.use(express.json({ limit: '10mb' }))
 app.use(generalLimiter)
 
@@ -211,7 +221,7 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found', path: req.path })
 })
 
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Global error:', err)
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
@@ -340,6 +350,11 @@ export {
   bulkImportWeeklySchedules,
   saveSchemePack,
   assignCollegeSchemePack,
+  saveObeMapping,
+  publishObeMapping,
+  archiveObeMapping,
+  computeObeAttainment,
+  previewObeScoresFromTests,
   autoGenerateWeeklySchedule,
   saveCalendarEvent,
   deleteCalendarEvent,

@@ -10,7 +10,7 @@ import { describe, it } from 'node:test'
 import { ApiResponseError, HOSTING_REWRITE_HINT } from '../api/apiBase'
 import { readServerPdfResponse } from './pdfDownloader'
 
-const url = 'https://asia-south1-vriddhi-academic.cloudfunctions.net/api/papers/p1/pdf'
+const url = 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api/papers/p1/pdf'
 
 function response(status: number, contentType: string | null, body: string | Uint8Array): Response {
   const headers = new Headers()

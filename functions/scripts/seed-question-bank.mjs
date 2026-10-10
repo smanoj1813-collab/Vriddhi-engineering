@@ -281,7 +281,7 @@ function buildApp(admin) {
     return admin.initializeApp({ credential: admin.credential.applicationDefault() });
   } catch (e) {
     console.error(
-      'No Firebase credentials found. Set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY, or run: gcloud auth application-default login --project vriddhi-academic'
+      'No Firebase credentials found. Set FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY, or run: gcloud auth application-default login --project vriddhi-engineering'
     );
     console.error('  Detail:', e.message);
     process.exit(1);

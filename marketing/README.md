@@ -78,3 +78,16 @@ cd marketing
   conversation.
 - The tri-fold brochure prints **double-sided** on A4 landscape; trim marks
   are not included (full-bleed panels are designed to the sheet edge).
+
+## Storage (audit P4-14)
+
+The generated binaries here (the two PPTX decks, four PDFs and the ZIP —
+~13 MB) do not belong in git long-term: they are reproducible from the
+builder scripts plus `fonts/`. The plan is to upload them to a GitHub
+Release and `git rm` them from the tree (from a machine with release-upload
+access, e.g.):
+
+```bash
+gh release create assets/marketing-kit-v1 marketing/*.pdf marketing/*.pptx \
+  marketing/*.zip --title "Marketing kit (pitch & print collateral)"
+```

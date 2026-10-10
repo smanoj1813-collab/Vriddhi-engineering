@@ -11,7 +11,7 @@
 // silently inflate.
 //
 // Tenancy: every document carries `collegeId`, and the security rules in
-// current-firestore.rules require it to match the caller's college claim.
+// firestore.rules require it to match the caller's college claim.
 
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy,

@@ -130,6 +130,17 @@ export default function FacultySelfAttendance() {
 
   const monthDays = useMemo(() => dateKeysBetween(monthWindow.start, monthWindow.end), [monthWindow]);
 
+  // The grid's first column is Sunday, but the 1st of the month rarely is —
+  // pad with blank cells so every date lands under its real weekday. Without
+  // this the whole month shifts (October 2026 starts on a Thursday: the 1st
+  // rendered under "Sunday", Sundays read as Wednesdays, and today — a
+  // Saturday — showed up in the Tuesday column).
+  const leadBlanks = useMemo(() => {
+    if (monthDays.length === 0) return 0;
+    const firstDow = dayOfWeek(monthDays[0]);
+    return firstDow >= 0 ? firstDow : 0;
+  }, [monthDays]);
+
   const existing = recordForDate(form.date);
   const isFutureDate = form.date > today;
 
@@ -413,6 +424,9 @@ export default function FacultySelfAttendance() {
               <div key={`head-${i}`} className="pb-1 text-center text-[11px] font-semibold uppercase text-slate-400">
                 {d}
               </div>
+            ))}
+            {Array.from({ length: leadBlanks }, (_, i) => (
+              <div key={`blank-${i}`} aria-hidden="true" />
             ))}
             {monthDays.map((date) => {
               const record = recordForDate(date);

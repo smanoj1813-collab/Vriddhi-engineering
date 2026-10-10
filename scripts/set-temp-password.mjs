@@ -24,7 +24,7 @@
  *   --password <pw>           Optional explicit password (min 10 chars).
  *                             Omit to generate a 14-char one-time password
  *                             from the same alphabet the app uses.
- *   --project <id>            Firebase project id (default: vriddhi-academic)
+ *   --project <id>            Firebase project id (default: vriddhi-engineering)
  *   --service-account <path>  service-account JSON (else ADC / env var)
  *   --apply                   write the change (default: read-only dry run)
  *
@@ -115,7 +115,7 @@ function generateRandomPassword(length = 14) {
 }
 
 const SERVICE_ACCOUNT = valueFlag('service-account', '"~/Downloads/vriddhi-serviceAccount.json"')
-const PROJECT = valueFlag('project', 'vriddhi-academic') || process.env.GCLOUD_PROJECT || 'vriddhi-academic'
+const PROJECT = valueFlag('project', 'vriddhi-engineering') || process.env.GCLOUD_PROJECT || 'vriddhi-engineering'
 const EMAIL = String(args.email || '').trim().toLowerCase()
 const UID = String(args.uid || '').trim()
 const APPLY = Boolean(args.apply)

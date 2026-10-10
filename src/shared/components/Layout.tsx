@@ -41,6 +41,7 @@ import {
   Assignment,
   CalendarToday,
   TrendingUp,
+  TrackChanges,
   QuestionAnswer,
   Description,
   AdminPanelSettings,
@@ -186,6 +187,7 @@ const navItems: NavItem[] = [
   { label: "Attendance", path: "/admin/attendance", icon: <CalendarToday fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Faculty Attendance", path: "/admin/faculty-attendance", icon: <BadgeIcon fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
+  { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" />, roles: ["admin", "principal"], section: "Academic" },
   { label: "Branch-wise Assessment Conduction", path: "/admin/branch-conduction", icon: <Assignment fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Academic" },
   // Principal dropped earlier (question/paper craft is department work); the
   // HOD round then dropped Official Grade Records, Paper Review and Paper
@@ -216,6 +218,7 @@ const navItems: NavItem[] = [
   { label: "Attendance", path: "/admin/attendance", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Academic" },
   { label: "Faculty Attendance", path: "/admin/faculty-attendance", icon: <BadgeIcon fontSize="small" />, roles: ["hod"], section: "Academic" },
   { label: "Assessments", path: "/admin/test-reports", icon: <Assignment fontSize="small" />, roles: ["hod"], section: "Academic" },
+  { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" />, roles: ["hod"], section: "Academic" },
   // HOD round: Grade Records, Paper Review and Paper Generator removed here
   // too (same plug-back note as the admin block above).
   { label: "Create Test", path: "/admin/create-test", icon: <Description fontSize="small" />, roles: ["hod"], section: "Assessment Tools" },
@@ -320,12 +323,11 @@ const facultyNav: SidebarEntry[] = [
       { label: "Create Test", path: "/faculty/create-test", icon: <Description fontSize="small" /> },
       { label: "My Tests", path: "/faculty/my-tests", icon: <Description fontSize="small" /> },
       { label: "AI Question Generator", path: "/faculty/ai-questions", icon: <AutoAwesome fontSize="small" /> },
-      { label: "Question Bank", path: "/faculty/question-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Universal Bank", path: "/faculty/universal-bank", icon: <QuestionAnswer fontSize="small" /> },
       { label: "Assessment Schedule", path: "/faculty/assessments", icon: <Assignment fontSize="small" /> },
       // HIDDEN for faculty (plug back = re-add the nav line + drop the path
       // from RETIRED_FACULTY_PATHS in src/modules/faculty/routes.tsx):
-      //   Paper Generator · Generated Papers · Auto-Grading 5M/10M
+      //   Paper Generator · Generated Papers · Auto-Grading 5M/10M · Question Bank
       // Test creation moves to the sectioned Create Test flow; descriptive
       // auto-grading is parked until that flow lands.
     ],
@@ -456,6 +458,7 @@ const principalNav: SidebarEntry[] = [
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
       { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" /> },
+      { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
       { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" /> },
     ],
   },
@@ -505,6 +508,7 @@ const hodNav: SidebarEntry[] = [
       { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
       { label: "Scheme Packs", path: "/admin/scheme-packs", icon: <AccountBalance fontSize="small" /> },
+      { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
     ],
   },
 

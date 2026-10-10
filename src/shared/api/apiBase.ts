@@ -16,7 +16,7 @@
 // Every client (AI chat, PDF export, AI question generation) MUST build its
 // URLs through `apiUrl()`; never hard-code a host or a `/api` prefix elsewhere.
 
-export const DEFAULT_API_BASE_URL = 'https://asia-south1-vriddhi-academic.cloudfunctions.net/api'
+export const DEFAULT_API_BASE_URL = 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api'
 
 /**
  * Normalises a configured base URL so every caller can append `/papers/...`,
@@ -67,7 +67,7 @@ export function apiUrl(path: string): string {
 // are — and fall back to the literal production host if that suffix is absent
 // (a same-origin `/api` dev proxy, for example).
 
-export const DEFAULT_PDF_BASE_URL = 'https://asia-south1-vriddhi-academic.cloudfunctions.net/pdf'
+export const DEFAULT_PDF_BASE_URL = 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/pdf'
 
 /**
  * `https://…/api` → `https://…/pdf`. Anything without a trailing `/api`

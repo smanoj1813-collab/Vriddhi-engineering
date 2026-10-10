@@ -2,6 +2,12 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
 // Server-side account provisioning. Clients must not assign roles.
+//
+// Ops-only callable (audit P2-8): as of 2026-10-10 no in-repo code calls
+// provisionUser — no httpsCallable driver, no script. It exists for
+// console-driven provisioning by privileged staff. Do NOT wire a client UI
+// to it without product review; every success is audit-logged below with
+// the actor, the target account and the tenant.
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import * as logger from 'firebase-functions/logger'
@@ -133,8 +139,11 @@ export const provisionUser = onCall(
 
     logger.info('[provisionUser] created', {
       uid: userRecord.uid,
+      email: String(email).trim().toLowerCase(),
       role: targetRole,
+      collegeId: tenantCollegeId || null,
       by: request.auth.uid,
+      byRole: callerRole,
     })
 
     return withApiVersion({

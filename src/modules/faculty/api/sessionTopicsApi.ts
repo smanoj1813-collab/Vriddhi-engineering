@@ -7,7 +7,7 @@
 // There are two topic stores and nothing joins them:
 //   * `topics/*`        — the superadmin curriculum bank. Field is `name`, plus
 //                         `subject` / `course` / `semester`. Superadmin writes
-//                         only (see `match /topics` in current-firestore.rules).
+//                         only (see `match /topics` in firestore.rules).
 //                         Bank rows carry NO facultyId — assignment to a person
 //                         is derived from the subjects on their
 //                         curriculumFacultyMappings. (Any code that queries the

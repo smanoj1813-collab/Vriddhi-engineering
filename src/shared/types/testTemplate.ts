@@ -12,7 +12,7 @@
 // no new collection, no new composite index, no migration.
 //
 // Rules-imposed invariants we must respect on papers/{id} (see
-// current-firestore.rules `match /papers/{id}`):
+// firestore.rules `match /papers/{id}`):
 //   • create requires status == 'draft' AND verificationStatus == 'draft'
 //   • update may not touch collegeId / createdBy / status / verificationStatus
 // ⇒ the authoring lifecycle therefore lives in OUR OWN field, `testStatus`,

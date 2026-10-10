@@ -934,7 +934,7 @@ export function intakeDocumentId(collegeId: string, responseId: string): string 
  * function the rest of the app talks to; `API_BASE_URL` overrides it for
  * staging deployments.
  */
-const DEFAULT_API_BASE = 'https://asia-south1-vriddhi-academic.cloudfunctions.net/api'
+const DEFAULT_API_BASE = 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api'
 
 function intakeEndpoint(): string {
   const base = String(process.env.API_BASE_URL || DEFAULT_API_BASE).replace(/\/+$/, '')

@@ -137,8 +137,9 @@ export function deriveChatActions(query: string, role?: string): ChatAction[] {
       if (canAuthorPapers) {
         if (isFaculty) {
           // Faculty round: Paper Generator left the faculty portal with the
-          // Generated Papers page; question drafting + the assessment hub stay.
-          push(act('question-bank', 'Open Question Bank', '/faculty/question-bank', 'question-bank'));
+          // Generated Papers page, and the faculty Question Bank followed —
+          // Universal Bank is the remaining bank surface.
+          push(act('question-bank', 'Open Universal Bank', '/faculty/universal-bank', 'question-bank'));
           push(act('ai-questions', 'AI Question Drafting', '/faculty/ai-questions', 'paper'));
         } else {
           // HOD round: Paper Generator / Paper Review left the department

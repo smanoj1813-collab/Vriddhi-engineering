@@ -21,6 +21,8 @@
 
 import cors from 'cors'
 import express, { type Request, type Response, type NextFunction } from 'express'
+import helmet from 'helmet'
+import { apiCorsOptions } from '../middleware/cors'
 import { onRequest } from 'firebase-functions/v2/https'
 import { logger } from 'firebase-functions'
 
@@ -44,15 +46,16 @@ const REPORT_ROLES = ['superadmin', 'admin', 'principal', 'hod', 'faculty', 'men
 
 export const pdfApp = express()
 
-pdfApp.use(
-  cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-College-Id'],
-  }),
-)
-pdfApp.options('*', cors())
+// Same posture as the api app: response downloads go cross-origin to the
+// hosting app, so CORP stays permissive and CORS governs who may call.
+pdfApp.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}))
+
+pdfApp.use(cors(apiCorsOptions()))
+pdfApp.options('*', cors(apiCorsOptions()))
 pdfApp.use(express.json({ limit: '2mb' }))
 pdfApp.use(generalLimiter)
 

@@ -19,7 +19,12 @@ import {
   increment,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '@/Firebase/config';
+import { db, storage } from '@/Firebase/config';
+import {
+  deleteObject,
+  ref,
+  type StorageReference,
+} from 'firebase/storage';
 import { extractCanonicalSubject, extractCanonicalTopic } from '@/shared/utils/curriculumMatcher';
 
 export type MaterialType = 'pdf' | 'video' | 'link' | 'image' | 'document' | 'presentation';
@@ -45,6 +50,8 @@ export interface MaterialItem {
   views: number;
   downloads: number;
   url: string;
+  /** Exact Storage object path (new uploads); deleteMaterial removes the file. */
+  storagePath?: string;
   facultyId?: string;
   facultyName?: string;
   uploadedBy?: string;
@@ -58,6 +65,7 @@ export interface CreateMaterialInput {
   title: string;
   type: MaterialType;
   url: string;
+  storagePath?: string;
   subject: string;
   courseId?: string;
   courseCode?: string;
@@ -74,6 +82,36 @@ export interface CreateMaterialInput {
   facultyId?: string;
   facultyName?: string;
   collegeId: string;
+}
+
+/**
+ * Resolves the Storage object behind a material doc. New uploads store the
+ * exact `storagePath`; legacy docs only carry the download `url`, which
+ * ref() parses back (it accepts gs:// and https:// URLs, throwing on
+ * anything else). Returns null for external links, base64 fallbacks
+ * and anything outside this college's materials folder — deletion never
+ * touches objects outside the tenant prefix.
+ */
+function resolveMaterialObjectRef(
+  collegeId: string,
+  data: { storagePath?: unknown; url?: unknown } | undefined,
+): StorageReference | null {
+  const prefix = `colleges/${collegeId}/materials/`;
+  const stored = typeof data?.storagePath === 'string' ? data.storagePath.trim() : '';
+  if (stored) {
+    if (!stored.startsWith(prefix)) return null;
+    return ref(storage, stored);
+  }
+  const url = typeof data?.url === 'string' ? data.url.trim() : '';
+  if (!url) return null;
+  try {
+    const objectRef = ref(storage, url);
+    const expectedBucket = storage.app?.options?.storageBucket;
+    if (expectedBucket && objectRef.bucket !== expectedBucket) return null;
+    return objectRef.fullPath.startsWith(prefix) ? objectRef : null;
+  } catch {
+    return null;
+  }
 }
 
 export const materialApi = {
@@ -198,6 +236,17 @@ export const materialApi = {
   async deleteMaterial(collegeId: string, materialId: string): Promise<void> {
     if (!collegeId || !materialId) return;
     const docRef = doc(db, 'colleges', collegeId, 'materials', materialId);
+    // Remove the Storage object too: deleting only the Firestore doc orphans
+    // the file (up to 50 MB) with no reference left to find it. Best-effort —
+    // a missing/failed object must never block removing the library entry the
+    // user explicitly deleted.
+    try {
+      const snap = await getDoc(docRef);
+      const objectRef = resolveMaterialObjectRef(collegeId, snap.data());
+      if (objectRef) await deleteObject(objectRef);
+    } catch (err) {
+      console.warn('[materialApi] Storage object could not be removed; deleting the library entry anyway:', err);
+    }
     await deleteDoc(docRef);
   },
 

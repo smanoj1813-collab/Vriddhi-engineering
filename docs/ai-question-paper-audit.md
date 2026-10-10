@@ -76,14 +76,14 @@ redeployed for the new Firebase-auth middleware, tier limits, and the
 questions/papers CRUD routes to be live:
 
 ```
-cd functions && npm run build && firebase deploy --only functions --project vriddhi-academic
+cd functions && npm run build && firebase deploy --only functions --project vriddhi-engineering
 ```
 
 Firestore rules are unchanged. The composite indexes in `firestore.indexes.json`
 should also be deployed when ready:
 
 ```
-firebase deploy --only firestore:indexes --project vriddhi-academic
+firebase deploy --only firestore:indexes --project vriddhi-engineering
 ```
 
 ## Still not wired (outside this deliverable)

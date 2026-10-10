@@ -131,10 +131,10 @@ describe('normalizeRole', () => {
     assert.equal(normalizeRole(null, 'faculty'), 'faculty')
   })
 
-  it('agrees with the role canonicalisation in current-firestore.rules', () => {
+  it('agrees with the role canonicalisation in firestore.rules', () => {
     // A role the rules understand but the importer does not (or the reverse)
     // produces an account that can be created but not authorised.
-    const rules = readFileSync(resolve(here, '../../current-firestore.rules'), 'utf8')
+    const rules = readFileSync(resolve(here, '../../firestore.rules'), 'utf8')
     const block = rules.slice(rules.indexOf('function canonicalRole('), rules.indexOf('function role()'))
     const spellings = [
       'teacher', 'teaching staff', 'teaching-staff', 'lecturer', 'professor',
@@ -322,8 +322,8 @@ describe('temporary passwords', () => {
 describe('plaintext credentials cannot survive on a profile document', () => {
   it('strips every field the rules also refuse to write', () => {
     // Drift guard for the two halves of the same rule: the callables delete
-    // these keys, current-firestore.rules refuses to create them.
-    const rules = readFileSync(resolve(here, '../../current-firestore.rules'), 'utf8')
+    // these keys, firestore.rules refuses to create them.
+    const rules = readFileSync(resolve(here, '../../firestore.rules'), 'utf8')
     const body = rules.slice(rules.indexOf('function noPasswordField()'), rules.indexOf('function noPrivilegedRole'))
     for (const field of SECRET_PROFILE_FIELDS) {
       assert.ok(body.includes(`'${field}'`), `noPasswordField() must also reject "${field}"`)

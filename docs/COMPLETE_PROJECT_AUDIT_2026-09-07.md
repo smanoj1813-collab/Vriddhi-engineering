@@ -45,7 +45,7 @@ cross-checked against the tree and corrected where the tree disagrees.
 | --- | --- |
 | Frontend | Vite 5 + React 18 + TS 5.4, Firebase SDK `^12.15.0` |
 | Backend | Gen-2 Functions, all pinned `region: 'asia-south1'`, Node `20` (`engines`) |
-| Project | `vriddhi-academic` (`.firebaserc` tracked, un-ignored) |
+| Project | `vriddhi-engineering` (`.firebaserc` tracked, un-ignored) |
 | Firestore rules | `current-firestore.rules` (834 lines, claim-only) |
 | Storage rules | `storage.rules` (profile-document identity — see §4.2) |
 | RTDB | `database.rules.json` fully locked (`.read/.write: false`) |

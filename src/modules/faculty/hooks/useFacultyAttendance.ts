@@ -307,11 +307,26 @@ export function useFacultyAttendance() {
         markedBy: facultyName,
       });
 
-      if (selectedClass.status === 'ongoing') {
-        setSelectedClass((prev) =>
-          prev ? { ...prev, status: 'completed' as const } : null
-        );
-      }
+      // The save materialises the session server-side (saveAttendance calls
+      // ensureClassSession for virtual rows), so the in-memory class must flip
+      // too — otherwise "Mark class complete" keeps seeing the pre-save
+      // virtual row and tells the user to save first, forever, until a reload.
+      // The id is deterministic (slotDateKey), so it survives unchanged.
+      setClassSessions((prev) =>
+        prev.map((s) =>
+          s.id === selectedClass.id ? { ...s, materialised: true, attendanceMarked: true } : s
+        )
+      );
+      setSelectedClass((prev) =>
+        prev && prev.id === selectedClass.id
+          ? {
+              ...prev,
+              materialised: true,
+              attendanceMarked: true,
+              status: prev.status === 'ongoing' ? ('completed' as const) : prev.status,
+            }
+          : prev
+      );
 
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {

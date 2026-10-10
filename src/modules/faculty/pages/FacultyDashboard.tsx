@@ -215,11 +215,11 @@ export default function FacultyDashboard() {
       path: '/faculty/upload-material',
     },
     {
-      label: 'Question Bank',
+      label: 'Universal Bank',
       value: 'View',
       icon: <School />,
       color: '#8b5cf6',
-      path: '/faculty/question-bank',
+      path: '/faculty/universal-bank',
     },
   ];
 

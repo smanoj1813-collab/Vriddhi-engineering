@@ -1,0 +1,45 @@
+# Nightly: the FULL Firestore rules suite against the Firebase emulators.
+#
+# Per-PR CI runs only the course-security slice (test:rules:course-security)
+# for speed; this job guards everything else the 2,000-line suite covers —
+# fees, grades, admissions, office, identity, OBE evidence immutability.
+# (audit P1-3: promote to per-PR if runtime allows.)
+name: Rules nightly
+
+on:
+  schedule:
+    # 02:30 UTC == 08:00 IST, before the college day starts.
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  rules:
+    name: Full Firestore rules suite (Node 22 + Java 21)
+    runs-on: ubuntu-latest
+    env:
+      # Skip Puppeteer's Chromium download during `npm ci` (not needed here).
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Set up Java 21 for Firebase emulators
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Full Firestore rules suite
+        working-directory: functions
+        run: npm run test:rules

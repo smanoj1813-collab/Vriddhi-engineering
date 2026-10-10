@@ -14,7 +14,7 @@
 | Resume Builder | Live, **disabled for every college** until enabled per college (Superadmin → College → Overview → "Resume Builder add-on" card) |
 | 14 orphan Cloud Functions | Still exist in the cloud (deletion declined during deploy on purpose) — see item 1.3. Verified 25 Sep 2026: zero references in `src/` and `functions/src` |
 | Known live breakage | 3 routes call `gemini-1.5-flash`, shut down 29 Sep 2025 — see item 1.1 |
-| Firebase project | `vriddhi-academic`, functions region `asia-south1` (fee/Razorpay functions in `us-central1`), Node 22, 2nd-gen |
+| Firebase project | `vriddhi-engineering`, functions region `asia-south1` (fee/Razorpay functions in `us-central1`), Node 22, 2nd-gen |
 | Operator | Deploys from Windows PowerShell (`C:\Projects\Vriddhi`) — one command per line, no `&&`, one step at a time, wait for output |
 
 Reference docs: `docs/RESUME_BUILDER.md`, `docs/RESUME_BUILDER_ADDON_COSTING_2026-09-25.md`,
@@ -57,11 +57,11 @@ git checkout main
 git pull origin main
 npm ci
 npm ci --prefix functions
-firebase deploy --only firestore:rules --project vriddhi-academic     # only if rules changed
-firebase deploy --only storage --project vriddhi-academic             # only if storage.rules changed
-firebase deploy --only firestore:indexes --project vriddhi-academic   # only if indexes changed (before functions/hosting)
-firebase deploy --only functions --project vriddhi-academic           # answer "n"/No to deletion prompts unless the PR says otherwise
-firebase deploy --only hosting --project vriddhi-academic
+firebase deploy --only firestore:rules --project vriddhi-engineering     # only if rules changed
+firebase deploy --only storage --project vriddhi-engineering             # only if storage.rules changed
+firebase deploy --only firestore:indexes --project vriddhi-engineering   # only if indexes changed (before functions/hosting)
+firebase deploy --only functions --project vriddhi-engineering           # answer "n"/No to deletion prompts unless the PR says otherwise
+firebase deploy --only hosting --project vriddhi-engineering
 ```
 
 Rollback: hosting `firebase hosting:rollback`; functions = Cloud Run console → service → "Manage traffic" → previous revision, or redeploy the previous commit; rules = Firebase console → Rules → history → restore.
@@ -97,7 +97,7 @@ After every deploy watch for 15 minutes: Cloud Logging `resource.type="cloud_run
 1. Replace the two rules with: `/assets/**` → `public, max-age=31536000, immutable`; `/*.js` (root only: `sw.js`, `workbox-*.js`, `registerSW.js`) → `max-age=0, no-cache, no-store, must-revalidate` (keep the existing `/sw.js` rule); `/index.html` and `/` → `max-age=0, no-cache, must-revalidate`; keep the manifest and `/icons/**` rules.
 2. Add a one-shot reload guard in `src/main.tsx` for `vite:preloadError`: `sessionStorage` flag, reload once, otherwise surface the error.
 3. Optional in the same PR: shrink the precache — `globIgnores` for the big lazy chunks and a `runtimeCaching` CacheFirst rule for `/assets/`. Keep `index.html` precached (`navigateFallback` depends on it). Do **not** change `registerType`/`skipWaiting`.
-**Verify:** `curl -I https://vriddhi-academic.web.app/assets/<any>.js` shows `immutable`; `/index.html` shows `no-cache`; open the app, visit 5 lazy pages (Resume Builder, Library, Fee Management, Curriculum, Question Bank) — no "Failed to fetch dynamically imported module".
+**Verify:** `curl -I https://vriddhi-engineering.web.app/assets/<any>.js` shows `immutable`; `/index.html` shows `no-cache`; open the app, visit 5 lazy pages (Resume Builder, Library, Fee Management, Curriculum, Question Bank) — no "Failed to fetch dynamically imported module".
 **Rollback:** revert `firebase.json`, `--only hosting` (or `firebase hosting:rollback`).
 
 ### 2.3 Delete the 14 orphan Cloud Functions
@@ -105,7 +105,7 @@ After every deploy watch for 15 minutes: Cloud Logging `resource.type="cloud_run
 
 **Pre-check:** Cloud Run console → each service → Metrics → request count, last 30 days must be 0. Any traffic = an old client build still in use → wait a week and re-check.
 **Command (one line):**
-`firebase functions:delete autoGenerateTimetable backfillEmployeeDirectory deleteQuestionBankItem duplicateAssessmentTest exportEmployeeAttendanceCsv exportEmployeesCsv listEmployeeAttendance listEmployees listAuditLogs markEmployeeAttendance provisionEmployee setEmployeeStatus updateEmployee upsertQuestionBankItem --region asia-south1 --project vriddhi-academic`
+`firebase functions:delete autoGenerateTimetable backfillEmployeeDirectory deleteQuestionBankItem duplicateAssessmentTest exportEmployeeAttendanceCsv exportEmployeesCsv listEmployeeAttendance listEmployees listAuditLogs markEmployeeAttendance provisionEmployee setEmployeeStatus updateEmployee upsertQuestionBankItem --region asia-south1 --project vriddhi-engineering`
 **Rollback:** the source exists in git history (`git log -S exportEmployeesCsv --oneline`) — redeploy from there. Benefit: no deletion prompt on every deploy, faster deploys.
 
 ### 2.4 Superadmin polling → cheaper reads

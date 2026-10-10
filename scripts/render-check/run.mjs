@@ -451,7 +451,7 @@ globalThis.__RC_CALLABLE_DATA = {
         source: 'Google Form',
         department: 'Computer Science',
       },
-      endpoint: 'https://asia-south1-vriddhi-academic.cloudfunctions.net/api/admissions/ingest',
+      endpoint: 'https://asia-south1-vriddhi-engineering.cloudfunctions.net/api/admissions/ingest',
       mappableFields: ['applicantName', 'phone'],
       lastSubmissionAt: '2026-09-10T09:30:00.000Z',
       submissionCount: 17,
@@ -1429,7 +1429,7 @@ await section('question renderer (clipboard locked)', '/src/modules/student/comp
 
 
 // ── The declaration write (only student-side mutation in this flow) ────────
-// current-firestore.rules admits exactly these keys from a student, so the
+// firestore.rules admits exactly these keys from a student, so the
 // payload shape is pinned here: a "small extra field" added in the app would
 // otherwise pass every test and fail for every student on their phone.
 {

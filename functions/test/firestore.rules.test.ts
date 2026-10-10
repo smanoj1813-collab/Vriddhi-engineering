@@ -24,11 +24,6 @@ import {
   where,
 } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import {
-  get as getDatabaseValue,
-  ref as databaseRef,
-  set as setDatabaseValue,
-} from 'firebase/database'
 
 const PROJECT_ID = 'demo-vriddhi-student-portal'
 const COLLEGE_A = 'college-a'
@@ -54,16 +49,11 @@ let testEnv: RulesTestEnvironment
 before(async () => {
   const firestore = emulatorAddress('FIRESTORE_EMULATOR_HOST', 8080)
   const storage = emulatorAddress('FIREBASE_STORAGE_EMULATOR_HOST', 9199)
-  const database = emulatorAddress('FIREBASE_DATABASE_EMULATOR_HOST', 9000)
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
-    database: {
-      ...database,
-      rules: readFileSync(resolve(process.cwd(), '../database.rules.json'), 'utf8'),
-    },
     firestore: {
       ...firestore,
-      rules: readFileSync(resolve(process.cwd(), '../current-firestore.rules'), 'utf8'),
+      rules: readFileSync(resolve(process.cwd(), '../firestore.rules'), 'utf8'),
     },
     storage: {
       ...storage,
@@ -79,7 +69,6 @@ after(async () => {
 beforeEach(async () => {
   await Promise.all([
     testEnv.clearFirestore(),
-    testEnv.clearDatabase(),
     testEnv.clearStorage(),
   ])
   await testEnv.withSecurityRulesDisabled(async (context) => {
@@ -1082,7 +1071,7 @@ describe('legacy no-claim faculty reads', () => {
     // a legacy faculty profile. Identity for AUTHORIZATION is claim-only, so
     // staff-scoped reads are denied until identity repair issues claims and the
     // user signs in again. (The profile doc still lets them sign IN — it just
-    // cannot authorize a staff query. See current-firestore.rules header.)
+    // cannot authorize a staff query. See firestore.rules header.)
     return testEnv.authenticatedContext('legacy-faculty-a', {
       email: 'legacy-faculty@example.edu',
     })
@@ -1170,14 +1159,6 @@ describe('notification identity & access', () => {
     const db = facultyContext().firestore()
     await assertSucceeds(getDoc(doc(db, 'notifications', 'notif-broadcast')))
     await assertSucceeds(getDoc(doc(db, 'notifications', 'notif-own')))
-  })
-})
-
-describe('legacy Realtime Database lockdown', () => {
-  it('denies authenticated reads and writes to legacy data', async () => {
-    const database = studentContext().database()
-    await assertFails(getDatabaseValue(databaseRef(database, 'students')))
-    await assertFails(setDatabaseValue(databaseRef(database, `users/${STUDENT_UID}/role`), 'superadmin'))
   })
 })
 
@@ -1743,7 +1724,7 @@ describe('connect with mentors (faculty availability & appointments)', () => {
 
 // ── Department scoping (admin ≡ department HOD) ─────────────────────────────
 // The `department` custom claim narrows admin/hod POINT reads via deptScoped()
-// in current-firestore.rules. Deliberate tolerances pinned here:
+// in firestore.rules. Deliberate tolerances pinned here:
 //   - no claim, or an untagged document (or department 'All') ⇒ still visible
 //   - case-insensitive match between claim and document tag
 //   - `list` statements stay college-wide — current client queries are scoped

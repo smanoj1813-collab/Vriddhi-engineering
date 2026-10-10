@@ -79,7 +79,6 @@ export default defineConfig(({ mode }) => {
         globPatterns: [
           'index.html',
           'manifest.webmanifest',
-          'workbox-*.js',
           'assets/index-*.js',
           'assets/index-*.css',
           'assets/react-core-*.js',
@@ -158,7 +157,7 @@ export default defineConfig(({ mode }) => {
   // Express app also mounts every route under `/api/*`. Opt in by setting
   // `VITE_API_BASE_URL=/api` in `.env.local`; override the target with
   // `VITE_DEV_API_PROXY_TARGET` (e.g. a deployed function) when needed.
-  const projectId = env.VITE_FIREBASE_PROJECT_ID || 'vriddhi-academic'
+  const projectId = env.VITE_FIREBASE_PROJECT_ID || 'vriddhi-engineering'
   const apiProxyTarget =
     env.VITE_DEV_API_PROXY_TARGET || `http://localhost:5001/${projectId}/asia-south1/api`
   // Item 4.4: the Chrome-launching PDF routes now live in their own function.
@@ -219,7 +218,6 @@ export default defineConfig(({ mode }) => {
               'firebase/app',
               'firebase/auth',
               'firebase/firestore',
-              'firebase/database',
               'firebase/storage',
             ],
             'charts': ['recharts'],

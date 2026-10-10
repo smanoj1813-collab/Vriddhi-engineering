@@ -13,10 +13,10 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "lint": "eslint --ext .js,.ts .",
-    "test:unit": "node --import tsx --test test/academicContext.test.ts test/assessmentGrading.test.ts test/auth.test.ts test/autosaveIndex.test.ts test/collegeScope.test.ts test/gradeRecords.test.ts test/identityProvisioning.test.ts test/languages.test.ts test/paperParsing.test.ts test/paperWorkflow.test.ts test/aiModels.test.ts test/attendanceSummary.test.ts test/aiChatQuota.test.ts test/contentEngine.test.ts test/prepModelAnswers.test.ts test/resumeExtras.test.ts test/attendanceRegister.test.ts test/questionImport.test.ts test/docxWriter.test.ts test/pdfRenderer.test.ts test/questionTypes.test.ts test/aiGrading.test.ts test/assessmentConfig.test.ts test/timetableConflicts.test.ts test/classSchedule.test.ts test/scheduleAssignment.test.ts test/assignmentAnalytics.test.ts test/selfIdentity.test.ts test/verifyAuth.legacy.test.ts test/notifications.test.ts test/studentJourney.test.ts test/admissions.test.ts test/mentorDirectory.test.ts test/collegeLinks.test.ts test/collegeResolve.test.ts test/studentCurriculum.test.ts test/cohortBatch.test.ts test/autoCurriculumMapping.test.ts test/studentImportCohort.test.ts test/scheduleImport.test.ts test/studyMaterials.test.ts test/prepContent.test.ts test/prepCatalog.test.ts test/prepCompanies.test.ts test/prepPapers.test.ts test/prepPaperFiles.test.ts test/employeeAccessCore.test.ts test/prepFrequentQuestions.test.ts test/rulesModelStaffAttendance.test.ts test/staffAttendanceWrites.test.ts test/paperSchedulingCheck.test.ts test/submissionDriveLink.test.ts test/schemePacks.test.ts test/accessProducts.test.ts test/curriculumFlow.test.ts test/autoSchedule.test.ts test/officeStaff.test.ts test/resumeBuilder.test.ts test/accountManagement.test.ts test/codeRunnerCore.test.ts test/collegeModules.test.ts || true",
-    "test:rules": "firebase emulators:exec --project demo-vriddhi-student-portal --config ../firebase.json --only database,firestore,storage \"node --import tsx --test test/firestore.rules.test.ts\"",
-    "test:rules:course-security": "firebase emulators:exec --project demo-vriddhi-student-portal --config ../firebase.json --only database,firestore,storage \"node --import tsx --test --test-name-pattern='course assignments and course progress|connect with mentors|academic calendar|vriddhi platform employees|scheme packs' test/firestore.rules.test.ts\"",
+    "lint": "eslint --ext .js,.ts . --max-warnings 0",
+    "test:unit": "node ../scripts/check-tests-registered.cjs functions && node --import tsx --test test/academicContext.test.ts test/assessmentGrading.test.ts test/auth.test.ts test/autosaveIndex.test.ts test/collegeScope.test.ts test/gradeRecords.test.ts test/identityProvisioning.test.ts test/languages.test.ts test/paperParsing.test.ts test/paperWorkflow.test.ts test/aiModels.test.ts test/attendanceSummary.test.ts test/aiChatQuota.test.ts test/contentEngine.test.ts test/prepModelAnswers.test.ts test/resumeExtras.test.ts test/attendanceRegister.test.ts test/questionImport.test.ts test/docxWriter.test.ts test/pdfRenderer.test.ts test/questionTypes.test.ts test/aiGrading.test.ts test/assessmentConfig.test.ts test/timetableConflicts.test.ts test/classSchedule.test.ts test/scheduleAssignment.test.ts test/assignmentAnalytics.test.ts test/selfIdentity.test.ts test/verifyAuth.legacy.test.ts test/notifications.test.ts test/studentJourney.test.ts test/admissions.test.ts test/mentorDirectory.test.ts test/collegeLinks.test.ts test/collegeResolve.test.ts test/studentCurriculum.test.ts test/cohortBatch.test.ts test/autoCurriculumMapping.test.ts test/studentImportCohort.test.ts test/scheduleImport.test.ts test/studyMaterials.test.ts test/prepContent.test.ts test/prepCatalog.test.ts test/prepCompanies.test.ts test/prepPapers.test.ts test/prepPaperFiles.test.ts test/employeeAccessCore.test.ts test/prepFrequentQuestions.test.ts test/rulesModelStaffAttendance.test.ts test/staffAttendanceWrites.test.ts test/paperSchedulingCheck.test.ts test/submissionDriveLink.test.ts test/schemePacks.test.ts test/accessProducts.test.ts test/curriculumFlow.test.ts test/autoSchedule.test.ts test/officeStaff.test.ts test/resumeBuilder.test.ts test/accountManagement.test.ts test/codeRunnerCore.test.ts test/collegeModules.test.ts test/obe.test.ts test/calendar.test.ts test/dailySummary.test.ts test/cors.test.ts",
+    "test:rules": "firebase emulators:exec --project demo-vriddhi-student-portal --config ../firebase.json --only firestore,storage \"node --import tsx --test test/firestore.rules.test.ts\"",
+    "test:rules:course-security": "firebase emulators:exec --project demo-vriddhi-student-portal --config ../firebase.json --only firestore,storage \"node --import tsx --test --test-name-pattern='course assignments and course progress|connect with mentors|academic calendar|vriddhi platform employees|scheme packs' test/firestore.rules.test.ts\"",
     "test": "npm run test:unit && npm run test:rules"
   },
   "dependencies": {
@@ -34,7 +34,7 @@
     "openai": "^4.104.0",
     "pdfjs-dist": "^6.3.289",
     "puppeteer": "^25.3.0",
-    "vruddi-attendance": "file:..",
+    "vriddhi-attendance": "file:..",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -42,13 +42,15 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.7.4",
-    "@types/puppeteer": "^5.4.7",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
     "firebase-tools": "^15.28.2",
     "tsx": "^4.19.2",
     "typescript": "^5.3.0"
+  },
+  "overrides": {
+    "proxy-addr": "^2.0.8"
   },
   "private": true
 }

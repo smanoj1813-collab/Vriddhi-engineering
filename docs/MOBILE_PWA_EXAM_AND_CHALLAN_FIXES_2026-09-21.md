@@ -226,7 +226,7 @@ The challan fix is **rules**, so it needs a rules deploy before students see any
 challans:
 
 ```bash
-npm run deploy:rules     # firestore:rules + storage, project vriddhi-academic
+npm run deploy:rules     # firestore:rules + storage, project vriddhi-engineering
 npm run deploy:hosting   # the PWA build
 ```
 

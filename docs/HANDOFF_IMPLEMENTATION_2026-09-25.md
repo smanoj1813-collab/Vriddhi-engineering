@@ -429,7 +429,7 @@ git checkout main
 git pull origin main
 npm ci
 npm ci --prefix functions
-firebase deploy --only functions --project vriddhi-academic
+firebase deploy --only functions --project vriddhi-engineering
 ```
 
 Only functions changed — no rules, no indexes, no hosting.
@@ -477,7 +477,7 @@ by removing work, not by moving it.
 2. **Deploy order matters for 4.4.** The `pdf` function is new, so it must exist before
    the web app points at it:
    ```powershell
-   firebase deploy --only functions,pdf --project vriddhi-academic   # or --only functions
+   firebase deploy --only functions,pdf --project vriddhi-engineering   # or --only functions
    ```
    `--only functions` deploys every function in the codebase including `pdf`. Confirm the
    `pdf` function's URL appears, then deploy hosting. If the URL is not live, the client

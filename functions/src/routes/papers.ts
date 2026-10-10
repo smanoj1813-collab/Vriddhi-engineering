@@ -422,7 +422,7 @@ async function hydratePaperQuestions(paper: any): Promise<NormalisedPaperQuestio
     }))
 }
 
-async function buildPaperHTML(paper: any, collegeName: string, user: any): Promise<string> {
+async function buildPaperHTML(paper: any, collegeName: string, _user: any): Promise<string> {
   const rawSections: any[] = Array.isArray(paper.sections) ? paper.sections : []
   let sections = rawSections.map((s: any) => ({
     ...s,

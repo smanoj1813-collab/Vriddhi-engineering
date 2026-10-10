@@ -167,6 +167,21 @@ test('engineering permissions are additive and obey deny-by-default', () => {
   assert.equal(roleHasPermission('admin', 'engineering.schemePacks'), true)
   assert.equal(roleHasPermission('hod', 'engineering.schemePacks'), true)
   assert.equal(roleHasPermission('principal', 'engineering.schemePacks'), false)
+  // OBE authoring: HOD/admin run the desk, the principal oversees read-only.
+  assert.equal(roleHasPermission('hod', 'obe.manage'), true)
+  assert.equal(roleHasPermission('admin', 'obe.manage'), true)
+  assert.equal(roleHasPermission('employee', 'obe.manage'), true)
+  assert.equal(roleHasPermission('principal', 'obe.manage'), false)
+  assert.equal(roleHasPermission('faculty', 'obe.manage'), false)
+  // The /admin/obe lane (list, editor, runs) opens for attainment viewers…
+  for (const p of ['/admin/obe', '/admin/obe/new', '/admin/obe/CS301_2025']) {
+    assert.equal(canAccessAdminPath('hod', p), true, p)
+    assert.equal(canAccessAdminPath('admin', p), true, p)
+    assert.equal(canAccessAdminPath('principal', p), true, p)
+    assert.equal(canAccessAdminPath('employee', p), true, p)
+    assert.equal(canAccessAdminPath('accounts', p), false, p)
+    assert.equal(canAccessAdminPath('student', p), false, p)
+  }
   // Unknown permissions and missing roles are never granted.
   assert.equal(roleHasPermission('admin', 'not.a.real.permission'), false)
   assert.equal(roleHasPermission(null, 'universityExam.manage'), false)

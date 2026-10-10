@@ -3,7 +3,7 @@
 // Library management — catalogue, copies (accession register), circulation,
 // reservations, fines, gate register and stock verification.
 //
-// Collections (all under colleges/{collegeId}/, see current-firestore.rules):
+// Collections (all under colleges/{collegeId}/, see firestore.rules):
 //   libraryTitles        one row per bibliographic title (+ running copy counts)
 //   libraryCopies        one row per physical volume, keyed by accession number
 //   libraryLoans         issue / return ledger (borrowers read their own)

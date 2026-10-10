@@ -34,7 +34,7 @@ import {
   type AiTier,
 } from '../config/aiModels'
 
-/** Cache entries live here; server-only (see current-firestore.rules). */
+/** Cache entries live here; server-only (see firestore.rules). */
 export const AI_CONTENT_CACHE_COLLECTION = 'aiContentCache'
 /** Hit/miss counters, folded into `platform/stats` by refreshPlatformStats. */
 export const AI_CACHE_STATS_DOC_PATH = 'platform/aiCacheStats'

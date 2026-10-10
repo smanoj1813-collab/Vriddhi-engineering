@@ -30,7 +30,7 @@
  *   node scripts/backfill-department.mjs --collection classSessions --apply
  *
  * FLAGS
- *   --project <id>            Firebase project id (default: vriddhi-academic)
+ *   --project <id>            Firebase project id (default: vriddhi-engineering)
  *   --service-account <path>  service-account JSON (else ADC / env var)
  *   --collection <name>       limit to one collection (repeatable)
  *   --apply                   write the tags (default: read-only dry run)
@@ -102,7 +102,7 @@ function valueFlag(args, key, example) {
 
 const args = parseArgs(process.argv.slice(2))
 const SERVICE_ACCOUNT = valueFlag(args, 'service-account', '"C:\\path\\to\\vriddhi-serviceAccount.json"')
-const PROJECT = valueFlag(args, 'project', 'vriddhi-academic') || process.env.GCLOUD_PROJECT || 'vriddhi-academic'
+const PROJECT = valueFlag(args, 'project', 'vriddhi-engineering') || process.env.GCLOUD_PROJECT || 'vriddhi-engineering'
 const APPLY = Boolean(args.apply)
 
 const ALL_COLLECTIONS = ['classSessions', 'weeklySchedules', 'papers', 'questions', 'attendanceRecords']

@@ -29,7 +29,7 @@
  *
  * FLAGS
  *   --email <addr>            REQUIRED. The account to restore.
- *   --project <id>            Firebase project id (default: vriddhi-academic)
+ *   --project <id>            Firebase project id (default: vriddhi-engineering)
  *   --service-account <path>  service-account JSON (else ADC / env var)
  *   --apply                   write the repair (default: read-only dry run)
  *   --prune-admin-doc         also delete admins/{uid}, when that document was
@@ -104,7 +104,7 @@ function valueFlag(key, example) {
 }
 
 const SERVICE_ACCOUNT = valueFlag('service-account', '"C:\\path\\to\\vriddhi-serviceAccount.json"')
-const PROJECT = valueFlag('project', 'vriddhi-academic') || process.env.GCLOUD_PROJECT || 'vriddhi-academic'
+const PROJECT = valueFlag('project', 'vriddhi-engineering') || process.env.GCLOUD_PROJECT || 'vriddhi-engineering'
 const EMAIL = String(args.email || '').trim().toLowerCase()
 const APPLY = Boolean(args.apply)
 const PRUNE_ADMIN_DOC = Boolean(args['prune-admin-doc'])

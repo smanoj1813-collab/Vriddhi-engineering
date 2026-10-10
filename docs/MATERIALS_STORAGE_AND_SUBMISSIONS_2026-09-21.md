@@ -110,7 +110,7 @@ without Java cannot run this suite.)
 ## Cost-visibility (do once, 5 minutes in the console)
 
 Google Cloud Console → **Billing** → **Budgets & alerts** → create a budget
-on the vriddhi-academic project with alerts at **₹500** and **₹2,000**
+on the vriddhi-engineering project with alerts at **₹500** and **₹2,000**
 per month. The realistic steady-state cost at current scale is a few hundred
 rupees (Storage bytes + egress); the AI usage in paper parsing is the only
 line that can move fast, and `ai_usage` telemetry already tracks it.

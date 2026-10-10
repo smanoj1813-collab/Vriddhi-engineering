@@ -6,7 +6,7 @@
 //
 // IMPORTANT: this is a UX/authorisation *hint*, not a security boundary.
 // Firestore rules and Cloud Functions remain the only trusted enforcement
-// points (current-firestore.rules mirrors this matrix: isFinance / isOps and
+// points (firestore.rules mirrors this matrix: isFinance / isOps and
 // the payroll accounts/approver role checks). Use it to gate routes and controls.
 //
 // Office roles
@@ -67,7 +67,11 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   'universityExam.view': ['admin', 'hod', 'principal'],
 
   // ── Engineering evaluation (B.E. / B.Tech) ───────────────────────────
+  // obe.attainment views mappings, runs and SAR tables; obe.manage authors
+  // drafts, publishes and computes runs. The principal oversees (read-only);
+  // HOD/admin run the department's accreditation desk.
   'obe.attainment': ['hod', 'principal', 'admin', 'employee'],
+  'obe.manage': ['hod', 'admin', 'employee'],
   'engineering.schemePacks': ['admin', 'hod'],
 
   // ── Finance (accounts team) ───────────────────────────────────
@@ -204,6 +208,10 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/bcu-compliance', permission: 'universityExam.manage' },
   { path: '/admin/result-importer', permission: 'universityExam.manage' },
   { path: '/admin/scheme-packs', permission: 'engineering.schemePacks' },
+  // OBE attainment — prefix-matches /admin/obe, /admin/obe/new, /admin/obe/:id.
+  // Page-level: viewing needs obe.attainment; the editor gates its Save /
+  // Publish / Compute controls behind obe.manage (principal reads only).
+  { path: '/admin/obe', permission: 'obe.attainment' },
   // Insights — Assignment Analytics is out of the HOD sidebar, so deep links
   // bounce the department too (principal + superadmin keep it).
   { path: '/admin/assignment-analytics', permission: 'analytics.assignments' },

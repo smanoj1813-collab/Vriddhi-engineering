@@ -132,6 +132,10 @@ const RETIRED_FACULTY_PATHS: readonly string[] = [
   'paper-generator',
   'papers',
   'auto-grading',
+  // 2026-10-10: faculty Question Bank removed from the portal (Universal Bank
+  // stays). Plug back = delete this entry and re-add the nav line in
+  // Layout.tsx (facultyNav, Assessments group).
+  'question-bank',
 ];
 
 const retiredFacultyRoutes: RouteObject[] = RETIRED_FACULTY_PATHS.map((path) => ({

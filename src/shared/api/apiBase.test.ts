@@ -20,7 +20,7 @@ import {
   pdfUrl,
 } from './apiBase'
 
-const PROD_HOST = 'https://asia-south1-vriddhi-academic.cloudfunctions.net'
+const PROD_HOST = 'https://asia-south1-vriddhi-engineering.cloudfunctions.net'
 
 describe('normalizeApiBaseUrl', () => {
   it('keeps a value that already ends in /api (.env.production, .env.example)', () => {

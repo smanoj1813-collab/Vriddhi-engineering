@@ -92,7 +92,7 @@ cd "C:\Projects\Vriddhi"
 git checkout arena/01a08f0d-vriddhi
 git pull
 npm run build
-firebase deploy --only hosting --project vriddhi-academic
+firebase deploy --only hosting --project vriddhi-engineering
 ```
 
 Verify in browser console after starting an import:
