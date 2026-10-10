@@ -5,6 +5,7 @@ import { onRequest } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 
 // ─── Load .env BEFORE anything else ───
 import * as dotenv from 'dotenv'
@@ -151,6 +152,16 @@ import {
 } from './admissions'
 
 const app = express()
+
+// Security headers for a cross-origin JSON API: keep HSTS / frameguard /
+// nosniff, but leave resource-sharing to the CORS config below — the hosting
+// app and preview environments call this function cross-origin, so helmet's
+// same-origin CORP default would block legitimate frontend reads.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}))
 
 // API is protected by Firebase auth tokens, so reflect the caller's origin
 // rather than hard-coding a host list. This keeps the Firebase Hosting app,
