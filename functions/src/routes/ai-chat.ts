@@ -1248,7 +1248,7 @@ router.put('/study-material/controls', verifyAuth, async (req: AuthenticatedRequ
     updatedAt: new Date().toISOString(),
     updatedBy: user.uid,
   }
-  const parseLimit = (value: unknown, name: string): number | null => {
+  const parseLimit = (value: unknown, _name: string): number | null => {
     const n = Number(value)
     if (!Number.isInteger(n) || n < 0 || n > 100000) return null
     return n
@@ -1580,7 +1580,7 @@ Guidelines:
   }
 })
 
-function generateGroundedFallbackResponse(role: string, query: string, contextSummary: string): string {
+function generateGroundedFallbackResponse(role: string, query: string, _contextSummary: string): string {
   const q = query.toLowerCase()
 
   if (q.includes('attendance') || q.includes('defaulter') || q.includes('shortage')) {

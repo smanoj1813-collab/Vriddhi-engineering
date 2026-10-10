@@ -73,6 +73,10 @@ jobs:
         working-directory: functions
         run: npm run build
 
+      - name: Functions lint (zero-warning ratchet)
+        working-directory: functions
+        run: npm run lint
+
       - name: Functions unit tests
         working-directory: functions
         run: npm run test:unit

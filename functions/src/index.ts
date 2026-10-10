@@ -213,7 +213,7 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found', path: req.path })
 })
 
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Global error:', err)
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
