@@ -142,7 +142,7 @@ export default function FacultyUploadMaterial() {
   // base64 everything, which silently broke every upload over ~700 KB.
   const BASE64_FALLBACK_MAX_BYTES = 300 * 1024
 
-  const uploadFileToStorage = async (file: File): Promise<string> => {
+  const uploadFileToStorage = async (file: File): Promise<{ url: string; storagePath: string | null }> => {
     const limit = MATERIAL_SIZE_LIMITS[uploadType]
     if (limit > 0 && file.size > limit) {
       throw new Error(`"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit for ${uploadType} materials is ${Math.round(limit / 1024 / 1024)} MB.`)
@@ -155,13 +155,13 @@ export default function FacultyUploadMaterial() {
       const storagePath = `colleges/${collegeId}/materials/${Date.now()}_${sanitizedName}`
       const storageRef = ref(storage, storagePath)
       await uploadBytes(storageRef, file, { contentType: file.type })
-      return await getDownloadURL(storageRef)
+      return { url: await getDownloadURL(storageRef), storagePath }
     } catch (storageErr) {
       if (file.size <= BASE64_FALLBACK_MAX_BYTES) {
         console.warn('[FacultyUploadMaterial] Cloud Storage upload failed, storing small file as base64 data URL:', storageErr)
         return new Promise((resolve) => {
           const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
+          reader.onloadend = () => resolve({ url: reader.result as string, storagePath: null })
           reader.readAsDataURL(file)
         })
       }
@@ -189,10 +189,13 @@ export default function FacultyUploadMaterial() {
 
     try {
       let finalUrl = uploadUrl.trim()
+      let storagePath: string | undefined
       let fileSizeStr: string | undefined
 
       if (selectedFile) {
-        finalUrl = await uploadFileToStorage(selectedFile)
+        const uploaded = await uploadFileToStorage(selectedFile)
+        finalUrl = uploaded.url
+        storagePath = uploaded.storagePath ?? undefined
         fileSizeStr = `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
       }
 
@@ -204,6 +207,7 @@ export default function FacultyUploadMaterial() {
         title: uploadTitle.trim(),
         type: uploadType,
         url: finalUrl,
+        ...(storagePath ? { storagePath } : {}),
         subject: subjectName,
         courseId: selectedCourse?.courseId || '',
         courseCode: courseCode,
