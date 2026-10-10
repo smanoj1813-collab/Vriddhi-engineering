@@ -57,6 +57,8 @@ const ExamManagement = lazy(() => import('./pages/ExamManagement'));
 const UUCMSIntegration = lazy(() => import('./pages/UUCMSIntegration'));
 const BCUComplianceDashboard = lazy(() => import('./pages/BCUComplianceDashboard'));
 const SchemePacks = lazy(() => import('./pages/SchemePacks'));
+const ObeMappings = lazy(() => import('./pages/ObeMappings'));
+const ObeMappingEditor = lazy(() => import('./pages/ObeMappingEditor'));
 const AcademicCalendar = lazy(() => import('./pages/AcademicCalendar'));
 const GuestFacultyBilling = lazy(() => import('./pages/GuestFacultyBilling'));
 const FacultyPayroll = lazy(() => import('./pages/FacultyPayroll'));
@@ -214,6 +216,11 @@ export const adminRoutes: RouteObject[] = [
       { path: 'uucms-integration', element: <LazyPage><UUCMSIntegration /></LazyPage> },
       { path: 'bcu-compliance', element: <LazyPage><BCUComplianceDashboard /></LazyPage> },
       { path: 'scheme-packs', element: <LazyPage><SchemePacks /></LazyPage> },
+      // OBE attainment — access via ADMIN_ROUTE_PERMISSIONS ('obe.attainment');
+      // the editor gates authoring controls behind 'obe.manage' in-page.
+      { path: 'obe', element: <LazyPage><ObeMappings /></LazyPage> },
+      { path: 'obe/new', element: <LazyPage><ObeMappingEditor /></LazyPage> },
+      { path: 'obe/:id', element: <LazyPage><ObeMappingEditor /></LazyPage> },
       { path: 'academic-calendar', element: <LazyPage><AcademicCalendar /></LazyPage> },
       { path: 'guest-faculty-billing', element: <LazyPage><GuestFacultyBilling /></LazyPage> },
       { path: 'payroll', element: <LazyPage><FacultyPayroll /></LazyPage> },

@@ -115,7 +115,7 @@ import { bulkImportWeeklySchedules } from './scheduleImport'
 // ─── University scheme packs: custom packs + college assignment (G1) ───
 import { saveSchemePack, assignCollegeSchemePack } from './schemePacks'
 // ─── OBE attainment: mapping authorship + trusted compute (Slice 2) ───
-import { saveObeMapping, publishObeMapping, computeObeAttainment } from './obe'
+import { saveObeMapping, publishObeMapping, archiveObeMapping, computeObeAttainment } from './obe'
 // ─── Auto slot scheduler: day×period grid placement + coverage (G4) ───
 import { autoGenerateWeeklySchedule } from './autoSchedule'
 // ─── Academic calendar: holidays, fests, exam windows (Auto-Scheduler v2) ────
@@ -344,6 +344,7 @@ export {
   assignCollegeSchemePack,
   saveObeMapping,
   publishObeMapping,
+  archiveObeMapping,
   computeObeAttainment,
   autoGenerateWeeklySchedule,
   saveCalendarEvent,

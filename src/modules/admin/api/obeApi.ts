@@ -95,6 +95,16 @@ export interface ComputeObeAttainmentPayload {
   surveys?: { co: string; score: number; maxScore: number }[];
 }
 
+/** Retires a draft (published evidence is never archived). */
+export async function archiveObeMapping(mappingId: string): Promise<{ id: string; status: string }> {
+  const callable = httpsCallable<Record<string, unknown>, { id: string; status: string }>(
+    functions,
+    'archiveObeMapping',
+  );
+  const result = await callable({ mappingId });
+  return result.data;
+}
+
 /** Runs the trusted 80/20 compute and stores an immutable run. */
 export async function computeObeAttainment(payload: ComputeObeAttainmentPayload): Promise<{
   runId: string;

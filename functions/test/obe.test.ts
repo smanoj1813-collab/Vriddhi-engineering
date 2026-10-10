@@ -96,6 +96,52 @@ describe('obe mapping validation', () => {
     assert.equal(obeMappingDocId('c1', 'CS301', '2025-26', 'Odd'), 'C1_CS301_2025-26_ODD')
     assert.equal(obeMappingDocId('c1', 'CS 301', '2025-26', ''), 'C1_CS-301_2025-26_TERM')
   })
+
+  it('partial mode saves half-filled drafts but still polices filled rows', () => {
+    const draft = validateObeMappingDoc(
+      { framework: 'NBA-GAPC-v4.0', courseCode: 'CS301', academicYear: '2025-26' },
+      { allowPartial: true },
+    )
+    assert.equal(draft.courseCode, 'CS301')
+    assert.deepEqual(draft.cos, [])
+    const half = validateObeMappingDoc(
+      {
+        framework: 'NBA-GAPC-v4.0',
+        courseCode: 'CS301',
+        academicYear: '2025-26',
+        cos: [{ code: 'CO1', statement: 'Apply sorting.' }],
+      },
+      { allowPartial: true },
+    )
+    assert.deepEqual(half.mapping, {})
+    // …but a filled row with a bad correlation is rejected even in drafts.
+    assert.throws(
+      () =>
+        validateObeMappingDoc(
+          {
+            framework: 'NBA-GAPC-v4.0',
+            courseCode: 'CS301',
+            academicYear: '2025-26',
+            cos: [{ code: 'CO1', statement: 'Apply sorting.' }],
+            mapping: { CO1: { PO1: 9 } },
+          },
+          { allowPartial: true },
+        ),
+      /correlation must be 1, 2 or 3/,
+    )
+    // …and strict mode still demands completeness.
+    assert.throws(
+      () =>
+        validateObeMappingDoc({
+          framework: 'NBA-GAPC-v4.0',
+          courseCode: 'CS301',
+          academicYear: '2025-26',
+          cos: [{ code: 'CO1', statement: 'Apply sorting.' }],
+          mapping: {},
+        }),
+      /has no PO\/PSO mapping/,
+    )
+  })
 })
 
 describe('obe score validation', () => {

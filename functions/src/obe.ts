@@ -99,8 +99,15 @@ function normalizeOutcomeCode(raw: string): string {
   return code
 }
 
-/** Server-side twin of the Slice 1 mapping checks, plus payload bounds. */
-export function validateObeMappingDoc(raw: unknown): ObeValidatedMapping {
+/** Server-side twin of the Slice 1 mapping checks, plus payload bounds.
+ *
+ * Partial mode (`allowPartial`) is for DRAFT saves: course identity and any
+ * rows the author has filled so far must be structurally valid, but COs may
+ * be missing and mapping rows may be absent. Completeness is enforced at
+ * publish time — half-filled drafts can be saved but never become evidence.
+ */
+export function validateObeMappingDoc(raw: unknown, opts?: { allowPartial?: boolean }): ObeValidatedMapping {
+  const allowPartial = opts?.allowPartial === true
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new HttpsError('invalid-argument', 'mapping must be an object')
   }
@@ -114,15 +121,16 @@ export function validateObeMappingDoc(raw: unknown): ObeValidatedMapping {
     throw new HttpsError('invalid-argument', 'courseCode must be 2–20 letters/digits/dashes')
   }
   const rawCos = doc.cos
-  if (!Array.isArray(rawCos) || rawCos.length === 0) {
+  if (!allowPartial && (!Array.isArray(rawCos) || rawCos.length === 0)) {
     throw new HttpsError('invalid-argument', 'At least one course outcome is required')
   }
-  if (rawCos.length > MAX_COS) {
+  const coEntries: unknown[] = Array.isArray(rawCos) ? rawCos : []
+  if (coEntries.length > MAX_COS) {
     throw new HttpsError('invalid-argument', `At most ${MAX_COS} course outcomes are supported`)
   }
   const cos: ObeValidatedCo[] = []
   const seen = new Set<string>()
-  for (const entry of rawCos) {
+  for (const entry of coEntries) {
     const co = (entry ?? {}) as Record<string, unknown>
     const code = boundedString(co.code, 'cos[].code', 10).toUpperCase().replace(/\s+/g, '')
     if (!CO_CODE.test(code)) throw new HttpsError('invalid-argument', `CO code "${code}" must look like CO1`)
@@ -137,17 +145,25 @@ export function validateObeMappingDoc(raw: unknown): ObeValidatedMapping {
   }
 
   const rawMapping = doc.mapping
-  if (!rawMapping || typeof rawMapping !== 'object' || Array.isArray(rawMapping)) {
+  if (!allowPartial && (!rawMapping || typeof rawMapping !== 'object' || Array.isArray(rawMapping))) {
     throw new HttpsError('invalid-argument', 'mapping must be an object keyed by CO code')
   }
+  const mappingInput =
+    rawMapping && typeof rawMapping === 'object' && !Array.isArray(rawMapping)
+      ? (rawMapping as Record<string, unknown>)
+      : {}
   const mapping: Record<string, Record<string, number>> = {}
   for (const co of cos) {
-    const row = (rawMapping as Record<string, unknown>)[co.code]
+    const row = mappingInput[co.code]
     if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      if (allowPartial) continue
       throw new HttpsError('invalid-argument', `${co.code} has no PO/PSO mapping`)
     }
     const entries = Object.entries(row as Record<string, unknown>)
-    if (entries.length === 0) throw new HttpsError('invalid-argument', `${co.code} has no PO/PSO mapping`)
+    if (entries.length === 0) {
+      if (allowPartial) continue
+      throw new HttpsError('invalid-argument', `${co.code} has no PO/PSO mapping`)
+    }
     if (entries.length > MAX_OUTCOMES_PER_CO) {
       throw new HttpsError('invalid-argument', `${co.code} maps to too many outcomes (max ${MAX_OUTCOMES_PER_CO})`)
     }
@@ -409,7 +425,7 @@ export const saveObeMapping = onCall(REGION, async (request) => {
       : staff.collegeId
   if (!collegeId) throw new HttpsError('invalid-argument', 'No college is associated with this account')
 
-  const mapping = validateObeMappingDoc(raw.mapping ?? raw)
+  const mapping = validateObeMappingDoc(raw.mapping ?? raw, { allowPartial: true })
   const db = obeDb()
   const docId = obeMappingDocId(collegeId, mapping.courseCode, mapping.academicYear, mapping.term)
   const ref = db.collection('obeMappings').doc(docId)
@@ -483,6 +499,30 @@ export const publishObeMapping = onCall(REGION, async (request) => {
   return { id: mappingId, status: 'published' }
 })
 
+export const archiveObeMapping = onCall(REGION, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
+  const staff = await resolveSessionWriter(uid, request.auth?.token || {})
+  const mappingId = String((request.data || {}).mappingId ?? '').trim()
+  if (!mappingId) throw new HttpsError('invalid-argument', 'mappingId is required')
+
+  const db = obeDb()
+  const ref = db.collection('obeMappings').doc(mappingId)
+  const snap = await ref.get()
+  if (!snap.exists) throw new HttpsError('not-found', 'Mapping not found')
+  const data = snap.data() || {}
+  if (staff.role !== 'superadmin' && String(data.collegeId ?? '') !== staff.collegeId) {
+    throw new HttpsError('permission-denied', 'This mapping belongs to another college')
+  }
+  if (data.status === 'published') {
+    throw new HttpsError('failed-precondition', 'Published mappings are evidence and cannot be archived')
+  }
+  if (data.status === 'archived') return { id: mappingId, status: 'archived' }
+  const now = admin.firestore.FieldValue.serverTimestamp()
+  await ref.set({ status: 'archived', updatedAt: now, updatedBy: staff.name || uid }, { merge: true })
+  return { id: mappingId, status: 'archived' }
+})
+
 export const computeObeAttainment = onCall(REGION, async (request) => {
   const uid = request.auth?.uid
   if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
@@ -537,7 +577,13 @@ export const computeObeAttainment = onCall(REGION, async (request) => {
     collegeId,
     mappingId,
     ...(label ? { label } : {}),
-    mappingSnapshot: { cos: mapping.cos, mapping: mapping.mapping, rules },
+    mappingSnapshot: {
+      cos: mapping.cos,
+      mapping: mapping.mapping,
+      rules,
+      targets: mapping.targets,
+      coTargets: mapping.coTargets,
+    },
     studentCount: scores.length,
     tools,
     coResults,

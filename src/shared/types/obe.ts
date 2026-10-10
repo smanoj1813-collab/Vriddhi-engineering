@@ -260,6 +260,8 @@ export interface ObeRunDoc {
     cos: ObeCourseOutcome[];
     mapping: ObeMappingMatrix;
     rules: ObeRulesSnapshot;
+    targets?: Record<string, number>;
+    coTargets?: Record<string, number>;
   };
   studentCount: number;
   tools: string[];
