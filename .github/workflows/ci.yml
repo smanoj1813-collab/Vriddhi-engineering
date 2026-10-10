@@ -40,6 +40,10 @@ jobs:
       - name: Build the frontend
         run: npm run build
 
+      - name: Dependency audit (non-blocking report)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
   # Job 2: build the Cloud Functions backend (Express + TypeScript)
   functions:
     name: Functions build (Node 22)
@@ -84,6 +88,11 @@ jobs:
       - name: Course and related Firestore rules tests
         working-directory: functions
         run: npm run test:rules:course-security
+
+      - name: Dependency audit (non-blocking report)
+        working-directory: functions
+        run: npm audit --audit-level=high
+        continue-on-error: true
 
   # Job 3: scheme-pack evaluation rules (shared by non-tech and engineering).
   #
