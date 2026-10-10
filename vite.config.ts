@@ -219,7 +219,6 @@ export default defineConfig(({ mode }) => {
               'firebase/app',
               'firebase/auth',
               'firebase/firestore',
-              'firebase/database',
               'firebase/storage',
             ],
             'charts': ['recharts'],

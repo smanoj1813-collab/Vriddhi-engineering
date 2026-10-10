@@ -123,7 +123,7 @@ Vriddhi/
 ├── scripts/                    # Seed / migration / fixture scripts + the unit & render test harnesses
 ├── firebase.json               # Firebase Hosting, Firestore, RTDB, Functions config
 ├── current-firestore.rules     # Firestore security rules
-├── database.rules.json         # Realtime Database security rules
+├── storage.rules                # Cloud Storage security rules
 ├── vite.config.ts              # Vite config, @/ alias, manual chunking
 ├── tailwind.config.js          # Tailwind configuration
 └── package.json                # Frontend dependencies & scripts
@@ -166,7 +166,6 @@ with your Firebase web app configuration:
 # Firebase web config (from Firebase Console → Project settings → Your apps)
 VITE_FIREBASE_API_KEY=your_api_key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.asia-south1.firebasedatabase.app
 VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
@@ -233,14 +232,16 @@ and the full suite runs nightly).
 ## Firebase setup
 
 1. Enable **Authentication → Email/Password** sign-in.
-2. Enable **Firestore** and **Realtime Database**.
+2. Enable **Firestore**.
 3. Deploy the security rules:
 
    ```bash
-   firebase deploy --only firestore:rules,database:rules
+   firebase deploy --only firestore:rules
    ```
 
-   Rules files: `current-firestore.rules` (Firestore) and `database.rules.json` (Realtime DB).
+   Rules file: `current-firestore.rules`. (Realtime Database was retired in
+   2026-10 — no code read or wrote it; delete the instance in the Firebase
+   console if it still exists.)
 
 4. Run emulators locally:
 

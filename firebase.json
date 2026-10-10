@@ -93,9 +93,6 @@
       }
     ]
   },
-  "database": {
-    "rules": "database.rules.json"
-  },
   "firestore": {
     "rules": "current-firestore.rules",
     "indexes": "firestore.indexes.json"

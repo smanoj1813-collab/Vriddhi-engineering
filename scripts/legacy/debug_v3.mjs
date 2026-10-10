@@ -171,7 +171,6 @@ log('SECTION 2: FIREBASE CONFIG');
 const firebaseFiles = [
   { path: 'src/firebase.json', label: 'firebase.json' },
   { path: 'src/firestore.indexes.json', label: 'firestore.indexes.json' },
-  { path: 'src/database.rules.json', label: 'database.rules.json' },
   { path: 'src/cors.json', label: 'cors.json' },
   { path: 'src/.firebaserc', label: '.firebaserc' },
 ];
