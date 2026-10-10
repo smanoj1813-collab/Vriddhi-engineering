@@ -22,6 +22,7 @@
 import cors from 'cors'
 import express, { type Request, type Response, type NextFunction } from 'express'
 import helmet from 'helmet'
+import { apiCorsOptions } from '../middleware/cors'
 import { onRequest } from 'firebase-functions/v2/https'
 import { logger } from 'firebase-functions'
 
@@ -53,15 +54,8 @@ pdfApp.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }))
 
-pdfApp.use(
-  cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-College-Id'],
-  }),
-)
-pdfApp.options('*', cors())
+pdfApp.use(cors(apiCorsOptions()))
+pdfApp.options('*', cors(apiCorsOptions()))
 pdfApp.use(express.json({ limit: '2mb' }))
 pdfApp.use(generalLimiter)
 

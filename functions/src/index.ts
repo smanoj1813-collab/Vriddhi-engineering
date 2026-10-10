@@ -6,6 +6,7 @@ import * as logger from 'firebase-functions/logger'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import { apiCorsOptions } from './middleware/cors'
 
 // ─── Load .env BEFORE anything else ───
 import * as dotenv from 'dotenv'
@@ -163,17 +164,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }))
 
-// API is protected by Firebase auth tokens, so reflect the caller's origin
-// rather than hard-coding a host list. This keeps the Firebase Hosting app,
-// local development and preview environments all working.
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-College-Id'],
-}))
+// CORS allow-list (middleware/cors): prod hosting origins, preview channels
+// and localhost. Auth is Bearer-token based, but reflecting any origin with
+// credentials is unnecessary exposure — the preflight handler uses the same
+// options so a denied origin fails closed on OPTIONS too.
+app.use(cors(apiCorsOptions()))
 
-app.options('*', cors())
+app.options('*', cors(apiCorsOptions()))
 app.use(express.json({ limit: '10mb' }))
 app.use(generalLimiter)
 
