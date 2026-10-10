@@ -13,6 +13,8 @@ import {
   computeIndirectFromSurveys,
   computeObeCourseAttainment,
   defaultObeRules,
+  extractCoCodesFromOutcomeTexts,
+  foldObeTestImport,
   obeMappingDocId,
   validateObeMappingDoc,
   validateObeScores,
@@ -210,5 +212,109 @@ describe('obe server compute (parity with Slice 1)', () => {
       directWeight: 0.8,
       indirectWeight: 0.2,
     })
+  })
+})
+
+describe('obe mapping credits', () => {
+  it('accepts credits 0–10 and defaults to 0 (unknown → equal weight)', () => {
+    assert.equal(validateObeMappingDoc(validMapping()).credits, 0)
+    assert.equal(validateObeMappingDoc({ ...validMapping(), credits: 4 }).credits, 4)
+    assert.equal(validateObeMappingDoc({ ...validMapping(), credits: 2.5 }).credits, 2.5)
+  })
+
+  it('rejects out-of-range credits', () => {
+    for (const credits of [0, -1, 11, 'abc']) {
+      assert.throws(() => validateObeMappingDoc({ ...validMapping(), credits }), /credits/)
+    }
+  })
+})
+
+describe('obe test wire-in', () => {
+  it('extracts CO codes from bank outcome free text', () => {
+    assert.deepEqual(
+      extractCoCodesFromOutcomeTexts([
+        'CO1',
+        'co2: apply trees to searching',
+        'Course Outcome 3 maps here',
+        'nothing tagged',
+        'CO1 & CO04 both apply',
+        42,
+        null,
+      ]),
+      ['CO1', 'CO2', 'CO3', 'CO4'],
+    )
+    assert.deepEqual(extractCoCodesFromOutcomeTexts('CO1'), [])
+    assert.deepEqual(extractCoCodesFromOutcomeTexts([]), [])
+  })
+
+  it('folds graded attempts into per-student CO scores (latest wins, multi-CO splits)', () => {
+    const fold = foldObeTestImport({
+      mappingCos: ['CO1', 'CO2'],
+      tests: [{ testId: 'T1', title: 'CIE-1' }],
+      questions: [
+        { testId: 'T1', questionId: 'Q1', maxMarks: 10, outcomeTexts: ['CO1: apply sorting'] },
+        { testId: 'T1', questionId: 'Q2', maxMarks: 10, outcomeTexts: ['CO1', 'CO2'] },
+        { testId: 'T1', questionId: 'Q3', maxMarks: 5, outcomeTexts: [] },
+        { testId: 'T1', questionId: 'Q4', maxMarks: 10, outcomeTexts: ['CO9'] },
+      ],
+      attempts: [
+        {
+          testId: 'T1',
+          studentId: 'S1',
+          submittedAtMs: 100,
+          breakdown: [
+            { questionId: 'Q1', marksObtained: 8 },
+            { questionId: 'Q2', marksObtained: 6 },
+            { questionId: 'Q3', marksObtained: 5 },
+            { questionId: 'Q4', marksObtained: 9 },
+          ],
+        },
+        {
+          testId: 'T1',
+          studentId: 'S1',
+          submittedAtMs: 50,
+          breakdown: [{ questionId: 'Q1', marksObtained: 1 }],
+        },
+        {
+          testId: 'T1',
+          studentId: 'S2',
+          submittedAtMs: 120,
+          breakdown: [
+            { questionId: 'Q1', marksObtained: null },
+            { questionId: 'Q2', marksObtained: 4 },
+          ],
+        },
+      ],
+    })
+    // S1: Q1 8/10 + half of Q2 (3/5) on CO1; other half of Q2 on CO2.
+    // S2: Q1 ungraded (skipped, never zero-filled); half of Q2 on each CO.
+    assert.deepEqual(fold.studentScores, [
+      { studentId: 'S1', coScores: { CO1: { obtained: 11, max: 15 }, CO2: { obtained: 3, max: 5 } } },
+      { studentId: 'S2', coScores: { CO1: { obtained: 2, max: 5 }, CO2: { obtained: 2, max: 5 } } },
+    ])
+    assert.deepEqual(fold.tools, ['CIE-1 (2 students)'])
+    assert.deepEqual(fold.tests, [
+      { testId: 'T1', title: 'CIE-1', questions: 4, taggedQuestions: 2, attempts: 3, attemptsUsed: 2 },
+    ])
+    assert.deepEqual(fold.skipped, [
+      { testId: 'T1', questionId: 'Q3', reason: 'untagged' },
+      { testId: 'T1', questionId: 'Q4', reason: 'unknown-co' },
+    ])
+    assert.equal(fold.skippedTruncated, false)
+    assert.equal(fold.students, 2)
+  })
+
+  it('clamps over-awarded marks and drops students with nothing usable', () => {
+    const fold = foldObeTestImport({
+      mappingCos: ['CO1'],
+      tests: [{ testId: 'T1', title: 'Quiz' }],
+      questions: [{ testId: 'T1', questionId: 'Q1', maxMarks: 10, outcomeTexts: ['CO1'] }],
+      attempts: [
+        { testId: 'T1', studentId: 'S1', submittedAtMs: 1, breakdown: [{ questionId: 'Q1', marksObtained: 99 }] },
+        { testId: 'T1', studentId: 'S2', submittedAtMs: 2, breakdown: [{ questionId: 'Q1', marksObtained: null }] },
+      ],
+    })
+    assert.deepEqual(fold.studentScores, [{ studentId: 'S1', coScores: { CO1: { obtained: 10, max: 10 } } }])
+    assert.equal(fold.students, 1)
   })
 })

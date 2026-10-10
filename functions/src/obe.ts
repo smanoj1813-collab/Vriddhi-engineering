@@ -67,6 +67,8 @@ export interface ObeValidatedMapping {
   branch: string
   facultyId: string
   framework: string
+  /** Course credits for credit-weighted program roll-up (0 = unknown → equal weight). */
+  credits: number
   cos: ObeValidatedCo[]
   mapping: Record<string, Record<string, number>>
   targets: Record<string, number>
@@ -194,11 +196,21 @@ export function validateObeMappingDoc(raw: unknown, opts?: { allowPartial?: bool
     return out
   }
 
+  let credits = 0
+  if (doc.credits != null && String(doc.credits).trim() !== '') {
+    credits = Number(doc.credits)
+    if (!Number.isFinite(credits) || credits <= 0 || credits > 10) {
+      throw new HttpsError('invalid-argument', 'credits must be a number between 0 and 10')
+    }
+    credits = round2(credits)
+  }
+
   return {
     courseCode,
     courseTitle: boundedString(doc.courseTitle, 'courseTitle', 160, false),
     academicYear: boundedString(doc.academicYear, 'academicYear', 16),
     term: boundedString(doc.term, 'term', 40, false),
+    credits,
     programId: boundedString(doc.programId, 'programId', 60, false),
     branch: boundedString(doc.branch, 'branch', 100, false),
     facultyId: boundedString(doc.facultyId, 'facultyId', 120, false),
@@ -366,6 +378,206 @@ export function computeObeCourseAttainment(args: {
     outcomes[outcome] = total.weight > 0 ? round2(total.weighted / total.weight) : 0
   }
   return { coResults, outcomes }
+}
+
+// ─── Assessment wire-in (Slice 4): graded tests → per-student CO scores ──────
+// Frozen test questions carry no CO tags, so tags are resolved from the bank
+// `questions.learningOutcomes` free-text lines at import time. Everything below
+// is pure (unit tested); the callable only fetches the inputs college-scoped.
+
+export interface ObeImportTest {
+  testId: string
+  title: string
+}
+
+export interface ObeImportQuestion {
+  testId: string
+  questionId: string
+  maxMarks: number
+  /** Bank `learningOutcomes` lines (may be empty for paper-embedded questions). */
+  outcomeTexts: string[]
+}
+
+export interface ObeImportBreakdownItem {
+  questionId: string
+  marksObtained: number | null
+  maxMarks?: number
+}
+
+export interface ObeImportAttempt {
+  testId: string
+  studentId: string
+  /** Higher wins when a student has several attempts on one test. */
+  submittedAtMs: number
+  breakdown: ObeImportBreakdownItem[]
+}
+
+export interface ObeImportSkipped {
+  testId: string
+  questionId: string
+  reason: 'untagged' | 'unknown-co' | 'no-max' | 'no-graded-marks'
+}
+
+export interface ObeImportTestSummary {
+  testId: string
+  title: string
+  questions: number
+  taggedQuestions: number
+  attempts: number
+  attemptsUsed: number
+}
+
+export interface ObeImportFold {
+  studentScores: ObeScoreRow[]
+  /** Tool labels in run format (`<title> (N students)`), parallel to `tools`. */
+  tools: string[]
+  tests: ObeImportTestSummary[]
+  skipped: ObeImportSkipped[]
+  skippedTruncated: boolean
+  students: number
+}
+
+const OBE_IMPORT_CO_PATTERN = /(?:\bCO|\bCourse\s+Outcomes?)\s*0*(\d{1,2})\b/gi
+const MAX_IMPORT_SKIPPED = 100
+
+/** Pulls CO codes out of bank `learningOutcomes` free-text lines. */
+export function extractCoCodesFromOutcomeTexts(entries: unknown): string[] {
+  if (!Array.isArray(entries)) return []
+  const found = new Set<string>()
+  for (const entry of entries) {
+    if (typeof entry !== 'string') continue
+    OBE_IMPORT_CO_PATTERN.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = OBE_IMPORT_CO_PATTERN.exec(entry)) !== null) {
+      const num = Number(match[1])
+      if (num >= 1 && num <= 30) found.add(`CO${num}`)
+    }
+  }
+  return [...found].sort((a, b) => Number(a.slice(2)) - Number(b.slice(2)))
+}
+
+/**
+ * Folds graded attempts into per-student CO scores. Semantics mirror the
+ * Slice 1 engine: multi-CO questions split marks equally, obtained is clamped
+ * to max, ungraded items are skipped (never zero-filled).
+ */
+export function foldObeTestImport(args: {
+  mappingCos: string[]
+  tests: ObeImportTest[]
+  questions: ObeImportQuestion[]
+  attempts: ObeImportAttempt[]
+}): ObeImportFold {
+  const coSet = new Set((args.mappingCos ?? []).map((c) => String(c ?? '').trim().toUpperCase()).filter(Boolean))
+
+  const questionCos = new Map<string, string[]>()
+  const questionMax = new Map<string, number>()
+  const skipped: ObeImportSkipped[] = []
+  let skippedTruncated = false
+  const pushSkipped = (entry: ObeImportSkipped) => {
+    if (skipped.length >= MAX_IMPORT_SKIPPED) {
+      skippedTruncated = true
+      return
+    }
+    skipped.push(entry)
+  }
+  const taggedPerTest = new Map<string, number>()
+  const questionsPerTest = new Map<string, number>()
+  for (const q of args.questions) {
+    const key = `${q.testId}::${q.questionId}`
+    questionsPerTest.set(q.testId, (questionsPerTest.get(q.testId) ?? 0) + 1)
+    const max = Number(q.maxMarks)
+    if (!Number.isFinite(max) || max <= 0) {
+      pushSkipped({ testId: q.testId, questionId: q.questionId, reason: 'no-max' })
+      continue
+    }
+    const tags = extractCoCodesFromOutcomeTexts(q.outcomeTexts).filter((c) => coSet.has(c))
+    if (tags.length === 0) {
+      const anyTags = extractCoCodesFromOutcomeTexts(q.outcomeTexts)
+      pushSkipped({ testId: q.testId, questionId: q.questionId, reason: anyTags.length > 0 ? 'unknown-co' : 'untagged' })
+      continue
+    }
+    questionCos.set(key, tags)
+    questionMax.set(key, max)
+    taggedPerTest.set(q.testId, (taggedPerTest.get(q.testId) ?? 0) + 1)
+  }
+
+  // Latest attempt wins per student × test.
+  const latest = new Map<string, ObeImportAttempt>()
+  const attemptsPerTest = new Map<string, number>()
+  for (const attempt of args.attempts) {
+    if (!attempt.studentId) continue
+    attemptsPerTest.set(attempt.testId, (attemptsPerTest.get(attempt.testId) ?? 0) + 1)
+    const key = `${attempt.testId}::${attempt.studentId}`
+    const prev = latest.get(key)
+    if (!prev || attempt.submittedAtMs >= prev.submittedAtMs) latest.set(key, attempt)
+  }
+
+  const perStudent = new Map<string, Map<string, { obtained: number; max: number }>>()
+  const usedPerTest = new Map<string, number>()
+  const studentsPerTest = new Map<string, Set<string>>()
+  for (const attempt of latest.values()) {
+    let used = false
+    for (const item of attempt.breakdown ?? []) {
+      const key = `${attempt.testId}::${item.questionId}`
+      const tags = questionCos.get(key)
+      if (!tags) continue
+      const obtained = Number(item.marksObtained)
+      if (item.marksObtained == null || !Number.isFinite(obtained)) continue
+      const itemMax = Number(item.maxMarks)
+      const max = Number.isFinite(itemMax) && itemMax > 0 ? itemMax : (questionMax.get(key) ?? 0)
+      if (max <= 0) continue
+      const clamped = Math.min(Math.max(0, obtained), max)
+      const share = max / tags.length
+      const obtainedShare = clamped / tags.length
+      let row = perStudent.get(attempt.studentId)
+      if (!row) {
+        row = new Map()
+        perStudent.set(attempt.studentId, row)
+      }
+      for (const co of tags) {
+        const prev = row.get(co) ?? { obtained: 0, max: 0 }
+        row.set(co, { obtained: prev.obtained + obtainedShare, max: prev.max + share })
+      }
+      used = true
+    }
+    if (used) {
+      usedPerTest.set(attempt.testId, (usedPerTest.get(attempt.testId) ?? 0) + 1)
+      let set = studentsPerTest.get(attempt.testId)
+      if (!set) {
+        set = new Set()
+        studentsPerTest.set(attempt.testId, set)
+      }
+      set.add(attempt.studentId)
+    }
+  }
+
+  const studentScores: ObeScoreRow[] = [...perStudent.entries()]
+    .map(([studentId, cos]) => {
+      const coScores: ObeScoreRow['coScores'] = {}
+      for (const [co, totals] of cos.entries()) {
+        if (totals.max <= 0) continue
+        coScores[co] = { obtained: round2(Math.min(totals.obtained, totals.max)), max: round2(totals.max) }
+      }
+      return { studentId, coScores }
+    })
+    .filter((row) => Object.keys(row.coScores).length > 0)
+    .sort((a, b) => a.studentId.localeCompare(b.studentId))
+
+  return {
+    studentScores,
+    tools: args.tests.map((t) => `${t.title} (${studentsPerTest.get(t.testId)?.size ?? 0} students)`),
+    tests: args.tests.map((t) => ({
+      testId: t.testId,
+      title: t.title,
+      questions: questionsPerTest.get(t.testId) ?? 0,
+      taggedQuestions: taggedPerTest.get(t.testId) ?? 0,
+      attempts: attemptsPerTest.get(t.testId) ?? 0,
+      attemptsUsed: usedPerTest.get(t.testId) ?? 0,
+    })),
+    skipped,
+    skippedTruncated,
+    students: studentScores.length,
+  }
 }
 
 /** Deterministic doc id: one mapping per college × course × year × term. */
@@ -593,4 +805,118 @@ export const computeObeAttainment = onCall(REGION, async (request) => {
     createdBy: staff.name || uid,
   })
   return { runId: runRef.id, studentCount: scores.length, coResults, outcomes, gaps }
+})
+
+// ─── Slice 4: preview per-student CO scores folded from graded tests ─────────
+// Read-only: resolves CO tags from the bank, folds latest attempts per student
+// and returns scores the caller can feed straight into computeObeAttainment.
+// Nothing is written — the preview is evidence-free until a run is computed.
+
+const MAX_IMPORT_TESTS = 20
+const MAX_IMPORT_ATTEMPTS_PER_TEST = 2000
+
+export const previewObeScoresFromTests = onCall(REGION, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
+  const staff = await resolveSessionWriter(uid, request.auth?.token || {})
+  const raw = (request.data || {}) as Record<string, unknown>
+  const mappingId = String(raw.mappingId ?? '').trim()
+  if (!mappingId) throw new HttpsError('invalid-argument', 'mappingId is required')
+  const testIds = [...new Set((Array.isArray(raw.testIds) ? raw.testIds : []).map((t) => String(t ?? '').trim()).filter(Boolean))]
+  if (testIds.length === 0) throw new HttpsError('invalid-argument', 'At least one testId is required')
+  if (testIds.length > MAX_IMPORT_TESTS) {
+    throw new HttpsError('invalid-argument', `At most ${MAX_IMPORT_TESTS} tests per import`)
+  }
+
+  const db = obeDb()
+  const mappingSnap = await db.collection('obeMappings').doc(mappingId).get()
+  if (!mappingSnap.exists) throw new HttpsError('not-found', 'Mapping not found')
+  const mappingData = mappingSnap.data() || {}
+  const collegeId = String(mappingData.collegeId ?? '')
+  if (staff.role !== 'superadmin' && collegeId !== staff.collegeId) {
+    throw new HttpsError('permission-denied', 'This mapping belongs to another college')
+  }
+  if (mappingData.status === 'archived') {
+    throw new HttpsError('failed-precondition', 'Archived mappings cannot import scores')
+  }
+  const mapping = validateObeMappingDoc(mappingData)
+  const coCodes = mapping.cos.map((c) => c.code)
+
+  const testSnaps = await db.getAll(...testIds.map((id) => db.collection('scheduledTests').doc(id)))
+  const tests: ObeImportTest[] = []
+  for (let i = 0; i < testSnaps.length; i++) {
+    const snap = testSnaps[i]
+    if (!snap.exists) throw new HttpsError('not-found', `Test ${testIds[i]} not found`)
+    const data = snap.data() || {}
+    if (String(data.collegeId ?? '') !== collegeId) {
+      throw new HttpsError('permission-denied', `Test ${testIds[i]} belongs to another college`)
+    }
+    tests.push({ testId: snap.id, title: String(data.title ?? data.subjectName ?? snap.id).slice(0, 120) || snap.id })
+  }
+
+  const questions: ObeImportQuestion[] = []
+  const bankIds = new Set<string>()
+  for (const test of tests) {
+    const frozen = await db.collection('scheduledTests').doc(test.testId).collection('assessmentQuestions').get()
+    for (const doc of frozen.docs) {
+      const data = doc.data() || {}
+      const questionId = String(data.questionId ?? data.id ?? doc.id)
+      questions.push({ testId: test.testId, questionId, maxMarks: Number(data.marks), outcomeTexts: [] })
+      bankIds.add(questionId)
+    }
+  }
+
+  const outcomeTextsById = new Map<string, string[]>()
+  const bankIdList = [...bankIds]
+  for (let i = 0; i < bankIdList.length; i += 100) {
+    const chunk = bankIdList.slice(i, i + 100)
+    const bankSnaps = await db.getAll(...chunk.map((id) => db.collection('questions').doc(id)))
+    for (const snap of bankSnaps) {
+      if (!snap.exists) continue
+      const data = snap.data() || {}
+      if (String(data.collegeId ?? '') !== collegeId) continue
+      const outcomes = Array.isArray(data.learningOutcomes) ? data.learningOutcomes.filter((o: unknown) => typeof o === 'string') : []
+      outcomeTextsById.set(snap.id, outcomes as string[])
+    }
+  }
+  for (const q of questions) {
+    q.outcomeTexts = outcomeTextsById.get(q.questionId) ?? []
+  }
+
+  const attempts: ObeImportAttempt[] = []
+  let attemptsTruncated = false
+  for (const test of tests) {
+    const attemptSnaps = await db
+      .collection('studentAssessments')
+      .where('testId', '==', test.testId)
+      .where('status', 'in', ['completed', 'graded'])
+      .limit(MAX_IMPORT_ATTEMPTS_PER_TEST + 1)
+      .get()
+    if (attemptSnaps.size > MAX_IMPORT_ATTEMPTS_PER_TEST) attemptsTruncated = true
+    for (const doc of attemptSnaps.docs.slice(0, MAX_IMPORT_ATTEMPTS_PER_TEST)) {
+      const data = doc.data() || {}
+      if (String(data.collegeId ?? '') !== collegeId) continue
+      const studentId = String(data.studentId ?? '').trim()
+      if (!studentId) continue
+      const breakdown = Array.isArray(data.gradingBreakdown) ? data.gradingBreakdown : []
+      const submittedAtMs =
+        Number(data.submittedAtMs) ||
+        Number(data.submittedAt?.toMillis?.()) ||
+        Number(data.updatedAt?.toMillis?.()) ||
+        0
+      attempts.push({
+        testId: test.testId,
+        studentId,
+        submittedAtMs,
+        breakdown: breakdown.map((item: Record<string, unknown>) => ({
+          questionId: String(item?.questionId ?? item?.id ?? ''),
+          marksObtained: item?.marksObtained == null ? null : Number(item.marksObtained),
+          ...(item?.maxMarks == null ? {} : { maxMarks: Number(item.maxMarks) }),
+        })),
+      })
+    }
+  }
+
+  const fold = foldObeTestImport({ mappingCos: coCodes, tests, questions, attempts })
+  return { ...fold, attemptsTruncated }
 })

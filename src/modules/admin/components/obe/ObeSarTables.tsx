@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { CheckCircle2, MinusCircle, XCircle } from 'lucide-react';
-import type { ObeRunDoc } from '@/shared/types/obe';
+import type { ObeRunDoc, ObeSarCoRow, ObeSarOutcomeRow } from '@/shared/types/obe';
 import { GAPC_V4_PROGRAM_OUTCOMES } from '@/shared/types/obe';
 import { buildSarCoTable, buildSarOutcomeTable } from '@/shared/utils/obeAttainment';
 
@@ -53,7 +53,8 @@ const HEAD_CELL = 'px-3 py-2 text-left font-semibold text-slate-600 dark:text-sl
 const BODY_CELL = 'px-3 py-2 text-slate-700 dark:text-slate-200';
 const ROW_BORDER = 'border-t border-slate-200 dark:border-slate-700';
 
-export function ObeSarTables({ run }: { run: ObeRunDoc }) {
+/** Shapes one run into the two SAR tables (shared by the UI, CSV and print). */
+export function buildRunSarRows(run: ObeRunDoc): { coRows: ObeSarCoRow[]; outcomeRows: ObeSarOutcomeRow[] } {
   const direct: Record<string, number> = {};
   const indirect: Record<string, number> = {};
   const combined: Record<string, number> = {};
@@ -78,6 +79,11 @@ export function ObeSarTables({ run }: { run: ObeRunDoc }) {
     attainment,
     targets: run.mappingSnapshot.targets,
   });
+  return { coRows, outcomeRows };
+}
+
+export function ObeSarTables({ run }: { run: ObeRunDoc }) {
+  const { coRows, outcomeRows } = buildRunSarRows(run);
 
   return (
     <div className="space-y-6">

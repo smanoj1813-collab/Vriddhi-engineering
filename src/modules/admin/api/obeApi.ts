@@ -61,6 +61,7 @@ export interface SaveObeMappingPayload {
   programId?: string;
   branch?: string;
   facultyId?: string;
+  credits?: number;
   cos: ObeCourseOutcome[];
   mapping: ObeMappingMatrix;
   targets?: Record<string, number>;
@@ -125,4 +126,71 @@ export async function computeObeAttainment(payload: ComputeObeAttainmentPayload)
   >(functions, 'computeObeAttainment');
   const result = await callable({ ...(payload as unknown as Record<string, unknown>) });
   return result.data;
+}
+
+/** One graded test folded into a run preview (mirrors the server fold). */
+export interface ObeTestImportPreview {
+  studentScores: { studentId: string; coScores: Record<string, { obtained: number; max: number }> }[];
+  tools: string[];
+  tests: {
+    testId: string;
+    title: string;
+    questions: number;
+    taggedQuestions: number;
+    attempts: number;
+    attemptsUsed: number;
+  }[];
+  skipped: { testId: string; questionId: string; reason: string }[];
+  skippedTruncated: boolean;
+  students: number;
+  attemptsTruncated: boolean;
+}
+
+/**
+ * Folds graded attempts from the given tests into per-student CO scores.
+ * Read-only preview — feed `studentScores` + `tools` into computeObeAttainment
+ * to mint the run. CO tags resolve from bank `learningOutcomes` lines.
+ */
+export async function previewObeScoresFromTests(
+  mappingId: string,
+  testIds: string[],
+): Promise<ObeTestImportPreview> {
+  const callable = httpsCallable<{ mappingId: string; testIds: string[] }, ObeTestImportPreview>(
+    functions,
+    'previewObeScoresFromTests',
+  );
+  const result = await callable({ mappingId, testIds });
+  return result.data;
+}
+
+/** A scheduled test that can feed an attainment run (course match is client-side). */
+export interface ObeCandidateTest {
+  id: string;
+  title: string;
+  subject: string;
+  subjectName: string;
+  program: string;
+  branch: string;
+  createdAtMs: number;
+}
+
+/** All scheduled tests of the college, newest first (no composite index needed). */
+export async function fetchObeCandidateTests(collegeId?: string): Promise<ObeCandidateTest[]> {
+  const cid = collegeId || currentCollegeId();
+  const snap = await getDocs(query(collection(db, 'scheduledTests'), where('collegeId', '==', cid)));
+  const tests = snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const createdAt = data.createdAt as { toMillis?: () => number } | undefined;
+    return {
+      id: d.id,
+      title: String(data.title ?? ''),
+      subject: String(data.subject ?? ''),
+      subjectName: String(data.subjectName ?? ''),
+      program: String(data.program ?? ''),
+      branch: String(data.branch ?? ''),
+      createdAtMs: typeof createdAt?.toMillis === 'function' ? createdAt.toMillis() : 0,
+    };
+  });
+  tests.sort((a, b) => b.createdAtMs - a.createdAtMs);
+  return tests;
 }

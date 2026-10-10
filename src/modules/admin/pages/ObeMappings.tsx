@@ -35,15 +35,24 @@ export default function ObeMappings() {
             Course outcomes → PO/PSO mappings and computed attainment (NBA GAPC v4.0, 80/20 direct + indirect).
           </p>
         </div>
-        {canManage && (
+        <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => navigate('/admin/obe/new')}
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+            onClick={() => navigate('/admin/obe/program')}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            <Plus size={16} /> New mapping
+            Program roll-up →
           </button>
-        )}
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => navigate('/admin/obe/new')}
+              className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-700"
+            >
+              <Plus size={16} /> New mapping
+            </button>
+          )}
+        </div>
       </div>
 
       {mappingsQuery.isLoading && (

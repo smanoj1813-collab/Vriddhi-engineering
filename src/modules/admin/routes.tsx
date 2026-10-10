@@ -59,6 +59,7 @@ const BCUComplianceDashboard = lazy(() => import('./pages/BCUComplianceDashboard
 const SchemePacks = lazy(() => import('./pages/SchemePacks'));
 const ObeMappings = lazy(() => import('./pages/ObeMappings'));
 const ObeMappingEditor = lazy(() => import('./pages/ObeMappingEditor'));
+const ObeProgramView = lazy(() => import('./pages/ObeProgramView'));
 const AcademicCalendar = lazy(() => import('./pages/AcademicCalendar'));
 const GuestFacultyBilling = lazy(() => import('./pages/GuestFacultyBilling'));
 const FacultyPayroll = lazy(() => import('./pages/FacultyPayroll'));
@@ -220,6 +221,7 @@ export const adminRoutes: RouteObject[] = [
       // the editor gates authoring controls behind 'obe.manage' in-page.
       { path: 'obe', element: <LazyPage><ObeMappings /></LazyPage> },
       { path: 'obe/new', element: <LazyPage><ObeMappingEditor /></LazyPage> },
+      { path: 'obe/program', element: <LazyPage><ObeProgramView /></LazyPage> },
       { path: 'obe/:id', element: <LazyPage><ObeMappingEditor /></LazyPage> },
       { path: 'academic-calendar', element: <LazyPage><AcademicCalendar /></LazyPage> },
       { path: 'guest-faculty-billing', element: <LazyPage><GuestFacultyBilling /></LazyPage> },

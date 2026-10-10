@@ -53,6 +53,7 @@ interface Draft {
   programId: string;
   branch: string;
   facultyId: string;
+  credits: string;
   psos: string;
   cos: ObeCourseOutcome[];
   mapping: ObeMappingMatrix;
@@ -69,6 +70,7 @@ function blankDraft(): Draft {
     programId: '',
     branch: '',
     facultyId: '',
+    credits: '',
     psos: DEFAULT_PSOS,
     cos: [],
     mapping: {},
@@ -91,6 +93,7 @@ function fromDoc(doc: ObeMappingDoc): Draft {
     programId: doc.programId ?? '',
     branch: doc.branch ?? '',
     facultyId: doc.facultyId ?? '',
+    credits: doc.credits != null ? String(doc.credits) : '',
     psos: storedPsos.length ? storedPsos.join(', ') : DEFAULT_PSOS,
     cos: (doc.cos ?? []).map((co) => ({ ...co })),
     mapping: JSON.parse(JSON.stringify(doc.mapping ?? {})) as ObeMappingMatrix,
@@ -118,6 +121,7 @@ function toPayload(draft: Draft): SaveObeMappingPayload {
     programId: draft.programId.trim(),
     branch: draft.branch.trim(),
     facultyId: draft.facultyId.trim(),
+    ...(draft.credits.trim() ? { credits: Number(draft.credits) } : {}),
     cos: draft.cos.map((co) => ({
       code: co.code.trim().toUpperCase(),
       statement: co.statement.trim(),
@@ -417,6 +421,10 @@ export default function ObeMappingEditor() {
           <label className="block">
             <span className={LABEL}>Faculty</span>
             <input value={draft.facultyId} disabled={!canEdit} onChange={(e) => set({ facultyId: e.target.value })} placeholder="Course teacher" className={FIELD} />
+          </label>
+          <label className="block">
+            <span className={LABEL}>Credits</span>
+            <input type="number" min={0} max={10} step={0.5} value={draft.credits} disabled={!canEdit} onChange={(e) => set({ credits: e.target.value })} placeholder="e.g. 4" className={FIELD} />
           </label>
         </div>
       </section>

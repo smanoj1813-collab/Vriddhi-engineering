@@ -5,7 +5,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { foldScoresToStudents, parseObeScoresCsv, parseObeSurveysCsv } from './obeCsv';
+import { buildSarResultsCsv, foldScoresToStudents, parseObeScoresCsv, parseObeSurveysCsv } from './obeCsv';
 
 const COS = ['CO1', 'CO2'];
 
@@ -79,5 +79,54 @@ describe('obeCsv — surveys', () => {
     const parsed = parseObeSurveysCsv('co,score,maxScore\nCO9,4,5\nCO1,9,5', COS);
     assert.equal(parsed.surveys.length, 0);
     assert.equal(parsed.errors.length, 2);
+  });
+});
+
+describe('obeCsv — SAR results export', () => {
+  it('builds the two-table evidence CSV the reviewer sees on screen', () => {
+    const csv = buildSarResultsCsv({
+      courseCode: 'CS301',
+      label: 'CIE+SEE run',
+      students: 60,
+      tools: ['CIE-1 (60 students)', 'SEE (58 students)'],
+      coRows: [
+        { co: 'CO1', statement: 'Apply sorting.', direct: 3, indirect: 2.4, combined: 2.88, target: 2, status: 'attained' },
+        { co: 'CO2', direct: 1, indirect: null, combined: 0.8, status: 'no-target' },
+      ],
+      outcomeRows: [
+        { outcome: 'PO1', title: 'Engineering Knowledge', attainment: 2.48, target: 2, gap: 0.48, status: 'attained' },
+      ],
+    });
+    assert.equal(
+      csv,
+      [
+        'course,run,students,tools',
+        'CS301,CIE+SEE run,60,CIE-1 (60 students) + SEE (58 students)',
+        '',
+        'CO attainment',
+        'co,statement,direct,indirect,combined,target,status',
+        'CO1,Apply sorting.,3,2.4,2.88,2,attained',
+        'CO2,,1,,0.8,,no-target',
+        '',
+        'PO/PSO attainment',
+        'outcome,title,attainment,target,gap,status',
+        'PO1,Engineering Knowledge,2.48,2,0.48,attained',
+      ].join('\n') + '\n',
+    );
+  });
+
+  it('escapes commas and quotes per Excel', () => {
+    const csv = buildSarResultsCsv({
+      courseCode: 'CS301',
+      label: 'CIE+SEE, final',
+      students: 1,
+      tools: [],
+      coRows: [
+        { co: 'CO1', statement: 'Apply "sorting", fast.', direct: 3, indirect: null, combined: 2.4, status: 'no-target' },
+      ],
+      outcomeRows: [],
+    });
+    assert.ok(csv.includes('"CIE+SEE, final"'));
+    assert.ok(csv.includes('"Apply ""sorting"", fast."'));
   });
 });

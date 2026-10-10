@@ -227,6 +227,8 @@ export interface ObeMappingDoc {
   academicYear: string;
   term?: string;
   facultyId?: string;
+  /** Course credits for credit-weighted program roll-up (missing/0 = equal weight). */
+  credits?: number;
   framework: ObeFramework;
   cos: ObeCourseOutcome[];
   mapping: ObeMappingMatrix;

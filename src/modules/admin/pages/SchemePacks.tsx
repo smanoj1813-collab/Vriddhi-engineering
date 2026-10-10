@@ -26,6 +26,7 @@ import {
   type ListedSchemePack,
 } from '../api/schemePackApi';
 import { useAuth } from '@/modules/auth/context/AuthContext';
+import { gapcV40AttainmentRules } from '@/shared/utils/obeAttainment';
 import { DEFAULT_SCHEME_PACK, ENGINEERING_SCHEME_PACKS, SCHEME_PACK_PRESETS } from '@/shared/types/schemePack';
 import type {
   AttendanceMarksSlab,
@@ -636,11 +637,26 @@ export default function SchemePacks() {
                   />
                 </Grid>
                 <Grid size={{ xs: 12 }}>
+                  <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      NBA / OBE attainment rules (JSON object)
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setEditor({
+                        ...editor,
+                        attainmentJson: JSON.stringify(gapcV40AttainmentRules(), null, 2),
+                      })}
+                    >
+                      Apply NBA GAPC v4.0 defaults
+                    </Button>
+                  </Stack>
                   <TextField
                     fullWidth multiline minRows={4} size="small" label="NBA / OBE attainment rules (JSON object)"
                     value={editor.attainmentJson}
                     onChange={(event) => setEditor({ ...editor, attainmentJson: event.target.value })}
-                    helperText="Configure CO thresholds/levels, direct and indirect weights, and permitted CO→PO correlations."
+                    helperText="80/20 direct+indirect blend, 60% CO threshold, 3/2/1 levels at 70/60/50% of students — edit after stamping if the university differs."
                   />
                 </Grid>
               </Grid>

@@ -144,6 +144,45 @@ export function parseObeSurveysCsv(text: string, coCodes: string[]): ObeCsvSurve
   return { surveys, errors };
 }
 
+/** Escapes one CSV cell (commas, quotes and newlines, per Excel). */
+function escapeCell(value: string | number | null | undefined): string {
+  if (value == null) return '';
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * Builds the SAR evidence CSV for one computed run — the same two tables the
+ * reviewer sees on screen (CO attainment, PO/PSO attainment), so the Excel
+ * cross-check colleges keep on file always matches the UI.
+ */
+export function buildSarResultsCsv(args: {
+  courseCode: string;
+  label?: string;
+  students: number;
+  tools: string[];
+  coRows: { co: string; statement?: string; direct: number; indirect: number | null; combined: number; target?: number; status: string }[];
+  outcomeRows: { outcome: string; title?: string; attainment: number; target?: number; gap?: number; status: string }[];
+}): string {
+  const lines = [
+    ['course', 'run', 'students', 'tools'].map(escapeCell).join(','),
+    [args.courseCode, args.label || '', args.students, args.tools.join(' + ')].map(escapeCell).join(','),
+    '',
+    ['CO attainment'].map(escapeCell).join(','),
+    ['co', 'statement', 'direct', 'indirect', 'combined', 'target', 'status'].map(escapeCell).join(','),
+    ...args.coRows.map((r) =>
+      [r.co, r.statement || '', r.direct, r.indirect, r.combined, r.target, r.status].map(escapeCell).join(','),
+    ),
+    '',
+    ['PO/PSO attainment'].map(escapeCell).join(','),
+    ['outcome', 'title', 'attainment', 'target', 'gap', 'status'].map(escapeCell).join(','),
+    ...args.outcomeRows.map((r) =>
+      [r.outcome, r.title || '', r.attainment, r.target, r.gap, r.status].map(escapeCell).join(','),
+    ),
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 /** Folds long CSV rows into the per-student shape the engine consumes. */
 export function foldScoresToStudents(
   rows: ObeCsvScoresResult['rows'],

@@ -4,15 +4,17 @@
 
 import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FlaskConical, Info, Loader2, Play } from 'lucide-react';
+import { AlertTriangle, Download, FlaskConical, Info, Loader2, Play, Printer } from 'lucide-react';
 import type { ObeMappingDoc, ObeRunDoc } from '@/shared/types/obe';
 import {
+  buildSarResultsCsv,
   foldScoresToStudents,
   parseObeScoresCsv,
   parseObeSurveysCsv,
 } from '@/shared/utils/obeCsv';
 import { computeObeAttainment, fetchObeRuns } from '../../api/obeApi';
-import { ObeSarTables } from './ObeSarTables';
+import { buildRunSarRows, ObeSarTables } from './ObeSarTables';
+import { ObeTestImport, type ImportedObeScores } from './ObeTestImport';
 
 const SAMPLE_SCORES = [
   'studentId,co,obtained,max',
@@ -50,8 +52,23 @@ function NewRunDialog({
   const [tools, setTools] = useState('CIE-1, CIE-2, Assignment, SEE');
   const [scoresText, setScoresText] = useState('');
   const [surveysText, setSurveysText] = useState('');
+  const [source, setSource] = useState<'paste' | 'import'>('paste');
   const [computing, setComputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Imported scores land in the score box as CSV, so the normal validation
+  // re-verifies server-folded data before compute — nothing bypasses the gate.
+  function useImportedScores(imported: ImportedObeScores) {
+    const lines = ['studentId,co,obtained,max'];
+    for (const row of imported.scores) {
+      for (const [co, marks] of Object.entries(row.coScores)) {
+        lines.push(`${row.studentId},${co},${marks.obtained},${marks.max}`);
+      }
+    }
+    setScoresText(lines.join('\n'));
+    setTools(imported.tools.join(', '));
+    setSource('paste');
+  }
 
   const scores = useMemo(() => parseObeScoresCsv(scoresText, coCodes), [scoresText, coCodes]);
   const surveys = useMemo(() => parseObeSurveysCsv(surveysText, coCodes), [surveysText, coCodes]);
@@ -109,6 +126,40 @@ function NewRunDialog({
           </label>
         </div>
 
+        <div className="mt-4 flex gap-2" role="tablist" aria-label="Score source">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={source === 'paste'}
+            onClick={() => setSource('paste')}
+            className={`rounded-lg px-3 py-1.5 text-sm font-bold ${
+              source === 'paste'
+                ? 'bg-teal-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            Paste scores
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={source === 'import'}
+            onClick={() => setSource('import')}
+            className={`rounded-lg px-3 py-1.5 text-sm font-bold ${
+              source === 'import'
+                ? 'bg-teal-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            Import from tests
+          </button>
+        </div>
+
+        {source === 'import' ? (
+          <div className="mt-3">
+            <ObeTestImport mapping={mapping} onUseScores={useImportedScores} />
+          </div>
+        ) : (
         <div className="mt-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -137,6 +188,7 @@ function NewRunDialog({
             )}
           </p>
         </div>
+        )}
 
         <div className="mt-4">
           <div className="flex items-center justify-between">
@@ -276,14 +328,60 @@ export function ObeRunsPanel({ mapping, canCompute }: { mapping: ObeMappingDoc; 
 
       {selected && (
         <div className="mt-5">
-          <p className="mb-3 text-xs text-slate-500">
-            Run {selected.label ? `“${selected.label}” · ` : ''}computed {formatRunDate(selected.createdAt)}
-            {selected.tools.length > 0 && ` · tools: ${selected.tools.join(', ')}`} · {selected.studentCount} students ·
-            rules {selected.mappingSnapshot.rules.coThresholdPercentage}% threshold,{' '}
-            {Math.round(selected.mappingSnapshot.rules.directWeight * 100)}/
-            {Math.round(selected.mappingSnapshot.rules.indirectWeight * 100)} blend
-          </p>
-          <ObeSarTables run={selected} />
+          <div className="print-hide mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500">
+              Run {selected.label ? `“${selected.label}” · ` : ''}computed {formatRunDate(selected.createdAt)}
+              {selected.tools.length > 0 && ` · tools: ${selected.tools.join(', ')}`} · {selected.studentCount}{' '}
+              students · rules {selected.mappingSnapshot.rules.coThresholdPercentage}% threshold,{' '}
+              {Math.round(selected.mappingSnapshot.rules.directWeight * 100)}/
+              {Math.round(selected.mappingSnapshot.rules.indirectWeight * 100)} blend
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const { coRows, outcomeRows } = buildRunSarRows(selected);
+                  const csv = buildSarResultsCsv({
+                    courseCode: mapping.courseCode,
+                    label: selected.label,
+                    students: selected.studentCount,
+                    tools: selected.tools,
+                    coRows,
+                    outcomeRows,
+                  });
+                  const slug = `${mapping.courseCode}-${selected.label || selected.id}`
+                    .replace(/[^a-z0-9]+/gi, '-')
+                    .replace(/^-+|-+$/g, '');
+                  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `obe-${slug || 'run'}.csv`;
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  URL.revokeObjectURL(url);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Download size={14} /> CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Printer size={14} /> Print / PDF
+              </button>
+            </div>
+          </div>
+          <div className="print-sheet rounded-xl bg-white p-1 dark:bg-slate-900">
+            <p className="mb-2 hidden text-sm font-bold print:block">
+              {mapping.courseCode} {mapping.courseTitle ? `— ${mapping.courseTitle}` : ''} · Attainment run
+              {selected.label ? ` “${selected.label}”` : ''} · {selected.studentCount} students ·{' '}
+              {formatRunDate(selected.createdAt)}
+            </p>
+            <ObeSarTables run={selected} />
+          </div>
         </div>
       )}
 
