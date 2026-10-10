@@ -199,3 +199,73 @@ export interface ObeSarOutcomeRow {
   gap?: number;
   status: 'attained' | 'not-attained' | 'no-target';
 }
+
+// ─── Firestore documents ────────────────────────────────────────────────────
+// obeMappings: one per course offering per term (draft → published → archived).
+// obeRuns: immutable computed evidence — every run embeds the mapping + rules
+// snapshot it was computed from, so a SAR table is reproducible years later.
+// Writes go through the functions/src/obe.ts callables only; security rules
+// deny all client writes (same single-door pattern as scheme packs).
+
+export type ObeMappingStatus = 'draft' | 'published' | 'archived';
+
+/** Rules frozen at publish time so runs stay reproducible. */
+export interface ObeRulesSnapshot {
+  coThresholdPercentage: number;
+  levels: { level: number; minPercentStudents: number }[];
+  directWeight: number;
+  indirectWeight: number;
+}
+
+export interface ObeMappingDoc {
+  id: string;
+  collegeId: string;
+  programId?: string;
+  branch?: string;
+  courseCode: string;
+  courseTitle?: string;
+  academicYear: string;
+  term?: string;
+  facultyId?: string;
+  framework: ObeFramework;
+  cos: ObeCourseOutcome[];
+  mapping: ObeMappingMatrix;
+  targets?: Record<string, number>;
+  coTargets?: Record<string, number>;
+  rulesSnapshot?: ObeRulesSnapshot;
+  status: ObeMappingStatus;
+  createdAt?: unknown;
+  createdBy?: string;
+  updatedAt?: unknown;
+  updatedBy?: string;
+  publishedAt?: unknown;
+  publishedBy?: string;
+}
+
+export interface ObeRunCoResult {
+  co: string;
+  attempted: number;
+  percentAboveThreshold: number;
+  direct: number;
+  indirect: number | null;
+  combined: number;
+}
+
+export interface ObeRunDoc {
+  id: string;
+  collegeId: string;
+  mappingId: string;
+  label?: string;
+  mappingSnapshot: {
+    cos: ObeCourseOutcome[];
+    mapping: ObeMappingMatrix;
+    rules: ObeRulesSnapshot;
+  };
+  studentCount: number;
+  tools: string[];
+  coResults: ObeRunCoResult[];
+  outcomes: Record<string, number>;
+  gaps: ObeTargetGap[];
+  createdAt?: unknown;
+  createdBy?: string;
+}

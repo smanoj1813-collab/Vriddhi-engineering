@@ -1256,6 +1256,24 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // OBE attainment (Slice 2): per-course CO→PO/PSO mappings and the
+    // immutable computed runs that back SAR tables. Staff read their own
+    // college's documents (editor + SAR views stay client-side and fast);
+    // writes go through saveObeMapping / publishObeMapping /
+    // computeObeAttainment (Admin SDK), the single door that validates
+    // mapping structure and freezes rules snapshots before anything can
+    // become accreditation evidence. Runs have no update/delete path at
+    // all — a recompute writes a new run.
+    match /obeMappings/{mappingId} {
+      allow get, list: if isSignedIn() && isStaff() && sameCollege(resource.data);
+      allow create, update, delete: if false;
+    }
+
+    match /obeRuns/{runId} {
+      allow get, list: if isSignedIn() && isStaff() && sameCollege(resource.data);
+      allow create, update, delete: if false;
+    }
+
     // Academic calendar (Auto-Scheduler v2 P4): public/college holidays,
     // study holidays, fests and exam windows — the dates `generateClassSessions`
     // suppresses and the timetable screens banner as "Holiday — no classes".
