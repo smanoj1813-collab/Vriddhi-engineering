@@ -79,7 +79,6 @@ export default defineConfig(({ mode }) => {
         globPatterns: [
           'index.html',
           'manifest.webmanifest',
-          'workbox-*.js',
           'assets/index-*.js',
           'assets/index-*.css',
           'assets/react-core-*.js',
