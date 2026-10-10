@@ -153,7 +153,7 @@ export function normalizeEmail(value: unknown): string {
 export function normalizeRole(value: unknown, fallback = ''): string {
   const raw = String(value ?? '').trim().toLowerCase()
   if (!raw) return fallback
-  // Kept in sync with canonicalRole() in current-firestore.rules: the same
+  // Kept in sync with canonicalRole() in firestore.rules: the same
   // spreadsheet spelling has to mean the same thing in the importer and in the
   // rules that authorise the resulting account, or a row is accepted with one
   // role and enforced as another.
@@ -334,7 +334,7 @@ export function toPhoneE164(phone: unknown): string | undefined {
 }
 
 /** Fields that must never live on a profile document. */
-// Kept in sync with noPasswordField() in current-firestore.rules: the callables
+// Kept in sync with noPasswordField() in firestore.rules: the callables
 // delete these keys when they provision a person, and the rules refuse to write
 // them in the first place. A field stripped here but allowed there (or the
 // reverse) is how "we removed the plaintext passwords" quietly stops being true.

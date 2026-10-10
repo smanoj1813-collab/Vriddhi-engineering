@@ -221,7 +221,7 @@ function ChallanPrintSheet({ challan, onClose }: { challan: Challan; onClose: ()
  * the stamped receipt. No photo, no upload: the paper copy is handed to the
  * office, and the only thing the portal needs is the number the desk can match
  * against the bank statement. `validateChallanDeclaration` in feeApi and the
- * student `allow update` rule in current-firestore.rules describe the same
+ * student `allow update` rule in firestore.rules describe the same
  * shape — a field added here has to be admitted there.
  */
 function DeclarePaymentSheet({

@@ -7,7 +7,7 @@
 // mentors keep their existing college-wide view.
 //
 // The check is deliberately TOLERANT, matching the rules-side `deptScoped`
-// helper in current-firestore.rules:
+// helper in firestore.rules:
 //   - viewer has no department tag          → cannot scope, show everything;
 //   - document is untagged (legacy row)     → visible until backfill tags it;
 //   - document department is 'All'          → college-wide row, visible;

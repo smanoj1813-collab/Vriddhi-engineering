@@ -1,8 +1,0 @@
-=== LAYOUT.tsx PATCH ===
-
-1. Import People icon (already imported in your file)
-2. Add this nav item to the navItems array, after Import Users:
-
-  { label: 'Manage Students', path: '/superadmin/students', icon: <People />, roles: ['superadmin'] },
-
-That's it! The People icon is already imported in your Layout.tsx.

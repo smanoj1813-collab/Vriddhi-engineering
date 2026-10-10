@@ -6,7 +6,7 @@
 // permissions".
 //
 // WHY BOTH ROLE AND COLLEGE MUST BE COMPARED
-// current-firestore.rules take the role AND the collegeId tenant from the
+// firestore.rules take the role AND the collegeId tenant from the
 // ID-token custom claims only. A token can therefore be stale in two ways:
 //   * the role claim is missing or different (the classic "logged in but
 //     every page is empty" state), or
@@ -24,7 +24,7 @@
 
 /**
  * Role spellings that must mean the same thing as the canonical roles.
- * Kept in sync with normalizeRole() in current-firestore.rules and in
+ * Kept in sync with normalizeRole() in firestore.rules and in
  * functions/src/identityShared.ts: a token minted with an aliased spelling
  * must be recognised as the role it is.
  */

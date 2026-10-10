@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-// Mechanical second pass over current-firestore.rules for the EXACT
+// Mechanical second pass over firestore.rules for the EXACT
 // production request that is denied:
 //   uid      WcScoYaMndh5yXHlFbUIrJTPtqx2
 //   claims   { role: 'faculty', collegeId: 'PZIg0HN9vG2kMo4Sb0YM' }
@@ -9,7 +9,7 @@ import { describe, it } from 'node:test'
 //   payload  { collegeId: 'PZIg0HN9vG2kMo4Sb0YM', facultyId: '<uid>', ... }
 //
 // Every function below is a verbatim transcription of the rules file
-// (lines 10-140 and 658-697 of current-firestore.rules), evaluated with
+// (lines 10-140 and 658-697 of firestore.rules), evaluated with
 // that request's values. If this model says ALLOW, the rules file is not
 // the problem and the denial must come from a different request/token
 // than the one the audit shows.

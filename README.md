@@ -122,7 +122,7 @@ Vriddhi/
 │                               # Python generator that validates them
 ├── scripts/                    # Seed / migration / fixture scripts + the unit & render test harnesses
 ├── firebase.json               # Firebase Hosting, Firestore, RTDB, Functions config
-├── current-firestore.rules     # Firestore security rules
+├── firestore.rules     # Firestore security rules
 ├── storage.rules                # Cloud Storage security rules
 ├── vite.config.ts              # Vite config, @/ alias, manual chunking
 ├── tailwind.config.js          # Tailwind configuration
@@ -239,7 +239,7 @@ and the full suite runs nightly).
    firebase deploy --only firestore:rules
    ```
 
-   Rules file: `current-firestore.rules`. (Realtime Database was retired in
+   Rules file: `firestore.rules`. (Realtime Database was retired in
    2026-10 — no code read or wrote it; delete the instance in the Firebase
    console if it still exists.)
 

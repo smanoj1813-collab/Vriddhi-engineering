@@ -6,7 +6,7 @@
 //
 // IMPORTANT: this is a UX/authorisation *hint*, not a security boundary.
 // Firestore rules and Cloud Functions remain the only trusted enforcement
-// points (current-firestore.rules mirrors this matrix: isFinance / isOps and
+// points (firestore.rules mirrors this matrix: isFinance / isOps and
 // the payroll accounts/approver role checks). Use it to gate routes and controls.
 //
 // Office roles

@@ -53,7 +53,7 @@ before(async () => {
     projectId: PROJECT_ID,
     firestore: {
       ...firestore,
-      rules: readFileSync(resolve(process.cwd(), '../current-firestore.rules'), 'utf8'),
+      rules: readFileSync(resolve(process.cwd(), '../firestore.rules'), 'utf8'),
     },
     storage: {
       ...storage,
@@ -1071,7 +1071,7 @@ describe('legacy no-claim faculty reads', () => {
     // a legacy faculty profile. Identity for AUTHORIZATION is claim-only, so
     // staff-scoped reads are denied until identity repair issues claims and the
     // user signs in again. (The profile doc still lets them sign IN — it just
-    // cannot authorize a staff query. See current-firestore.rules header.)
+    // cannot authorize a staff query. See firestore.rules header.)
     return testEnv.authenticatedContext('legacy-faculty-a', {
       email: 'legacy-faculty@example.edu',
     })
@@ -1724,7 +1724,7 @@ describe('connect with mentors (faculty availability & appointments)', () => {
 
 // ── Department scoping (admin ≡ department HOD) ─────────────────────────────
 // The `department` custom claim narrows admin/hod POINT reads via deptScoped()
-// in current-firestore.rules. Deliberate tolerances pinned here:
+// in firestore.rules. Deliberate tolerances pinned here:
 //   - no claim, or an untagged document (or department 'All') ⇒ still visible
 //   - case-insensitive match between claim and document tag
 //   - `list` statements stay college-wide — current client queries are scoped

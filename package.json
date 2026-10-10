@@ -1,8 +1,11 @@
 {
-  "name": "vruddi-attendance",
+  "name": "vriddhi-attendance",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "academic:emulator": "node scripts/academic-emulator-fixture.mjs",
     "assessment:baseline": "node scripts/assessment-cost-baseline.mjs",
