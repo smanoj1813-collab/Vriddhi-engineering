@@ -40,6 +40,29 @@ jobs:
         working-directory: functions
         run: npm ci
 
+      # The log is tee'd to the repo root so the two steps below can read it
+      # regardless of which working directory the suite runs in. `shell: bash`
+      # brings pipefail, so the step still fails when the suite does.
       - name: Full Firestore rules suite
         working-directory: functions
-        run: npm run test:rules
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee ../rules-suite.log
+
+      # Job logs on this repo are large, and the reviewer sandbox + the
+      # Actions log-blob host cannot reach each other; annotations ride on the
+      # check run (readable via the API) and on the failed run page. Failing
+      # test names + the assertion text land there on every red nightly.
+      - name: Attach failure details to the check run
+        if: failure()
+        run: node scripts/github-test-annotations.cjs rules-suite.log
+
+      - name: Upload the rules suite log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rules-suite-log
+          path: rules-suite.log
+          retention-days: 14
+          if-no-files-found: ignore
