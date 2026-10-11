@@ -39,8 +39,26 @@ service cloud.firestore {
       return raw is string ? raw.trim().lower() : '';
     }
 
+    // COST MATTERS HERE. The whole file shares one 1,000-expression budget per
+    // request (see tenantWrite), and this function is reached through role()
+    // and claimedRole() by every identity helper — isStaff, isSuperadmin,
+    // isOffice, tenantWrite — several of which call it more than once per
+    // statement. Walking the alias chain below unconditionally cost ~60
+    // expressions per call, which pushed compound write rules (staffAttendance
+    // create+update, payslip review) past the budget: the request is denied
+    // with "maximum of 1000 expressions ... reached", indistinguishable from a
+    // real denial, and the rules silently stop working.
+    //
+    // Claims issued by this platform already carry a canonical spelling, so
+    // test those first and return early. Only a legacy import (a spelling like
+    // "Head of Department" or "super admin") pays for the chain. The mapping is
+    // unchanged: every canonical value also appears in the chain's result or
+    // falls through to `value` unchanged.
     function canonicalRole(value) {
-      return value == 'teacher' || value == 'teaching staff' || value == 'teaching-staff'
+      return value in ['faculty', 'student', 'hod', 'admin', 'principal', 'superadmin',
+                       'parent', 'mentor', 'employee', 'accounts', 'operations']
+        ? value
+        : value == 'teacher' || value == 'teaching staff' || value == 'teaching-staff'
         || value == 'teaching_staff' || value == 'lecturer' || value == 'professor'
         || value == 'assistant professor' || value == 'associate professor'
         || value == 'instructor' || value == 'faculty member' || value == 'faculty-member'
@@ -130,8 +148,16 @@ service cloud.firestore {
         && role() in ['superadmin', 'admin', 'principal', 'hod', 'faculty', 'mentor', 'employee'];
     }
 
+    // Same `a && (b || c)` test as `isStaff() && (isSuperadmin() || collegeId() != null)`,
+    // with the operands ordered so a claim-carrying staff member answers from
+    // the token alone. Evaluating isSuperadmin() first spent an exists() lookup
+    // (10 expressions, plus the canonicalRole walk) on every staff request to
+    // learn something the cheap collegeId claim settles immediately — and this
+    // helper sits under tenantWrite, which compound write rules call twice.
+    // The boolean result is unchanged: && and || are commutative, and both
+    // operands are total (guarded) expressions.
     function isCollegeStaff() {
-      return isStaff() && (isSuperadmin() || collegeId() != null);
+      return (collegeId() != null || isSuperadmin()) && isStaff();
     }
 
     // OPERAND ORDER IS LOAD-BEARING HERE. A list query evaluates its rule once
@@ -172,20 +198,24 @@ service cloud.firestore {
     function inCollege(cid) {
       return isSignedIn() && collegeId() == cid;
     }
+    // These four read `(cheap claim test) || isSuperadmin()`. The operands are
+    // ORed, so the result is identical either way; the order decides whether an
+    // ordinary office account pays for the exists() lookup inside isSuperadmin()
+    // on every single request. Same reasoning as isCollegeStaff/tenantWrite.
     function isFinance(cid) {
-      return isSuperadmin() || (role() in ['principal', 'accounts'] && collegeId() == cid);
+      return (role() in ['principal', 'accounts'] && collegeId() == cid) || isSuperadmin();
     }
     function isOps(cid) {
-      return isSuperadmin() || (role() in ['principal', 'operations'] && collegeId() == cid);
+      return (role() in ['principal', 'operations'] && collegeId() == cid) || isSuperadmin();
     }
     // Back office incl. department heads (raise purchase requests, see vendors).
     function isBackOffice(cid) {
-      return isSuperadmin()
-        || (role() in ['principal', 'accounts', 'operations', 'admin', 'hod'] && collegeId() == cid);
+      return (role() in ['principal', 'accounts', 'operations', 'admin', 'hod'] && collegeId() == cid)
+        || isSuperadmin();
     }
     // Field-tenanted variant for legacy top-level finance collections.
     function isFinanceData(data) {
-      return isSuperadmin() || (role() in ['principal', 'accounts'] && sameCollege(data));
+      return (role() in ['principal', 'accounts'] && sameCollege(data)) || isSuperadmin();
     }
 
     // -- Department scoping (admin ≡ department HOD) --------------------------
@@ -226,7 +256,12 @@ service cloud.firestore {
     // sameCollege(data))`; `collegePathWrite` is the same idea where the
     // /colleges/{collegeId}/... path, not a field, is the tenancy.
     function tenantWrite(data) {
-      return isSuperadmin() || (isCollegeStaff() && sameCollege(data));
+      // Claim-first, like isCollegeStaff above: for every ordinary staff member
+      // this settles without the exists() lookup behind isSuperadmin(). A
+      // superadmin still passes — `sameCollege(data)` ends in the same
+      // isSuperadmin() fallback for a document outside the claim's college, and
+      // the trailing `||` covers a superadmin with no college claim at all.
+      return (isCollegeStaff() && sameCollege(data)) || isSuperadmin();
     }
 
     function collegePathWrite(pathCollege) {
@@ -721,11 +756,15 @@ service cloud.firestore {
       // Payroll is a segregated workflow: accounts manages structures, drafts
       // and payment processing; the principal reads submitted snapshots and may
       // approve or request changes, but cannot edit or pay them.
+      // Claim-first (see isCollegeStaff): the payslip update rule below is one
+      // of the longest in the file, and it calls both of these — each one used
+      // to open with an exists() lookup that the accounts/principal claim
+      // settles on its own.
       function isPayrollAccounts(cid) {
-        return isSuperadmin() || (collegeId() == cid && role() == 'accounts');
+        return (collegeId() == cid && role() == 'accounts') || isSuperadmin();
       }
       function isPayrollApprover(cid) {
-        return isSuperadmin() || (collegeId() == cid && role() == 'principal');
+        return (collegeId() == cid && role() == 'principal') || isSuperadmin();
       }
       function isGuestBillManager(cid) {
         return isFinance(cid);
@@ -1274,6 +1313,66 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Indirect-attainment survey rounds (Slice 5). Opened by the saveObeSurvey
+    // callable — which copies the CO list from a PUBLISHED mapping — so client
+    // writes are denied outright, like every other OBE artefact.
+    //
+    // Reads are wider than the rest of OBE on purpose: the people who answer a
+    // course-exit survey are the students, and they must be able to read the
+    // CO statements they are rating. A college's rounds are therefore readable
+    // by its signed-in members, closed ones included — a round is a course's CO
+    // list, not personal data, and the ANSWERS live in their own collection
+    // with own-only rules. Deliberately no `status` condition: a list query
+    // combining two equality filters would want a composite index, and the
+    // client filters open/closed after the single-field read.
+    match /obeSurveys/{surveyId} {
+      allow get, list: if isSignedIn() && 'collegeId' in resource.data
+        && (resource.data.collegeId == collegeId() || isSuperadmin());
+      allow create, update, delete: if false;
+    }
+
+    // One document per respondent per round: {surveyId}__{uid}. The id is
+    // pinned to the caller's own uid, so a student can only ever file their own
+    // answers, and the collegeId field must match the token claim — the same
+    // shape as the courseProgress ownership rules students already use.
+    //
+    // The RATINGS are deliberately not validated here (rules cannot iterate a
+    // map): previewObeSurveyScores / computeObeAttainment re-check every value
+    // against the round's CO list and scale and drop anything off-scale before
+    // it can influence attainment evidence.
+    match /obeSurveyResponses/{responseId} {
+      function ownAnswers() {
+        return isSignedIn() && role() == 'student' && collegeId() != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.collegeId == collegeId()
+          && request.resource.data.scores is map
+          && request.resource.data.scores.size() > 0
+          && responseId == request.resource.data.surveyId + '__' + request.auth.uid;
+      }
+
+      // Answers only ever go to a round that exists and is still OPEN. The
+      // document read costs ~10 expressions, which the identity checks below
+      // are ordered ahead of so a malformed write never pays for it. This is
+      // also what stops a student filing answers against a made-up surveyId:
+      // the lookup itself errors, and an error denies.
+      function roundIsOpen() {
+        return get(/databases/$(database)/documents/obeSurveys/$(request.resource.data.surveyId))
+          .data.status == 'open';
+      }
+
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid
+        || (isStaff() && sameCollege(resource.data)));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid
+        || (isStaff() && sameCollege(resource.data)));
+      allow create: if ownAnswers() && roundIsOpen();
+      // A respondent may correct their own answers while the round is open;
+      // nobody may rewrite the row onto somebody else, and there is no delete
+      // path at all.
+      allow update: if ownAnswers() && 'uid' in resource.data
+        && resource.data.uid == request.auth.uid && roundIsOpen();
+      allow delete: if false;
+    }
+
     // Academic calendar (Auto-Scheduler v2 P4): public/college holidays,
     // study holidays, fests and exam windows — the dates `generateClassSessions`
     // suppresses and the timetable screens banner as "Holiday — no classes".
@@ -1373,6 +1472,20 @@ service cloud.firestore {
             && (resource.data.studentId == request.auth.uid
               || ownsStudentId(resource.data.studentId))));
       allow write: if false;
+    }
+
+    // Code judging (functions/src/codingJudge.ts). The job document is written
+    // by the submission transaction and consumed by a Firestore trigger; the
+    // usage ledger is the per-student budget for in-test sample runs. Neither is
+    // ever read or written by a browser — in particular the job must not be
+    // readable, because it names the attempt whose HIDDEN test cases are about
+    // to be run against it.
+    match /codingJudgeJobs/{jobId} {
+      allow read, write: if false;
+    }
+
+    match /assessmentCodeUsage/{uid} {
+      allow read, write: if false;
     }
 
     // -- Resume Builder add-on -------------------------------------------------
@@ -1828,7 +1941,16 @@ service cloud.firestore {
     // is the human gate the "AI-generated, reviewed" label promises, so a client
     // must never be able to flip the status field itself.
     match /prep_paper_answers/{answerId} {
-      allow read: if isSignedIn() && ((resource.data.status == 'published' && resource.data.rejected != true) || isSuperadmin());
+      // Rejection is a STATUS value, not a field: the server writes
+      // status 'draft' | 'published' | 'rejected' (functions/src/routes/prep.ts)
+      // and never writes a `rejected` key. Reading a key that does not exist is
+      // a RULES ERROR rather than false, so the earlier
+      // `resource.data.rejected != true` turned into "deny" for EVERY published
+      // answer and students could not open a single model answer. The status
+      // test is the real gate; the membership check keeps the author's extra
+      // guard meaningful if a legacy document ever carries the flag.
+      allow read: if isSignedIn() && ((resource.data.status == 'published'
+          && (!('rejected' in resource.data) || resource.data.rejected != true)) || isSuperadmin());
       allow write: if false;
     }
 

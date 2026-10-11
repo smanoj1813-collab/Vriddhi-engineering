@@ -110,6 +110,14 @@ export interface ComputeObeAttainmentPayload {
   tools?: string[];
   studentScores: { studentId: string; coScores: Record<string, { obtained: number; max: number }> }[];
   surveys?: { co: string; score: number; maxScore: number }[];
+  /**
+   * A stored survey round to fold server-side instead of the pasted rows.
+   * When present the server reads obeSurveys/{id} + its responses, so the run
+   * records `responseCount` / `completeCount` as the citation. `surveys` stays
+   * for the pasted-from-Excel path, which remains the fallback for audiences
+   * the portal does not collect.
+   */
+  surveyId?: string;
 }
 
 /** Retires a draft (published evidence is never archived). */

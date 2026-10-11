@@ -19,6 +19,7 @@ import {
   FlagOutlined as FlagOutlineIcon,
 } from '@mui/icons-material';
 import type { PaperQuestion, StudentAnswer } from '../types/assessment';
+import CodingAnswerEditor from './CodingAnswerEditor';
 
 interface QuestionRendererProps {
   question: PaperQuestion;
@@ -38,6 +39,12 @@ interface QuestionRendererProps {
   resultStatus?: 'correct' | 'incorrect' | 'unattempted' | 'partial';
   correctAnswer?: string;
   marksObtained?: number;
+  /**
+   * The live attempt's test id. Only the coding answer box needs it: its "run
+   * sample tests" button goes through the `runAssessmentCode` callable, which
+   * verifies the caller really is sitting this test.
+   */
+  testId?: string;
 }
 
 /**
@@ -78,6 +85,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
   resultStatus,
   correctAnswer,
   marksObtained,
+  testId,
 }) => {
   const guard = clipboardGuardProps(!showResult && lockClipboard);
 
@@ -137,6 +145,55 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
       default: return 'action.hover';
     }
   };
+
+  // Coding questions own their whole answer area: language picker, code box,
+  // the PUBLIC sample tests and the run button. Hidden test cases never appear
+  // here — `caseCount` is a number and nothing more.
+  if (question.type === 'coding') {
+    if (showResult) {
+      return (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            Coding answer
+          </Typography>
+          <Typography
+            variant="body2"
+            component="pre"
+            sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, m: 0 }}
+          >
+            {answer?.coding?.code || 'Not attempted'}
+          </Typography>
+          {marksObtained !== undefined && marksObtained !== null && (
+            <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 600 }}>
+              {marksObtained} marks
+            </Typography>
+          )}
+        </Paper>
+      );
+    }
+    return (
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <CodingAnswerEditor
+          questionId={question.id}
+          testId={testId}
+          languages={question.coding?.languages ?? []}
+          starterCode={question.coding?.starterCode}
+          sampleCases={question.coding?.sampleCases ?? []}
+          hiddenCaseCount={question.coding?.caseCount ?? 0}
+          variesByStudent={question.coding?.variesByStudent === true}
+          dryRunLimit={question.coding?.dryRunLimit ?? 0}
+          value={answer?.coding}
+          onChange={(value) =>
+            onAnswer({
+              coding: value,
+              isFlagged,
+              visitedAt: new Date().toISOString(),
+            })
+          }
+        />
+      </Paper>
+    );
+  }
 
   return (
     <Box sx={{ width: '100%' }}>

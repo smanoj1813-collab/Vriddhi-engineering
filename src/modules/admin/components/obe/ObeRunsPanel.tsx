@@ -12,7 +12,9 @@ import {
   parseObeScoresCsv,
   parseObeSurveysCsv,
 } from '@/shared/utils/obeCsv';
+import { OBE_SURVEY_AUDIENCES, type ObeSurveyDoc } from '@/shared/types/obeSurvey';
 import { computeObeAttainment, fetchObeRuns } from '../../api/obeApi';
+import { fetchObeSurveyAggregate, fetchObeSurveysForMapping } from '../../api/obeSurveyApi';
 import { buildRunSarRows, ObeSarTables } from './ObeSarTables';
 import { ObeTestImport, type ImportedObeScores } from './ObeTestImport';
 
@@ -52,6 +54,8 @@ function NewRunDialog({
   const [tools, setTools] = useState('CIE-1, CIE-2, Assignment, SEE');
   const [scoresText, setScoresText] = useState('');
   const [surveysText, setSurveysText] = useState('');
+  const [surveyMode, setSurveyMode] = useState<'round' | 'paste'>('round');
+  const [surveyId, setSurveyId] = useState<string | null>(null);
   const [source, setSource] = useState<'paste' | 'import'>('paste');
   const [computing, setComputing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +76,36 @@ function NewRunDialog({
 
   const scores = useMemo(() => parseObeScoresCsv(scoresText, coCodes), [scoresText, coCodes]);
   const surveys = useMemo(() => parseObeSurveysCsv(surveysText, coCodes), [surveysText, coCodes]);
-  const blocked = scores.rows.length === 0 || scores.errors.length > 0 || surveys.errors.length > 0;
   const students = useMemo(() => new Set(scores.rows.map((r) => r.studentId)).size, [scores]);
+
+  // The survey source is a mode, not a both-at-once input: a round fold and a
+  // pasted aggregate are two ways to say the same thing, and a run cites only
+  // one of them.
+  const roundsQuery = useQuery({
+    queryKey: ['obeSurveys', mapping.id],
+    queryFn: () => fetchObeSurveysForMapping(mapping.id),
+  });
+  const rounds = roundsQuery.data ?? [];
+  const selectedRound: ObeSurveyDoc | null = useMemo(() => {
+    if (surveyId) return rounds.find((round) => round.id === surveyId) ?? null;
+    // Prefer a round that already has an audience in the portal; fall back to
+    // the newest one so the dialog is never silently empty.
+    return rounds.find((round) => round.status === 'open') ?? rounds[0] ?? null;
+  }, [rounds, surveyId]);
+
+  const roundAggregateQuery = useQuery({
+    queryKey: ['obeSurveyAggregate', selectedRound?.id],
+    enabled: surveyMode === 'round' && Boolean(selectedRound),
+    queryFn: () => fetchObeSurveyAggregate(selectedRound!.id),
+  });
+  const roundAggregate = roundAggregateQuery.data;
+  const roundReady = Boolean(roundAggregate && roundAggregate.responseCount > 0);
+  const pasteSurveys = surveyMode === 'paste';
+
+  const blocked =
+    scores.rows.length === 0
+    || scores.errors.length > 0
+    || (pasteSurveys ? surveys.errors.length > 0 : !roundReady);
 
   async function handleCompute() {
     if (blocked || computing) return;
@@ -85,7 +117,13 @@ function NewRunDialog({
         ...(label.trim() ? { label: label.trim() } : {}),
         tools: tools.split(',').map((t) => t.trim()).filter(Boolean),
         studentScores: foldScoresToStudents(scores.rows),
-        ...(surveys.surveys.length ? { surveys: surveys.surveys } : {}),
+        ...(pasteSurveys
+          ? surveys.surveys.length
+            ? { surveys: surveys.surveys }
+            : {}
+          : selectedRound
+            ? { surveyId: selectedRound.id }
+            : {}),
       });
       onComputed(result.runId);
     } catch (err) {
@@ -95,7 +133,7 @@ function NewRunDialog({
     }
   }
 
-  const allErrors = [...scores.errors, ...surveys.errors];
+  const allErrors = [...scores.errors, ...(pasteSurveys ? surveys.errors : [])];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
@@ -190,29 +228,150 @@ function NewRunDialog({
         </div>
         )}
 
+        {/* Indirect surveys. A stored round is the portal path: students answer
+            in the app and the server folds the answers, so the run records how
+            many people the 20% represents. The paste box stays for the
+            audiences the portal cannot collect (alumni, employer) and for a
+            fold exported from another tool. One source per run — never both. */}
         <div className="mt-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Indirect surveys <span className="font-normal normal-case">(optional — course/program exit, alumni)</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setSurveysText(SAMPLE_SURVEYS)}
-              className="text-xs font-semibold text-teal-700 underline dark:text-teal-300"
-            >
-              Insert sample
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-2" role="tablist" aria-label="Survey source">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={surveyMode === 'round'}
+                onClick={() => setSurveyMode('round')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-bold ${
+                  surveyMode === 'round'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                Portal round
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={pasteSurveys}
+                onClick={() => setSurveyMode('paste')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-bold ${
+                  pasteSurveys
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                Paste rows
+              </button>
+            </div>
+            {pasteSurveys && (
+              <button
+                type="button"
+                onClick={() => setSurveysText(SAMPLE_SURVEYS)}
+                className="text-xs font-semibold text-teal-700 underline dark:text-teal-300"
+              >
+                Insert sample
+              </button>
+            )}
           </div>
-          <textarea
-            value={surveysText}
-            onChange={(e) => setSurveysText(e.target.value)}
-            rows={4}
-            spellCheck={false}
-            placeholder="co,score,maxScore&#10;CO1,4,5"
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800"
-          />
-          {surveys.surveys.length > 0 && (
-            <p className="mt-1 text-xs text-slate-500">{surveys.surveys.length} survey responses</p>
+
+          {pasteSurveys ? (
+            <>
+              <textarea
+                value={surveysText}
+                onChange={(e) => setSurveysText(e.target.value)}
+                rows={4}
+                spellCheck={false}
+                placeholder="co,score,maxScore&#10;CO1,4,5"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                One line per CO: the average rating, with the scale top. This is how alumni and employer
+                feedback enters a run.
+              </p>
+              {surveys.surveys.length > 0 && (
+                <p className="mt-1 text-xs text-slate-500">{surveys.surveys.length} survey responses</p>
+              )}
+            </>
+          ) : (
+            <div className="mt-2">
+              {roundsQuery.isLoading && (
+                <p className="flex items-center gap-2 text-xs text-slate-500">
+                  <Loader2 size={13} className="animate-spin" /> Loading this course's rounds…
+                </p>
+              )}
+              {roundsQuery.isError && (
+                <p className="text-xs font-semibold text-rose-600">Could not load this course's survey rounds.</p>
+              )}
+              {!roundsQuery.isLoading && !roundsQuery.isError && rounds.length === 0 && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  No round has been opened for this course yet. Open one under “Indirect assessment (surveys)”
+                  on the mapping page — students then answer it from their Feedback page.
+                </p>
+              )}
+              {rounds.length > 0 && (
+                <>
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Survey round</span>
+                    <select
+                      value={selectedRound?.id ?? ''}
+                      onChange={(e) => setSurveyId(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      {rounds.map((round) => {
+                        const audience = OBE_SURVEY_AUDIENCES.find((a) => a.id === round.audience)?.label ?? 'Survey';
+                        return (
+                          <option key={round.id} value={round.id}>
+                            {audience} · {round.academicYear}
+                            {round.term ? ` · ${round.term}` : ''} · {round.status === 'open' ? 'collecting' : 'closed'}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+
+                  {roundAggregateQuery.isLoading && (
+                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                      <Loader2 size={13} className="animate-spin" /> Folding stored answers…
+                    </p>
+                  )}
+                  {roundAggregateQuery.isError && (
+                    <p className="mt-2 text-xs font-semibold text-rose-600">Could not fold this round's answers.</p>
+                  )}
+                  {roundAggregate && (
+                    <div className="mt-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                      {roundAggregate.responseCount === 0 ? (
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                          No answers yet — the round is open but nobody has responded, so it cannot be used in a run.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            {roundAggregate.responseCount} answer
+                            {roundAggregate.responseCount === 1 ? '' : 's'}
+                            {roundAggregate.completeCount !== roundAggregate.responseCount && (
+                              <> · {roundAggregate.completeCount} rated every outcome</>
+                            )}
+                            {roundAggregate.responseCount < 5 && (
+                              <span className="ml-1 font-normal text-amber-700 dark:text-amber-300">
+                                (fewer than 5 — the SAR should call this indicative)
+                              </span>
+                            )}
+                          </p>
+                          <ul className="mt-1 grid gap-x-4 gap-y-0.5 text-xs text-slate-600 sm:grid-cols-2 dark:text-slate-300">
+                            {roundAggregate.coSummaries.map((summary) => (
+                              <li key={summary.co} className="tabular-nums">
+                                {summary.co}: {summary.mean}/{summary.scaleMax} → {summary.level} on the 0–3 scale (
+                                {summary.count})
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
 

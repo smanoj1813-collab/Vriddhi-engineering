@@ -339,8 +339,12 @@ export interface CacheEntry<T> {
 export const STORAGE_PATHS = {
   questions: (subjectId: string, topicId: string, questionId: string) =>
     `questions/${subjectId}/${topicId}/${questionId}.json`,
-  questionImage: (subjectId: string, topicId: string, questionId: string, filename: string) =>
-    `images/questions/${subjectId}/${topicId}/${questionId}/${filename}`,
+  // Canonical question-figure path — keep identical to questionImagePath() in
+  // src/shared/utils/questionImage.ts. storage.rules grants exactly this shape
+  // (images/questions/{collegeId}/{subjectId}/{topicId}/{questionId}/{file})
+  // and the college segment is the tenant boundary.
+  questionImage: (collegeId: string, subjectId: string, topicId: string, questionId: string, filename: string) =>
+    `images/questions/${collegeId}/${subjectId}/${topicId}/${questionId}/${filename}`,
   paper: (collegeId: string | null, paperId: string) =>
     `papers/${collegeId || 'public'}/${paperId}.json`,
   template: (templateId: string) =>

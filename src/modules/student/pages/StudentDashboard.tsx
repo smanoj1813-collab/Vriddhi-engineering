@@ -6,7 +6,7 @@ import TodayStrip from '../components/TodayStrip';
 import {
   Calendar, BookOpen, FileText, CreditCard, Clock, CheckCircle, AlertTriangle,
   Bell, ChevronRight, TrendingUp, MapPin, BarChart3, Library, Settings, Receipt,
-  GraduationCap, Sparkles, User, CalendarDays, BookMarked, ShieldCheck, Code2
+  GraduationCap, Sparkles, User, CalendarDays, BookMarked, ShieldCheck, Code2, ClipboardList
 } from 'lucide-react';
 import type { Assessment, ClassSchedule, StudentProfile } from '../types/student';
 import { deadlineCountdown, linkageBadgeText } from '../utils/deadlineCountdown';
@@ -249,6 +249,7 @@ const QUICK_ACTIONS: Array<{
   { to: '/student/no-dues', icon: FileText, label: 'No-Dues', color: 'emerald' },
   { to: '/student/events', icon: CalendarDays, label: 'Events', labelKey: 'student.campusEvents', color: 'amber' },
   { to: '/student/notifications', icon: Bell, label: 'Notifications', labelKey: 'student.alerts', color: 'violet' },
+  { to: '/student/surveys', icon: ClipboardList, label: 'Feedback', color: 'amber' },
 ];
 
 // ─── Main Component ─────────────────────────────────────────────────
@@ -395,9 +396,9 @@ export default function StudentDashboard() {
           Learning, Assessment and Practice, from data already loaded. */}
       <TodayStrip />
 
-      {/* Quick Actions — up to 15 destinations from the shared student nav,
-          split into their nav groups. Programme-specific actions are filtered
-          for this student before they are rendered. */}
+      {/* Quick Actions — destinations from the shared student nav, split into
+          their nav groups. Programme-specific actions are filtered for this
+          student before they are rendered. */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-teal-600" />

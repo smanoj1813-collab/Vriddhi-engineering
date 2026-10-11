@@ -21,6 +21,8 @@ import {
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import type { Question, QuestionType, DifficultyLevel } from '../../types/questionBank'
 import { parseLearningOutcomes } from '../../utils/questionForm'
+import CodingQuestionFields from './CodingQuestionFields'
+import type { QuestionCodingConfig } from '../../types/questionBank'
 
 const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
   { value: 'mcq', label: 'Multiple Choice' },
@@ -31,6 +33,9 @@ const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
   { value: 'matching', label: 'Matching' },
   { value: 'assertion_reason', label: 'Assertion & Reason' },
   { value: 'case_based', label: 'Case Based' },
+  // Coding questions are scored by running the program against hidden tests
+  // (functions/src/codingJudge.ts), not by a correct-answer key.
+  { value: 'coding', label: 'Coding (auto-graded)' },
 ]
 
 const DIFFICULTY_LEVELS: { value: DifficultyLevel; label: string }[] = [
@@ -82,6 +87,18 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
     unit: initialData?.unit || '',
   })
 
+  // Kept outside `formData` because it is a nested object with its own
+  // add/remove behaviour; it is merged into the payload on submit.
+  const [coding, setCoding] = useState<QuestionCodingConfig>(
+    initialData?.coding || {
+      languages: ['python'],
+      starterCode: {},
+      sampleCases: [],
+      testCases: [{ stdin: '', expectedOutput: '' }],
+      timeLimitSeconds: 2,
+    },
+  )
+
   const [newTag, setNewTag] = useState('')
 
   const handleChange = (field: string, value: any) => {
@@ -131,10 +148,17 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
     e.preventDefault()
     const { moduleNo, learningOutcomesText, ...rest } = formData
     const parsedModule = Number(moduleNo)
+    const isCoding = formData.type === 'coding'
     onSubmit({
       ...rest,
       ...(Number.isInteger(parsedModule) && parsedModule > 0 ? { moduleNo: parsedModule } : {}),
       learningOutcomes: parseLearningOutcomes(learningOutcomesText),
+      // A coding question carries its own configuration and has no options or
+      // answer key; anything left over from a previous type is dropped rather
+      // than stored as a misleading empty field.
+      ...(isCoding
+        ? { coding, options: [], correctAnswer: '' }
+        : {}),
     } as any)
   }
 
@@ -210,6 +234,12 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             required
           />
         </Grid>
+
+        {formData.type === 'coding' && (
+          <Grid size={{ xs: 12 }}>
+            <CodingQuestionFields value={coding} onChange={setCoding} />
+          </Grid>
+        )}
 
         {formData.type === 'mcq' && (
           <Grid size={{ xs: 12 }}>

@@ -20,6 +20,8 @@
 // specific message beats surfacing it at schedule time.
 
 /** Canonical (normalised) question type spellings the platform recognises. */
+import { codingScheduleProblem, parseCodingConfig } from './codingAssessmentCore'
+
 export const CANONICAL_QUESTION_TYPES = [
   'mcq',
   'multi_select',
@@ -31,6 +33,9 @@ export const CANONICAL_QUESTION_TYPES = [
   'assertion_reason',
   'case_based',
   'matching',
+  // A coded answer: the student writes a program, the platform compiles it in a
+  // sandbox and scores it against hidden test cases (codingAssessmentCore.ts).
+  'coding',
 ] as const
 
 export type CanonicalQuestionType = (typeof CANONICAL_QUESTION_TYPES)[number]
@@ -53,6 +58,7 @@ export const SCHEDULABLE_ONLINE_TYPES: ReadonlySet<string> = new Set([
   'numerical',
   'assertion_reason',
   'case_based',
+  'coding',
 ])
 
 /** Choice types whose scheduling additionally requires at least 2 options. */
@@ -98,6 +104,13 @@ const TYPE_ALIASES: Record<string, CanonicalQuestionType> = {
   casebased: 'case_based',
   casestudy: 'case_based',
   matching: 'matching',
+  code: 'coding',
+  coding: 'coding',
+  codequestion: 'coding',
+  codingquestion: 'coding',
+  programming: 'coding',
+  program: 'coding',
+  programwrite: 'coding',
 }
 
 export function canonicalQuestionType(value: unknown): string {
@@ -127,6 +140,8 @@ export interface SchedulableQuestionShape {
   type: string
   marks: number
   options: Array<{ id: string; text: string }>
+  /** The coding configuration, for a `coding` question (see codingAssessmentCore). */
+  coding?: unknown
 }
 
 /**
@@ -148,10 +163,18 @@ export function findSchedulingProblem(question: SchedulableQuestionShape): strin
     if (type === 'matching') {
       return `Question ${question.order} is a "Match the following" question, which the online test engine does not render yet. Change it to a supported type (e.g. single-choice MCQ) in the paper.`
     }
-    return `Question ${question.order} uses type "${type}", which the online test engine cannot schedule. Change it to a supported type (MCQ, True/False, Fill in the blank, Short/Long answer, Numerical or Assertion–Reason) in the paper.`
+    return `Question ${question.order} uses type "${type}", which the online test engine cannot schedule. Change it to a supported type (MCQ, True/False, Fill in the blank, Short/Long answer, Numerical, Assertion–Reason or Coding) in the paper.`
   }
   if (CHOICE_TYPES_REQUIRING_OPTIONS.has(type) && (question.options?.length || 0) < 2) {
     return `Question ${question.order} is a ${type.replace(/_/g, ' ')} question but has fewer than two options — add the missing options in the paper.`
+  }
+  if (type === 'coding') {
+    // A coding question without hidden test cases cannot be scored — it would
+    // silently contribute 0 to every student's total, which looks like a
+    // grading bug rather than a missing configuration. Refuse it here, with
+    // the same sentence the authoring form shows.
+    const problem = codingScheduleProblem(parseCodingConfig(question.coding))
+    if (problem) return `Question ${question.order} is a coding question: ${problem}`
   }
   return null
 }

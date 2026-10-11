@@ -1,3 +1,11 @@
+import type { CodingLanguage, CodingQuestionConfig } from './codingAssessmentCore'
+
+/** One coded answer, as stored on the attempt. */
+export interface CodingAnswer {
+  language: CodingLanguage
+  code: string
+}
+
 export interface ServerQuestion {
   id: string
   questionId: string
@@ -16,6 +24,18 @@ export interface ServerQuestion {
   imageUrl?: string
   caseText?: string
   matchPairs?: Array<{ left: string; right: string }>
+  /**
+   * Present on a `coding` question: the languages the student may answer in,
+   * the public sample cases, and the HIDDEN test cases the sandbox scores
+   * against. Never serialise this object towards a student — `publicQuestion`
+   * in studentAssessments.ts strips `testCases` on purpose.
+   */
+  /**
+   * Present on a `coding` question. On the resume path this holds the PUBLIC
+   * shape (a frozen chunk: no hidden `testCases`), which is why readers treat
+   * the fields as optional rather than assuming a question document.
+   */
+  coding?: CodingQuestionConfig
 }
 
 export interface ServerAnswer {
@@ -25,13 +45,15 @@ export interface ServerAnswer {
   textAnswer?: string
   numericalAnswer?: number
   matchedPairs?: Array<{ left: string; right: string }>
+  /** A coded answer (type `coding`). Graded by the sandbox, not by a key. */
+  coding?: CodingAnswer
   isFlagged: boolean
 }
 
 export interface QuestionGrade {
   questionId: string
   isObjective: boolean
-  status: 'correct' | 'incorrect' | 'unattempted' | 'pending_manual'
+  status: 'correct' | 'incorrect' | 'unattempted' | 'pending_manual' | 'pending_judge'
   marksObtained: number | null
 }
 
@@ -39,6 +61,10 @@ export interface PaperGrade {
   autoScore: number
   autoMax: number
   manualMax: number
+  /** Marks carried by coded answers that are waiting on the sandbox. */
+  judgeMax: number
+  /** True when at least one coded answer still has to be run. */
+  needsJudge: boolean
   correctCount: number
   incorrectCount: number
   unattemptedCount: number
@@ -309,6 +335,9 @@ function hasAnswer(answer: ServerAnswer | undefined): boolean {
     || answer.textAnswer?.trim()
     || answer.numericalAnswer !== undefined
     || answer.matchedPairs?.length
+    // Whitespace-only code is not an attempt at a program, so it must not drag
+    // a coding question into the "awaiting the sandbox" state.
+    || answer.coding?.code?.trim()
   )
 }
 
@@ -328,6 +357,8 @@ export function gradeAssessmentPaper(
     autoScore: 0,
     autoMax: 0,
     manualMax: 0,
+    judgeMax: 0,
+    needsJudge: false,
     correctCount: 0,
     incorrectCount: 0,
     unattemptedCount: 0,
@@ -346,6 +377,35 @@ export function gradeAssessmentPaper(
     const exactText = type === 'fill_in_blank' && question.correctAnswer !== undefined
     const numerical = type === 'numerical' && question.correctAnswer !== undefined
     const isObjective = optionBased || multiSelect || exactText || numerical
+
+    // Coded answers are scored by the sandbox against hidden test cases, which
+    // is asynchronous (a compile + run per case is seconds, not milliseconds).
+    // The paper therefore leaves them `pending_judge` with their marks reserved
+    // in `judgeMax`, and functions/src/codingJudge.ts fills in the awarded
+    // marks and finalises the attempt. An UNANSWERED coding question is scored
+    // 0 immediately — there is nothing to wait for.
+    if (type === 'coding' && question.coding) {
+      result.autoMax += marks
+      if (!hasAnswer(answer)) {
+        result.unattemptedCount += 1
+        result.perQuestion.push({
+          questionId: question.id,
+          isObjective: true,
+          status: 'unattempted',
+          marksObtained: 0,
+        })
+        continue
+      }
+      result.judgeMax += marks
+      result.needsJudge = true
+      result.perQuestion.push({
+        questionId: question.id,
+        isObjective: true,
+        status: 'pending_judge',
+        marksObtained: null,
+      })
+      continue
+    }
 
     if (!isObjective) {
       result.manualMax += marks
@@ -416,6 +476,29 @@ export function gradeAssessmentPaper(
   }
 
   return result
+}
+
+/**
+ * The attempt's final numbers from its parts — the arithmetic both graders
+ * (faculty manual marking and the code judge) must apply identically, so a
+ * paper scored by the sandbox and one scored by hand cannot end up with
+ * different rounding or a different late-penalty handling.
+ */
+export function computeAttemptTotals(input: {
+  autoScore: number
+  manualScore: number
+  penaltyPercentage: number
+  totalMarks: number
+}): { marksObtained: number; percentage: number } {
+  const penalty = Math.max(0, Math.min(100, Number(input.penaltyPercentage) || 0))
+  const penaltyFactor = 1 - penalty / 100
+  const rawMarks = Math.max(0, (Number(input.autoScore) || 0) + (Number(input.manualScore) || 0))
+  const marksObtained = Math.round(rawMarks * penaltyFactor * 100) / 100
+  const totalMarks = Number(input.totalMarks) || 0
+  const percentage = totalMarks > 0
+    ? Math.round((Math.min(marksObtained, totalMarks) / totalMarks) * 10_000) / 100
+    : 0
+  return { marksObtained, percentage }
 }
 
 export function gradeFromPercentage(percentage: number): { grade: string; gradePoint: number } {

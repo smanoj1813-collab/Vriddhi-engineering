@@ -18,9 +18,12 @@ import {
   type Judge0Language,
 } from './codeRunnerCore'
 
-const JUDGE0_API_KEY = defineSecret('JUDGE0_API_KEY')
+/** Bound as a runtime secret by every function that talks to the sandbox. */
+export const JUDGE0_API_KEY = defineSecret('JUDGE0_API_KEY')
 const LANGUAGE_CACHE_TTL_MS = 30 * 60 * 1000
 const SUBMISSION_DEADLINE_MS = 12_000
+/** A judged case waits for compile + run; the wall limit above plus queue time. */
+const CASE_SUBMISSION_DEADLINE_MS = 25_000
 const REQUEST_TIMEOUT_MS = 5_000
 const POLL_INTERVAL_MS = 450
 
@@ -47,7 +50,7 @@ interface Judge0Submission {
   memory?: number | null
 }
 
-function judge0BaseUrl(): string {
+export function judge0BaseUrl(): string {
   const raw = String(process.env.JUDGE0_API_URL || '').trim()
   if (!raw) {
     throw new HttpsError(
@@ -87,7 +90,7 @@ function judge0Headers(): Record<string, string> {
   return headers
 }
 
-async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+export async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -117,7 +120,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = R
   }
 }
 
-async function listJudge0Languages(baseUrl: string): Promise<Judge0Language[]> {
+export async function listJudge0Languages(baseUrl: string): Promise<Judge0Language[]> {
   const now = Date.now()
   if (languageCache && languageCache.baseUrl === baseUrl && languageCache.expiresAt > now) {
     return languageCache.languages
@@ -201,12 +204,16 @@ async function consumeRunQuota(uid: string): Promise<{ remaining: number }> {
   })
 }
 
-async function createAndPollSubmission(
+export async function createAndPollSubmission(
   baseUrl: string,
   languageId: number,
   sourceCode: string,
   stdin: string,
+  options: { cpuTimeLimitSeconds?: number } = {},
 ): Promise<Judge0Submission> {
+  // The assessment judge passes the question's own time limit (up to 10s);
+  // the Coding Lab keeps the 2s default it shipped with.
+  const cpuTimeLimit = Math.max(1, Math.min(10, Number(options.cpuTimeLimitSeconds) || 2))
   const created = await requestJson<Judge0Submission>(
     `${baseUrl}/submissions?base64_encoded=false&wait=false`,
     {
@@ -215,9 +222,9 @@ async function createAndPollSubmission(
         source_code: sourceCode,
         language_id: languageId,
         stdin,
-        cpu_time_limit: 2,
+        cpu_time_limit: cpuTimeLimit,
         cpu_extra_time: 0.5,
-        wall_time_limit: 5,
+        wall_time_limit: cpuTimeLimit + 3,
         memory_limit: 128000,
         stack_limit: 64000,
         max_processes_and_or_threads: 20,
@@ -227,7 +234,7 @@ async function createAndPollSubmission(
   const token = String(created.token || '').trim()
   if (!token) throw new HttpsError('unavailable', 'The compiler service did not create a run token.')
 
-  const deadline = Date.now() + SUBMISSION_DEADLINE_MS
+  const deadline = Date.now() + (options.cpuTimeLimitSeconds ? CASE_SUBMISSION_DEADLINE_MS : SUBMISSION_DEADLINE_MS)
   let result: Judge0Submission = created
   while (Date.now() < deadline) {
     const statusId = Number(result.status?.id ?? result.status_id)

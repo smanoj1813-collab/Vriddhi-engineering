@@ -40,11 +40,27 @@ export interface PaperQuestion {
   order: number;
   marks: number;
   text: string;
-  type: 'mcq' | 'multi_select' | 'true_false' | 'fill_in_blank' | 'short_answer' | 'long_answer' | 'numerical' | 'assertion_reason' | 'case_based' | 'matching';
+  type: 'mcq' | 'multi_select' | 'true_false' | 'fill_in_blank' | 'short_answer' | 'long_answer' | 'numerical' | 'assertion_reason' | 'case_based' | 'matching' | 'coding';
   difficulty: 'easy' | 'medium' | 'hard';
   options?: { id: string; text: string; isCorrect?: boolean }[];
   hasImage?: boolean;
   imageUrl?: string;
+  /**
+   * Present on a coding question. `sampleCases` are public; `caseCount` is how
+   * many HIDDEN tests the marks are split across — the cases themselves never
+   * reach the browser.
+   */
+  coding?: {
+    languages: string[];
+    starterCode?: Record<string, string>;
+    sampleCases?: Array<{ stdin?: string; expectedOutput?: string }>;
+    timeLimitSeconds?: number;
+    caseCount?: number;
+    /** True when these numbers were generated for this student. */
+    variesByStudent?: boolean;
+    /** Sample runs allowed for this question; 0 = unlimited. */
+    dryRunLimit?: number;
+  };
   sectionId?: string;
   sectionName?: string;
   negativeMarks?: number;
@@ -64,6 +80,8 @@ export interface PaperQuestion {
 
 export interface StudentAnswer {
   questionId: string;
+  /** A coded answer (a `coding` question). Graded by running it, not by a key. */
+  coding?: { language: string; code: string };
   selectedOptionId?: string;
   selectedOptionIds?: string[];
   textAnswer?: string;

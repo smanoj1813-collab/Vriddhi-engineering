@@ -46,6 +46,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../auth/context/AuthContext';
 import { questionStorageApi } from '../api/cloudStorageApi';
+import { uploadQuestionImages } from '../api/questionImageUpload';
 import {
   type DifficultyLevel,
   type QuestionType,
@@ -251,7 +252,7 @@ function ImageUploader({ images, onChange }: ImageUploaderProps) {
         )}
       </Box>
       <Typography variant="caption" color="text.secondary">
-        Max 3 images (JPG, PNG). Each under 2MB.
+        Max 3 figures (PNG, JPG or WebP) — each under 2 MB. They upload when you submit.
       </Typography>
     </Box>
   );
@@ -476,6 +477,23 @@ export function QuestionSubmissionForm({ onClose, onSuccess }: QuestionSubmissio
         role: (isSuperadmin ? 'superadmin' : (user.role as any) || 'faculty') as 'superadmin' | 'admin' | 'faculty',
       };
 
+      // Figures first: the upload is the slow, failure-prone half, and a
+      // question document that points at an object which was never stored is
+      // worse than a submission refused with a reason. The path built here is
+      // the one storage.rules grants (images/questions/{collegeId}/...), so the
+      // object a staff member uploads is the object a student's browser loads
+      // mid-test.
+      const storageCollegeId = isSuperadmin ? 'platform' : collegeId;
+      const uploadedImages = images.length
+        ? await uploadQuestionImages(images, {
+            collegeId: storageCollegeId,
+            subjectId: subjectId || 'General',
+            topicId: topicId || 'General',
+            questionId: `draft-${Date.now().toString(36)}`,
+            questionText,
+          })
+        : [];
+
       const resolvedOptions = options.map((o) => ({
         id: o.id,
         text: o.text,
@@ -499,8 +517,8 @@ export function QuestionSubmissionForm({ onClose, onSuccess }: QuestionSubmissio
           visibility: isSuperadmin ? 'public' : 'college_only',
           sharedWith: [],
           source: isSuperadmin ? 'platform' : 'college',
-          storagePath: '',
-          hasImage: images.length > 0,
+          storagePath: uploadedImages[0]?.storagePath || '',
+          hasImage: uploadedImages.length > 0,
           qualityRating: 0,
           usageCount: 0,
           createdBy,
@@ -516,8 +534,8 @@ export function QuestionSubmissionForm({ onClose, onSuccess }: QuestionSubmissio
           marks,
           language: 'en',
           tags: [...new Set([...tags, ...ownershipTags])],
-          images: [],
-          hasImage: images.length > 0,
+          images: uploadedImages,
+          hasImage: uploadedImages.length > 0,
           subjectId: subjectId || 'General',
           topicId: topicId || 'General',
           subTopicId: subTopicId || '',

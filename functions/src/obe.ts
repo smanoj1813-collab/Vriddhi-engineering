@@ -34,6 +34,7 @@ if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { resolveSessionWriter } from './classSchedule'
+import { foldSurveyResponses, MAX_SURVEY_RESPONSES } from './obeSurveyCore'
 
 const REGION = { region: 'asia-south1' as const }
 
@@ -759,18 +760,61 @@ export const computeObeAttainment = onCall(REGION, async (request) => {
   const mapping = validateObeMappingDoc(data)
   const scores = validateObeScores(raw.studentScores, mapping.cos.map((c) => c.code))
 
-  const surveysRaw = Array.isArray(raw.surveys) ? raw.surveys : []
-  if (surveysRaw.length > MAX_STUDENTS * 4) {
-    throw new HttpsError('invalid-argument', 'Too many survey responses for one run')
-  }
-  const surveys = surveysRaw.map((entry) => {
-    const s = (entry ?? {}) as Record<string, unknown>
-    return {
-      co: String(s.co ?? '').trim().toUpperCase(),
-      score: Number(s.score),
-      maxScore: Number(s.maxScore),
+  // Indirect input, in order of trust:
+  //   1. a captured survey ROUND — the responses are folded here, from the
+  //      stored obeSurveyResponses, so the run cites the round and quotes the
+  //      respondent count instead of trusting numbers the browser sent;
+  //   2. pasted/CSV rows (the Slice-2 path), still validated below.
+  const surveyId = String(raw.surveyId ?? '').trim()
+  let surveys: { co: string; score: number; maxScore: number }[]
+  let surveyCitation: { id: string; audience: string; scaleMax: number; responseCount: number; completeCount: number } | undefined
+  if (surveyId) {
+    const surveySnap = await db.collection('obeSurveys').doc(surveyId).get()
+    if (!surveySnap.exists) throw new HttpsError('not-found', 'Survey not found')
+    const survey = surveySnap.data() || {}
+    if (String(survey.collegeId ?? '') !== collegeId) {
+      throw new HttpsError('permission-denied', 'This survey belongs to another college')
     }
-  })
+    if (String(survey.mappingId ?? '') !== mappingId) {
+      throw new HttpsError('failed-precondition', 'That survey was opened for a different mapping')
+    }
+    const surveyCos = Array.isArray(survey.cos) ? survey.cos.map((co) => String((co as { code?: unknown })?.code ?? '')) : []
+    const scaleMax = Number(survey.scaleMax) || 5
+    const responseSnaps = await db
+      .collection('obeSurveyResponses')
+      .where('surveyId', '==', surveyId)
+      .limit(MAX_SURVEY_RESPONSES + 1)
+      .get()
+    const fold = foldSurveyResponses({
+      responses: responseSnaps.docs.slice(0, MAX_SURVEY_RESPONSES).map((doc) => {
+        const data = doc.data() || {}
+        return { uid: String(data.uid ?? ''), scores: data.scores as Record<string, unknown> }
+      }),
+      coCodes: surveyCos,
+      scaleMax,
+    })
+    surveys = fold.surveys
+    surveyCitation = {
+      id: surveyId,
+      audience: String(survey.audience ?? ''),
+      scaleMax,
+      responseCount: fold.responseCount,
+      completeCount: fold.completeCount,
+    }
+  } else {
+    const surveysRaw = Array.isArray(raw.surveys) ? raw.surveys : []
+    if (surveysRaw.length > MAX_STUDENTS * 4) {
+      throw new HttpsError('invalid-argument', 'Too many survey responses for one run')
+    }
+    surveys = surveysRaw.map((entry) => {
+      const s = (entry ?? {}) as Record<string, unknown>
+      return {
+        co: String(s.co ?? '').trim().toUpperCase(),
+        score: Number(s.score),
+        maxScore: Number(s.maxScore),
+      }
+    })
+  }
   const indirect = computeIndirectFromSurveys(surveys)
   const rules = (data.rulesSnapshot as ObeRulesSnapshot | undefined) ?? defaultObeRules()
   const { coResults, outcomes } = computeObeCourseAttainment({ scores, mapping: mapping.mapping, indirect, rules })
@@ -803,6 +847,9 @@ export const computeObeAttainment = onCall(REGION, async (request) => {
     coResults,
     outcomes,
     gaps,
+    // Which survey round the indirect 20% came from, and how many people it
+    // actually represents — a SAR reviewer asks that question by name.
+    ...(surveyCitation ? { survey: surveyCitation } : {}),
     createdAt: now,
     createdBy: staff.name || uid,
   })

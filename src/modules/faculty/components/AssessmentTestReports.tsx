@@ -20,7 +20,7 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Typography,
+  Typography,  Tooltip,
 } from '@mui/material';
 import {
   Add,
@@ -29,9 +29,11 @@ import {
   CheckCircle,
   Delete,
   FileDownload,
+  GppMaybeOutlined,
   HourglassTop,
   Public,
   Tune,
+  VisibilityOutlined,
   Warning,
 } from '@mui/icons-material';
 import { httpsCallable } from 'firebase/functions';
@@ -528,6 +530,44 @@ function TestReport({ testId, onBack }: { testId: string; onBack: () => void }) 
           )}
         </CardContent>
       </Card>
+
+      {/* The columns above state the evidence; this says what the evidence is.
+          A faculty member reading "Review · 3 blocked" for the first time needs
+          to know what was blocked and that the code/answers are the thing to
+          look at — not that a system has decided somebody cheated. */}
+      {students.some((student) => student.integrity?.reviewSuggested) && (
+        <Alert severity="warning" icon={<GppMaybeOutlined />} sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            {students.filter((student) => student.integrity?.reviewSuggested).length} attempt(s) need a look
+          </Typography>
+          <Typography variant="body2">
+            These students tried to paste or drop text into an answer while the test was running, and the
+            attempt was blocked and recorded. The lockdown blocks the action for every test, proctored or not.
+            It does not tell you what they were trying to insert — open the attempt and read the answer next to
+            the marks, then decide. A switched-away window or a fullscreen exit on its own is not evidence of
+            anything: read those counts as intensity, not intent.
+          </Typography>
+        </Alert>
+      )}
+
+      {/* The columns above state the evidence; this says what the evidence is.
+          A faculty member reading "Review · 3 blocked" for the first time needs
+          to know what was blocked and that the answers are what to look at —
+          not that a system has decided somebody cheated. */}
+      {students.some((student) => student.integrity?.reviewSuggested) && (
+        <Alert severity="warning" icon={<GppMaybeOutlined />} sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            {students.filter((student) => student.integrity?.reviewSuggested).length} attempt(s) need a look
+          </Typography>
+          <Typography variant="body2">
+            These students tried to paste or drop text into an answer while the test was running; the attempt was
+            blocked and recorded. The lockdown applies to every test, proctored or not. It does not tell you what
+            they were trying to insert — open the attempt, read the answer next to the marks, then decide. A
+            switched-away window or a fullscreen exit on its own is not evidence of anything: read those counts as
+            intensity, not intent.
+          </Typography>
+        </Alert>
+      )}
 
       <CategorySettingsDialog
         open={categoryDialogOpen}

@@ -817,6 +817,7 @@ const ActiveTestPage: React.FC = () => {
                 onToggleFlag={() => toggleFlag(currentQ.id)}
                 questionNumber={currentQIndex + 1}
                 lockClipboard
+                testId={activeTest.testId}
               />
 
               {!isMobile && (

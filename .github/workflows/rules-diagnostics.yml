@@ -1,0 +1,74 @@
+# Rules-suite harness for in-progress branches.
+#
+# `rules-nightly.yml` runs the full suite against `main` once a day; per-PR CI
+# only runs the course-security slice for speed. This job closes the gap while
+# rules work is still on a branch: it runs the FULL suite on a push to an
+# `arena/*` branch and attaches the failing test names + assertion text to the
+# check run as annotations.
+#
+# It is push-triggered (not workflow_dispatch) on purpose: a session token that
+# can push commits cannot dispatch workflows — `gh workflow run` answers 403
+# "Resource not accessible by integration" — so a push is the only way to get
+# the suite to run against unmerged rule changes. It never runs on `main`, so
+# it cannot duplicate the nightly.
+name: Rules diagnostics
+
+on:
+  push:
+    branches: ['arena/**']
+    paths:
+      - '.github/workflows/rules-diagnostics.yml'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'functions/test/firestore.rules.test.ts'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
+      - 'scripts/github-test-annotations.cjs'
+  workflow_dispatch:
+
+jobs:
+  rules:
+    name: Full rules suite (diagnostics)
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Set up Java 21 for Firebase emulators
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Full Firestore rules suite
+        working-directory: functions
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee ../rules-suite.log
+
+      - name: Attach failure details to the check run
+        if: failure()
+        run: node scripts/github-test-annotations.cjs rules-suite.log
+
+      - name: Upload the rules suite log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rules-suite-log
+          path: rules-suite.log
+          retention-days: 14
+          if-no-files-found: ignore

@@ -26,6 +26,7 @@ import {
   Code2,
   IdCard,
   Target,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 import type { TranslationKey } from '../../shared/i18n'
@@ -65,6 +66,10 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   { id: 'assignments', label: 'Assignments', path: '/student/assignments', icon: FileText, group: 'academics', translationKey: 'nav.assignments', hint: 'Submit your work and track what is pending' },
   { id: 'grades', label: 'Grades', path: '/student/grades', icon: TrendingUp, group: 'academics', translationKey: 'nav.grades', hint: 'Marks, credits and GPA' },
   { id: 'curriculum', label: 'Curriculum', path: '/student/curriculum', icon: BookMarked, group: 'academics', translationKey: 'nav.curriculum', hint: 'Your syllabus and how far it has been taught' },
+  // Indirect-assessment surveys (OBE Slice 5). Students rate the COs of the
+  // courses they just finished; the results become the 20% indirect share of
+  // the attainment run, so the entry lives with the academic pages.
+  { id: 'feedback', label: 'Feedback', path: '/student/surveys', icon: ClipboardList, group: 'academics', aliases: ['/student/feedback'], hint: 'Course-exit surveys — rate how far each course outcome was met' },
   { id: 'timetable', label: 'Timetable', path: '/student/timetable', icon: Clock, group: 'academics', translationKey: 'nav.timetable', hint: 'Weekly class schedule with rooms and faculty' },
   // Section hub: the phone's "Learning" tab.
   { id: 'learning', label: 'Learning', path: '/student/learning', icon: Sparkles, group: 'practice', hub: true },
