@@ -1,0 +1,239 @@
+// functions/test/codingAssessment.test.ts
+//
+// Pins the scoring contract for coding questions. This is the arithmetic a
+// student's marks come out of, so the tests are deliberately about the edges:
+// marks that must add back up to the question total, a program that is right
+// except for a trailing newline, and answers the sandbox cannot run.
+
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import {
+  MAX_CODING_SOURCE_CHARS,
+  allocateCaseMarks,
+  caseMarkWeights,
+  codingAnswerProblem,
+  codingCaseStatusFromJudgeId,
+  codingScheduleProblem,
+  gradeCodingCases,
+  normalizeCodingLanguage,
+  normalizeJudgeOutput,
+  parseCodingConfig,
+  verdictForCase,
+  type CodingCase,
+  type CodingCaseVerdict,
+} from '../src/codingAssessmentCore';
+
+function casesFrom(pairs: Array<[string, string]>): CodingCase[] {
+  return pairs.map(([stdin, expectedOutput]) => ({ stdin, expectedOutput }));
+}
+
+describe('parseCodingConfig', () => {
+  it('normalises language spellings and defaults to every runnable language', () => {
+    assert.equal(normalizeCodingLanguage('C++'), 'cpp');
+    assert.equal(normalizeCodingLanguage('python3'), 'python');
+    assert.equal(normalizeCodingLanguage('JavaScript'), null);
+
+    const withList = parseCodingConfig({ languages: ['C++', 'python3', 'javascript'] });
+    assert.deepEqual(withList?.languages, ['cpp', 'python']);
+    const withoutList = parseCodingConfig({ testCases: [{ stdin: '1', expectedOutput: '1' }] });
+    assert.deepEqual(withoutList?.languages, ['c', 'cpp', 'java', 'python']);
+  });
+
+  it('reads case aliases, drops unusable cases and caps the lists', () => {
+    const config = parseCodingConfig({
+      languages: ['python'],
+      testCases: [
+        { input: '2 3', output: '5' },
+        { stdin: '4 4', expected: '8' },
+        { stdin: 'no expected output' },
+      ],
+      samples: [{ stdin: '1 1', expectedOutput: '2' }],
+    });
+    assert.equal(config?.testCases.length, 2);
+    assert.equal(config?.testCases[0].stdin, '2 3');
+    assert.equal(config?.sampleCases.length, 1);
+    assert.equal(config?.sampleCases[0].expectedOutput, '2');
+  });
+
+  it('is null only for a value that is not a config at all', () => {
+    assert.equal(parseCodingConfig(null), null);
+    assert.equal(parseCodingConfig('coding'), null);
+    assert.equal(parseCodingConfig([]), null);
+    // An empty object is a coding question with defaults — usable enough to
+    // author into, and the scheduling check is what refuses it.
+    assert.deepEqual(parseCodingConfig({})?.languages, ['c', 'cpp', 'java', 'python']);
+    assert.equal(parseCodingConfig({})?.testCases.length, 0);
+    assert.notEqual(codingScheduleProblem(parseCodingConfig({})), null);
+  });
+
+  it('clamps the time limit into the range the sandbox accepts', () => {
+    assert.equal(parseCodingConfig({ timeLimitSeconds: 0 })?.timeLimitSeconds, 1);
+    assert.equal(parseCodingConfig({ timeLimitSeconds: 99 })?.timeLimitSeconds, 10);
+    assert.equal(parseCodingConfig({})?.timeLimitSeconds, 2);
+  });
+});
+
+describe('codingScheduleProblem', () => {
+  it('refuses a coding question that has nothing to score against', () => {
+    const config = parseCodingConfig({ languages: ['python'] });
+    assert.match(String(codingScheduleProblem(config)), /at least one hidden test case/);
+    assert.equal(codingScheduleProblem(null), 'Coding questions need a language, starter code or at least one hidden test case.');
+  });
+
+  it('passes a question with a hidden case and its expected output', () => {
+    const config = parseCodingConfig({
+      languages: ['python'],
+      testCases: [{ stdin: '2 3', expectedOutput: '5' }],
+    });
+    assert.equal(codingScheduleProblem(config), null);
+  });
+});
+
+describe('normalizeJudgeOutput', () => {
+  it('ignores a trailing newline and trailing spaces, but nothing else', () => {
+    assert.equal(normalizeJudgeOutput('5\n'), '5');
+    assert.equal(normalizeJudgeOutput('5'), '5');
+    assert.equal(normalizeJudgeOutput('5\r\n'), '5');
+    assert.equal(normalizeJudgeOutput('a\nb\n'), 'a\nb');
+    assert.equal(normalizeJudgeOutput('a \nb'), 'a\nb');
+    assert.notEqual(normalizeJudgeOutput('5 6'), '5\n6');
+    assert.notEqual(normalizeJudgeOutput(''), normalizeJudgeOutput('0'));
+  });
+});
+
+describe('allocateCaseMarks', () => {
+  it('always adds back up to the question total', () => {
+    const split = allocateCaseMarks(10, 3);
+    assert.deepEqual(split, [3.34, 3.33, 3.33]);
+    assert.equal(Math.round(split.reduce((a, b) => a + b, 0) * 100) / 100, 10);
+
+    for (const [marks, count] of [[5, 4], [1, 3], [7.5, 6], [100, 20]] as const) {
+      const parts = allocateCaseMarks(marks, count);
+      assert.equal(parts.length, count);
+      assert.equal(Math.round(parts.reduce((a, b) => a + b, 0) * 100) / 100, marks);
+    }
+  });
+
+  it('returns nothing for a question with no cases or no marks', () => {
+    assert.deepEqual(allocateCaseMarks(10, 0), []);
+    assert.deepEqual(allocateCaseMarks(0, 3), []);
+  });
+});
+
+describe('caseMarkWeights', () => {
+  it('uses an equal split when the cases carry no weights', () => {
+    assert.deepEqual(caseMarkWeights(casesFrom([['a', '1'], ['b', '2']]), 5), [2.5, 2.5]);
+  });
+
+  it('honours per-case weights and normalises them to the question marks', () => {
+    const cases: CodingCase[] = [
+      { stdin: 'a', expectedOutput: '1', marks: 1 },
+      { stdin: 'b', expectedOutput: '2', marks: 3 },
+    ];
+    assert.deepEqual(caseMarkWeights(cases, 10), [2.5, 7.5]);
+  });
+
+  it('falls back to an equal split when the weights are all zero', () => {
+    const cases: CodingCase[] = [
+      { stdin: 'a', expectedOutput: '1', marks: 0 },
+      { stdin: 'b', expectedOutput: '2', marks: 0 },
+    ];
+    assert.deepEqual(caseMarkWeights(cases, 4), [2, 2]);
+  });
+});
+
+describe('verdictForCase', () => {
+  it('passes a program whose output matches after normalisation', () => {
+    const verdict = verdictForCase(0, { statusId: 3, stdout: '5\n', timeMs: 0.12, memoryKb: 3200 }, '5');
+    assert.equal(verdict.passed, true);
+    assert.equal(verdict.status, 'accepted');
+    assert.equal(verdict.reason, 'Accepted');
+    assert.equal(verdict.timeMs, 120);
+  });
+
+  it('fails a program that runs but prints the wrong answer, and never echoes the expected output', () => {
+    const verdict = verdictForCase(2, { statusId: 3, stdout: '7\n' }, '5');
+    assert.equal(verdict.passed, false);
+    assert.equal(verdict.status, 'wrong_answer');
+    assert.equal(verdict.reason, 'Output did not match');
+    assert.equal(verdict.got, '7');
+    assert.ok(!JSON.stringify(verdict).includes('"5"'));
+  });
+
+  it('names the sandbox failure in a sentence a student can act on', () => {
+    assert.equal(verdictForCase(0, { statusId: 5 }, '5').reason, 'Time limit exceeded');
+    assert.equal(verdictForCase(0, { statusId: 6 }, '5').status, 'compile_error');
+    assert.equal(verdictForCase(0, { statusId: 6 }, '5').reason, 'Compilation failed');
+    assert.equal(verdictForCase(0, { statusId: 11 }, '5').status, 'runtime_error');
+    assert.equal(verdictForCase(0, { statusId: 13 }, '5').status, 'judge_error');
+    assert.equal(verdictForCase(0, { statusId: 1 }, '5').status, 'judge_error');
+  });
+
+  it('maps Judge0 status ids exactly', () => {
+    assert.equal(codingCaseStatusFromJudgeId(3), 'accepted');
+    assert.equal(codingCaseStatusFromJudgeId(4), 'accepted');
+    assert.equal(codingCaseStatusFromJudgeId(5), 'timeout');
+    assert.equal(codingCaseStatusFromJudgeId(6), 'compile_error');
+    assert.equal(codingCaseStatusFromJudgeId(12), 'runtime_error');
+    assert.equal(codingCaseStatusFromJudgeId(14), 'judge_error');
+  });
+});
+
+describe('gradeCodingCases', () => {
+  const cases = casesFrom([['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']]);
+
+  it('awards one part per passing test, capped at the question marks', () => {
+    const verdicts: CodingCaseVerdict[] = [
+      { index: 0, passed: true, status: 'accepted', reason: 'Accepted', got: '1', timeMs: 10, memoryKb: 1 },
+      { index: 1, passed: true, status: 'accepted', reason: 'Accepted', got: '2', timeMs: 10, memoryKb: 1 },
+      { index: 2, passed: false, status: 'wrong_answer', reason: 'Output did not match', got: '9', timeMs: 10, memoryKb: 1 },
+      { index: 3, passed: false, status: 'timeout', reason: 'Time limit exceeded', got: '', timeMs: 3000, memoryKb: 1 },
+    ];
+    const grade = gradeCodingCases(cases, verdicts, 8);
+    assert.equal(grade.marksObtained, 4);
+    assert.equal(grade.passedCount, 2);
+    assert.equal(grade.caseCount, 4);
+    assert.equal(grade.solved, false);
+    assert.deepEqual(grade.breakdown.map((item) => item.marks), [2, 2, 0, 0]);
+  });
+
+  it('gives full marks only when every case passes', () => {
+    const verdicts = cases.map((_, index) => ({
+      index,
+      passed: true,
+      status: 'accepted' as const,
+      reason: 'Accepted',
+      got: '',
+      timeMs: 5,
+      memoryKb: 1,
+    }));
+    const grade = gradeCodingCases(cases, verdicts, 5);
+    assert.equal(grade.marksObtained, 5);
+    assert.equal(grade.solved, true);
+  });
+
+  it('awards nothing when a case never got a verdict (compiler unavailable)', () => {
+    const grade = gradeCodingCases(cases, [], 5);
+    assert.equal(grade.marksObtained, 0);
+    assert.equal(grade.passedCount, 0);
+    assert.equal(grade.breakdown.length, 4);
+    assert.equal(grade.breakdown[0].status, 'judge_error');
+  });
+});
+
+describe('codingAnswerProblem', () => {
+  it('accepts real code in an allowed language', () => {
+    assert.equal(codingAnswerProblem('python', 'print(1)', ['python', 'java']), null);
+    assert.equal(codingAnswerProblem('py', 'print(1)'), null);
+  });
+
+  it('refuses a missing language, an unlisted language and an empty answer', () => {
+    assert.match(String(codingAnswerProblem('', 'print(1)')), /Choose the language/);
+    assert.match(String(codingAnswerProblem('java', 'class A {}', ['python'])), /Answer in python/);
+    assert.match(String(codingAnswerProblem('python', '   \n  ')), /Write some code/);
+    assert.match(
+      String(codingAnswerProblem('python', 'x'.repeat(MAX_CODING_SOURCE_CHARS + 1))),
+      /under 16,000 characters/,
+    );
+  });
+});

@@ -64,6 +64,7 @@ import {
   getAssignmentSubmissionDownload,
 } from './studentPortal'
 import { runStudentCode } from './codeRunner'
+import { judgeCodingSubmissions, runAssessmentCode } from './codingJudge'
 import {
   getMyStudentTests,
   getMyTestInstructions,
@@ -292,6 +293,8 @@ export {
   razorpayWebhook,
   updateMyStudentProfile,
   runStudentCode,
+  judgeCodingSubmissions,
+  runAssessmentCode,
   listMentorDirectory,
   getMyAssignments,
   beginMyAssignmentSubmission,

@@ -14,6 +14,15 @@ import {
   type ServerQuestion,
 } from './assessmentGrading'
 import { canonicalQuestionType, findSchedulingProblem } from './questionTypes'
+import {
+  MAX_CODING_SOURCE_CHARS,
+  normalizeCodingLanguage,
+  parseCodingConfig,
+} from './codingAssessmentCore'
+import {
+  buildCodingJudgeJob,
+  codingJudgeJobId,
+} from './codingJudgeQueue'
 import { resolveSchemePackForCollege } from './schemePacks'
 import { geminiClient, openaiClient, deepseekClient } from './config/aiProviders'
 import { generateWithGeminiFallback, primaryGeminiModel } from './config/aiModels'
@@ -41,7 +50,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-interface StudentIdentity {
+export interface StudentIdentity {
   uid: string
   id: string
   collegeId: string
@@ -85,7 +94,7 @@ function parseRequiredDate(value: unknown, field: string): Date {
   return parsed
 }
 
-async function resolveStudent(uid: string, token: Record<string, unknown>): Promise<StudentIdentity> {
+export async function resolveStudent(uid: string, token: Record<string, unknown>): Promise<StudentIdentity> {
   const db = getFirestore(admin.app(), 'default')
   const [userDoc, students] = await Promise.all([
     db.collection('users').doc(uid).get(),
@@ -188,6 +197,18 @@ export function normalizeQuestion(data: admin.firestore.DocumentData, id: string
     ? String((rawImages[0] as Record<string, unknown>).url || '')
     : ''
   const imageUrl = String(raw.imageUrl || firstImageUrl || '')
+  // A coding question carries its languages, starter code, public samples and
+  // HIDDEN test cases. Only a coding-typed question gets the field, so a stray
+  // `coding` key on an MCQ cannot turn it into one.
+  const coding = questionType === 'coding'
+    ? parseCodingConfig(raw.coding ?? {
+        languages: raw.languages,
+        starterCode: raw.starterCode,
+        sampleCases: raw.sampleCases,
+        testCases: raw.testCases ?? raw.hiddenTestCases,
+        timeLimitSeconds: raw.timeLimitSeconds,
+      })
+    : null
   return {
     id,
     questionId,
@@ -206,6 +227,7 @@ export function normalizeQuestion(data: admin.firestore.DocumentData, id: string
     ...(imageUrl ? { imageUrl } : {}),
     ...(raw.caseText ? { caseText: String(raw.caseText) } : {}),
     ...(Array.isArray(raw.matchPairs) ? { matchPairs: raw.matchPairs } : {}),
+    ...(coding ? { coding } : {}),
   }
 }
 
@@ -280,7 +302,7 @@ async function writeFrozenQuestionChunks(
   await batch.commit()
 }
 
-async function loadTestQuestions(
+export async function loadTestQuestions(
   testId: string,
   test: admin.firestore.DocumentData
 ): Promise<ServerQuestion[]> {
@@ -363,6 +385,21 @@ function publicQuestion(question: ServerQuestion) {
       : undefined,
     questionText: question.text,
     questionType: question.type,
+    // Coding questions: the languages, the starter code and the PUBLIC sample
+    // cases reach the player. `testCases` deliberately does not — the hidden
+    // tests are what stop one student's correct answer from being another
+    // student's answer, and `caseCount` is all the browser is told about them.
+    ...(question.coding
+      ? {
+          coding: {
+            languages: question.coding.languages,
+            starterCode: question.coding.starterCode,
+            sampleCases: question.coding.sampleCases,
+            timeLimitSeconds: question.coding.timeLimitSeconds,
+            caseCount: question.coding.testCases.length,
+          },
+        }
+      : {}),
   }
 }
 
@@ -428,7 +465,7 @@ async function resolveOwnTest(
   return { testId: testDoc.id, testRef, test }
 }
 
-function rowRef(testId: string, studentId: string): FirebaseFirestore.DocumentReference {
+export function rowRef(testId: string, studentId: string): FirebaseFirestore.DocumentReference {
   return getFirestore(admin.app(), 'default').collection('studentAssessments').doc(`${testId}_${studentId}`)
 }
 
@@ -442,6 +479,12 @@ export interface AnswerIndexEntry {
   id: string
   optionIds: string[]
   type: string
+  /**
+   * Language allowlist, present only for coding questions. The autosave path
+   * validates deltas against this index instead of loading the question
+   * documents, so without it a coding answer could not be checked there.
+   */
+  codingLanguages?: string[]
 }
 
 export function questionsToIndex(questions: ServerQuestion[]): Record<string, AnswerIndexEntry> {
@@ -451,6 +494,7 @@ export function questionsToIndex(questions: ServerQuestion[]): Record<string, An
       id: question.id,
       optionIds: question.options.map((option) => option.id),
       type: question.type,
+      ...(question.coding ? { codingLanguages: question.coding.languages } : {}),
     }
     index[question.id] = entry
     if (question.questionId && question.questionId !== question.id) index[question.questionId] = entry
@@ -461,7 +505,8 @@ export function questionsToIndex(questions: ServerQuestion[]): Record<string, An
 function buildSanitizedAnswer(
   canonicalId: string,
   input: Record<string, unknown>,
-  optionIds: string[]
+  optionIds: string[],
+  codingLanguages: string[] | null = null
 ): ServerAnswer {
   const optionIdSet = new Set(optionIds)
   const selectedOptionId = input.selectedOptionId && optionIdSet.has(String(input.selectedOptionId))
@@ -481,8 +526,25 @@ function buildSanitizedAnswer(
         return { left: String(value.left || '').slice(0, 500), right: String(value.right || '').slice(0, 500) }
       })
     : undefined
+  // A coded answer: an allowed language and bounded source. Anything else is
+  // dropped here rather than sent to a sandbox, and whitespace-only code is not
+  // an attempt (it must not reserve marks the student never earned).
+  const rawCoding = input.coding && typeof input.coding === 'object' && !Array.isArray(input.coding)
+    ? (input.coding as Record<string, unknown>)
+    : null
+  let coding: ServerAnswer['coding']
+  if (rawCoding && codingLanguages) {
+    const language = normalizeCodingLanguage(rawCoding.language)
+    const code = typeof rawCoding.code === 'string'
+      ? rawCoding.code.replace(/\r\n?/g, '\n').slice(0, MAX_CODING_SOURCE_CHARS)
+      : ''
+    if (language && (codingLanguages.length === 0 || codingLanguages.includes(language)) && code.trim()) {
+      coding = { language, code }
+    }
+  }
   return {
     questionId: canonicalId,
+    ...(coding ? { coding } : {}),
     ...(selectedOptionId ? { selectedOptionId } : {}),
     ...(selectedOptionIds?.length ? { selectedOptionIds } : {}),
     ...(textAnswer ? { textAnswer } : {}),
@@ -509,7 +571,12 @@ export function sanitizeAnswers(value: unknown, questions: ServerQuestion[]): Se
     const question = knownQuestions.get(String(input.questionId || mapId))
     if (!question || seen.has(question.id)) return
     seen.add(question.id)
-    answers.push(buildSanitizedAnswer(question.id, input, question.options.map((option) => option.id)))
+    answers.push(buildSanitizedAnswer(
+      question.id,
+      input,
+      question.options.map((option) => option.id),
+      question.coding ? question.coding.languages : null,
+    ))
   })
   return answers
 }
@@ -534,7 +601,7 @@ export function sanitizeAnswersWithIndex(
     const entry = index[String(input.questionId || mapId)]
     if (!entry || seen.has(entry.id)) return
     seen.add(entry.id)
-    answers.push(buildSanitizedAnswer(entry.id, input, entry.optionIds))
+    answers.push(buildSanitizedAnswer(entry.id, input, entry.optionIds, entry.codingLanguages ?? null))
   })
   return answers
 }
@@ -631,6 +698,9 @@ async function healAnswerIndex(
 
 function answerText(question: ServerQuestion, answer: ServerAnswer | undefined): string {
   if (!answer) return ''
+  // A coded answer is shown to the faculty member exactly as written, fenced so
+  // the grading screens keep the line breaks.
+  if (answer.coding) return ['```' + answer.coding.language, answer.coding.code, '```'].join('\n')
   if (answer.selectedOptionId) {
     return question.options.find((option) => option.id === answer.selectedOptionId)?.text || ''
   }
@@ -1260,7 +1330,12 @@ export const submitMyStudentTest = onCall(
       const timeSpent = startedAt ? Math.max(0, Math.floor((nowMs - startedAt.getTime()) / 1000)) : 0
       const totalMarks = Number(row.totalMarks)
         || questions.reduce((sum, question) => sum + question.marks, 0)
-      const fullyObjective = !graded.needsManualGrading && graded.manualMax === 0
+      // "Objective" now also means "the sandbox has finished". A coded answer
+      // is still pending at this instant, so the attempt stays `submitted` and
+      // the code judge finalises it (gradingBreakdown entries are `pending_judge`
+      // until then, and every read path is marks-first, so a half-judged paper
+      // never reads as a result).
+      const fullyObjective = !graded.needsManualGrading && graded.manualMax === 0 && !graded.needsJudge
       const marksBeforePenalty = Math.max(0, graded.autoScore)
       const marksObtained = fullyObjective
         ? Math.round(marksBeforePenalty * (1 - latePenaltyPercentage / 100) * 100) / 100
@@ -1309,7 +1384,12 @@ export const submitMyStudentTest = onCall(
         manualMax: graded.manualMax,
         manualGradeableMax,
         manualQuestionSnippets,
-        needsManualGrading: !fullyObjective,
+        // Coding questions that are still with the sandbox are NOT manual work;
+        // a faculty member is only handed one if the judge could not run it
+        // (the worker flips it to `pending_manual` with the reason).
+        needsManualGrading: graded.needsManualGrading || graded.manualMax > 0,
+        judgeMax: graded.judgeMax,
+        judgeStatus: graded.needsJudge ? 'pending' : 'done',
         schemePackId: String(row.schemePackId || freshTest.schemePackId || ''),
         schemePackCode: String(row.schemePackCode || freshTest.schemePackCode || ''),
         schemePackResolution: String(row.schemePackResolution || freshTest.schemePackResolution || ''),
@@ -1338,6 +1418,22 @@ export const submitMyStudentTest = onCall(
       // (answers, scores, times, proctor events) — the old studentSubmissions
       // write had no readers, so it was pure write cost.
       transaction.update(assessmentRef, update)
+      // The judge job is written in the SAME transaction as the submission: an
+      // attempt whose code will never be scored is worse than a submission that
+      // failed outright, and the trigger fires on this document's creation.
+      if (graded.needsJudge) {
+        transaction.set(
+          getFirestore(admin.app(), 'default')
+            .collection('codingJudgeJobs')
+            .doc(codingJudgeJobId(resolved.testId, student.id)),
+          buildCodingJudgeJob({
+            testId: resolved.testId,
+            studentId: student.id,
+            collegeId: student.collegeId,
+            attemptId: assessmentRef.id,
+          }),
+        )
+      }
       transaction.update(resolved.testRef, {
         totalSubmitted: admin.firestore.FieldValue.increment(1),
         // Fully objective papers are graded at submission time.
@@ -1438,6 +1534,13 @@ export const getMyStudentTestResult = onCall(
       applyMarks: row?.status === 'graded',
     })
     const outcomeByQuestion = new Map(paperOutcome.perQuestion.map((item) => [item.questionId, item]))
+    // Per-question grading rows, so a coded answer can show WHICH hidden tests
+    // passed. `judge` carries pass/fail, time and the student's own output for
+    // the cases that failed — never the expected output of a case.
+    const breakdownByQuestion = new Map(
+      (Array.isArray(row?.gradingBreakdown) ? row.gradingBreakdown : [])
+        .map((item: admin.firestore.DocumentData) => [String(item?.questionId || ''), item]),
+    )
     const questionResults = questions.map((question) => {
       const answer = answerMap.get(question.id)
       const outcome = outcomeByQuestion.get(question.id)
@@ -1455,6 +1558,9 @@ export const getMyStudentTestResult = onCall(
         status: outcome?.status || 'unattempted',
         marksObtained: row?.status === 'graded' ? outcome?.marksObtained ?? null : null,
         sectionName: outcome?.sectionName || question.sectionName || 'General',
+        ...(question.type === 'coding' && reviewReleased && breakdownByQuestion.get(question.id)?.judge
+          ? { coding: breakdownByQuestion.get(question.id)?.judge }
+          : {}),
       }
     })
     const sectionScores = paperOutcome.sections.map((section) => ({

@@ -1474,6 +1474,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Code judging (functions/src/codingJudge.ts). The job document is written
+    // by the submission transaction and consumed by a Firestore trigger; the
+    // usage ledger is the per-student budget for in-test sample runs. Neither is
+    // ever read or written by a browser — in particular the job must not be
+    // readable, because it names the attempt whose HIDDEN test cases are about
+    // to be run against it.
+    match /codingJudgeJobs/{jobId} {
+      allow read, write: if false;
+    }
+
+    match /assessmentCodeUsage/{uid} {
+      allow read, write: if false;
+    }
+
     // -- Resume Builder add-on -------------------------------------------------
     // resumes/{uid} holds a student's editable resume plus the PDF credit
     // ledger; resumeDownloads/{id} is one row per generated PDF (the Storage

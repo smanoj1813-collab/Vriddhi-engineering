@@ -1313,6 +1313,40 @@ describe('attendance summaries (item 3.1)', () => {
   })
 })
 
+describe('code judging internals are server-only', () => {
+  // functions/src/codingJudge.ts: `codingJudgeJobs` is written by the submit
+  // transaction and consumed by a Firestore trigger, and `assessmentCodeUsage`
+  // is the per-student sample-run budget. Neither may be read from a browser —
+  // the job names the attempt whose HIDDEN test cases are about to be run
+  // against it, so a read here would be a way to fish for the answer key.
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore()
+      await setDoc(doc(db, 'codingJudgeJobs', 'test-1__student-1'), {
+        testId: 'test-1',
+        studentId: STUDENT_UID,
+        collegeId: COLLEGE_A,
+        attemptId: 'test-1_student-1',
+        status: 'queued',
+      })
+      await setDoc(doc(db, 'assessmentCodeUsage', STUDENT_UID), {
+        dayKey: '2026-10-11',
+        dailyRuns: 3,
+      })
+    })
+  })
+
+  it('denies every client read and write, student through superadmin', async () => {
+    for (const ctx of [studentContext(), facultyContext(), principalContext(), superadminContext()]) {
+      const db = ctx.firestore()
+      await assertFails(getDoc(doc(db, 'codingJudgeJobs', 'test-1__student-1')))
+      await assertFails(setDoc(doc(db, 'codingJudgeJobs', 'test-1__student-1'), { status: 'done' }))
+      await assertFails(getDoc(doc(db, 'assessmentCodeUsage', STUDENT_UID)))
+      await assertFails(setDoc(doc(db, 'assessmentCodeUsage', STUDENT_UID), { dailyRuns: 0 }))
+    }
+  })
+})
+
 describe('platform documents are server-only', () => {
   // `platform/stats` (refreshPlatformStats, item 2.4) and
   // `platform/aiModelCanary` (model canary, item 2.1) are written only by Cloud

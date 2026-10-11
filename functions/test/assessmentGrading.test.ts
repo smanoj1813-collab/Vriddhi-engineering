@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  computeAttemptTotals,
   gradeAssessmentPaper,
   gradeFromPercentage,
   gradeFromPercentageForScheme,
   summarizePaperOutcome,
   type ServerQuestion,
 } from '../src/assessmentGrading'
+import { parseCodingConfig } from '../src/codingAssessmentCore'
 
 function question(overrides: Partial<ServerQuestion>): ServerQuestion {
   return {
@@ -227,5 +229,171 @@ describe('summarizePaperOutcome', () => {
     assert.equal(summary.unattemptedCount, 1)
     assert.equal(summary.incorrectCount, 0)
     assert.equal(summary.perQuestion[0].status, 'unattempted')
+  })
+})
+
+// ─── coding questions in the paper grade ───────────────────────────────
+//
+// A coded answer cannot be scored inside `gradeAssessmentPaper`: running it
+// takes seconds in a sandbox. So the paper grade RESERVES its marks and marks
+// the question `pending_judge`, the attempt stays `submitted`, and
+// functions/src/codingJudge.ts fills the marks in. These tests pin that
+// contract, plus the two ways it can go wrong in the other direction: an
+// unanswered coding question must score 0 immediately (nothing to wait for),
+// and a paper whose only non-objective question is the coding one must not end
+// up waiting on a faculty member as well.
+
+function codingQuestion(overrides: Partial<ServerQuestion> = {}): ServerQuestion {
+  return {
+    id: 'code-1',
+    questionId: 'code-1',
+    order: 3,
+    text: 'Read two integers and print their sum.',
+    type: 'coding',
+    marks: 6,
+    negativeMarks: 0,
+    options: [],
+    coding: parseCodingConfig({
+      languages: ['python', 'cpp'],
+      sampleCases: [{ stdin: '1 1', expectedOutput: '2' }],
+      testCases: [
+        { stdin: '2 3', expectedOutput: '5' },
+        { stdin: '4 4', expectedOutput: '8' },
+      ],
+    })!,
+    ...overrides,
+  }
+}
+
+function mcqQuestion(overrides: Partial<ServerQuestion> = {}): ServerQuestion {
+  return {
+    id: 'mcq-1',
+    questionId: 'mcq-1',
+    order: 1,
+    text: 'Pick one',
+    type: 'mcq',
+    marks: 4,
+    negativeMarks: 0,
+    options: [
+      { id: 'A', text: 'Right', isCorrect: true },
+      { id: 'B', text: 'Wrong' },
+    ],
+    ...overrides,
+  }
+}
+
+describe('gradeAssessmentPaper with coding questions', () => {
+  it('reserves the marks and waits for the sandbox instead of scoring 0', () => {
+    const grade = gradeAssessmentPaper(
+      [mcqQuestion(), codingQuestion()],
+      [
+        { questionId: 'mcq-1', selectedOptionId: 'A', isFlagged: false },
+        { questionId: 'code-1', coding: { language: 'python', code: 'print(5)' }, isFlagged: false },
+      ],
+    )
+    assert.equal(grade.needsJudge, true)
+    assert.equal(grade.judgeMax, 6)
+    assert.equal(grade.autoMax, 10)
+    assert.equal(grade.autoScore, 4)
+    assert.equal(grade.manualMax, 0)
+    assert.equal(grade.needsManualGrading, false)
+    const coding = grade.perQuestion.find((item) => item.questionId === 'code-1')
+    assert.equal(coding?.status, 'pending_judge')
+    assert.equal(coding?.marksObtained, null)
+  })
+
+  it('scores an unanswered coding question 0 at once — there is nothing to run', () => {
+    const grade = gradeAssessmentPaper([codingQuestion()], [])
+    assert.equal(grade.needsJudge, false)
+    assert.equal(grade.judgeMax, 0)
+    assert.equal(grade.unattemptedCount, 1)
+    assert.equal(grade.perQuestion[0].status, 'unattempted')
+    assert.equal(grade.perQuestion[0].marksObtained, 0)
+  })
+
+  it('treats whitespace-only code as unanswered, not as a run worth 0', () => {
+    const grade = gradeAssessmentPaper(
+      [codingQuestion()],
+      [{ questionId: 'code-1', coding: { language: 'python', code: '  \n ' }, isFlagged: false }],
+    )
+    assert.equal(grade.needsJudge, false)
+    assert.equal(grade.perQuestion[0].status, 'unattempted')
+  })
+
+  it('keeps a descriptive question and a coded one in their own queues', () => {
+    const grade = gradeAssessmentPaper(
+      [
+        codingQuestion(),
+        { ...mcqQuestion(), id: 'long-1', questionId: 'long-1', type: 'long_answer', marks: 4, options: [] },
+      ],
+      [
+        { questionId: 'code-1', coding: { language: 'cpp', code: 'int main(){}' }, isFlagged: false },
+        { questionId: 'long-1', textAnswer: 'An essay', isFlagged: false },
+      ],
+    )
+    assert.equal(grade.needsJudge, true)
+    assert.equal(grade.needsManualGrading, true)
+    assert.equal(grade.manualMax, 4)
+    assert.equal(grade.judgeMax, 6)
+  })
+})
+
+describe('summarizePaperOutcome reads judged code marks like any other', () => {
+  it('buckets a partially passing coding answer as partial, not incorrect', () => {
+    const outcome = summarizePaperOutcome({
+      questions: [codingQuestion()],
+      answers: [{ questionId: 'code-1', coding: { language: 'python', code: 'print(3)' }, isFlagged: false }],
+      gradingBreakdown: [{ questionId: 'code-1', status: 'judged', marksObtained: 3 }],
+    })
+    assert.equal(outcome.perQuestion[0].status, 'partial')
+    assert.equal(outcome.perQuestion[0].marksObtained, 3)
+    assert.equal(outcome.partialCount, 1)
+  })
+
+  it('reads a fully passing coding answer as correct', () => {
+    const outcome = summarizePaperOutcome({
+      questions: [codingQuestion()],
+      answers: [{ questionId: 'code-1', coding: { language: 'python', code: 'print(3)' }, isFlagged: false }],
+      gradingBreakdown: [{ questionId: 'code-1', status: 'judged', marksObtained: 6 }],
+    })
+    assert.equal(outcome.perQuestion[0].status, 'correct')
+  })
+
+  it('still shows a pending coding answer as awaiting grading, never as 0', () => {
+    const outcome = summarizePaperOutcome({
+      questions: [codingQuestion()],
+      answers: [{ questionId: 'code-1', coding: { language: 'python', code: 'print(3)' }, isFlagged: false }],
+      gradingBreakdown: [{ questionId: 'code-1', status: 'pending_judge', marksObtained: null }],
+      applyMarks: false,
+    })
+    assert.equal(outcome.perQuestion[0].status, 'pending_manual')
+    assert.equal(outcome.perQuestion[0].marksObtained, null)
+  })
+})
+
+describe('computeAttemptTotals', () => {
+  it('matches the arithmetic the manual grader has always applied', () => {
+    assert.deepEqual(
+      computeAttemptTotals({ autoScore: 12, manualScore: 6, penaltyPercentage: 0, totalMarks: 30 }),
+      { marksObtained: 18, percentage: 60 },
+    )
+  })
+
+  it('applies the late penalty to the whole paper and never goes negative', () => {
+    assert.deepEqual(
+      computeAttemptTotals({ autoScore: 10, manualScore: 0, penaltyPercentage: 10, totalMarks: 20 }),
+      { marksObtained: 9, percentage: 45 },
+    )
+    assert.deepEqual(
+      computeAttemptTotals({ autoScore: -2, manualScore: 0, penaltyPercentage: 0, totalMarks: 20 }),
+      { marksObtained: 0, percentage: 0 },
+    )
+  })
+
+  it('caps the percentage at 100 when the graders overshoot', () => {
+    assert.deepEqual(
+      computeAttemptTotals({ autoScore: 25, manualScore: 0, penaltyPercentage: 0, totalMarks: 20 }),
+      { marksObtained: 25, percentage: 100 },
+    )
   })
 })
