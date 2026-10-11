@@ -202,6 +202,9 @@ export function normalizeQuestion(data: admin.firestore.DocumentData, id: string
   // A coding question carries its languages, starter code, public samples and
   // HIDDEN test cases. Only a coding-typed question gets the field, so a stray
   // `coding` key on an MCQ cannot turn it into one.
+  // `raw.coding` may be a public payload (frozen chunk) as well as a question
+  // document — both shapes carry `placeholders`, so the resume path re-derives
+  // the same seed instead of falling back to "everyone gets the same tests".
   const coding = questionType === 'coding'
     ? parseCodingConfig(raw.coding ?? {
         languages: raw.languages,
@@ -371,7 +374,7 @@ export async function loadTestQuestions(
     .map((question, index) => normalizeQuestion(question.data() || {}, question.id, index + 1))
 }
 
-function publicQuestion(question: ServerQuestion, variantSeed?: number) {
+export function publicQuestion(question: ServerQuestion, variantSeed?: number) {
   return {
     id: question.id,
     questionId: question.questionId,
@@ -410,8 +413,19 @@ function publicQuestion(question: ServerQuestion, variantSeed?: number) {
               ? question.coding.sampleCases
               : materializeCases(question.coding.sampleCases, question.coding.placeholders, variantSeed).cases,
             timeLimitSeconds: question.coding.timeLimitSeconds,
-            caseCount: question.coding.testCases.length,
-            variesByStudent: question.coding.placeholders.length > 0,
+            // `question.coding` may be the SERVER shape (a question document, with
+            // its hidden testCases) or the PUBLIC shape (a frozen chunk on the
+            // resume path, without them), so both fields are read defensively.
+            caseCount: question.coding.testCases?.length ?? 0,
+            variesByStudent: (question.coding.placeholders ?? []).length > 0,
+            // The RANGES, not the values. A resumed attempt is rebuilt from the
+            // frozen chunks (shared by the whole batch, so they hold templates),
+            // and this is what lets that path draw the same student's numbers
+            // again. Ranges are harmless in the browser: the student already
+            // sees their own materialised samples.
+            ...((question.coding.placeholders ?? []).length > 0
+              ? { placeholders: question.coding.placeholders }
+              : {}),
           },
         }
       : {}),

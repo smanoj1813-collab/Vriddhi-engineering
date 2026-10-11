@@ -7,7 +7,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildFrozenQuestionChunks, normalizeQuestion } from '../src/studentAssessments';
+import { buildFrozenQuestionChunks, normalizeQuestion, publicQuestion } from '../src/studentAssessments';
 import { materializeCases, studentCaseSeed } from '../src/codingVariants';
 import { findSchedulingProblem } from '../src/questionTypes';
 import {
@@ -382,4 +382,55 @@ describe('variants: the shared payload stays templated', () => {
     });
     assert.match(String(problem), /"b" is not declared/);
   })
+})
+
+// ─── the resume path must draw the same numbers, not fall back to shared ones ──
+//
+// A resumed attempt is rebuilt from the frozen chunks, which are SHARED by the
+// whole batch and therefore hold templates. Round-tripping a chunk question back
+// through publicQuestion is what applies the student's own draw. If the
+// declarations did not survive that round trip, resumes would silently hand the
+// student the template — or worse, the same numbers as everyone else.
+
+describe('resume: a chunk-shaped question still materialises for the student', () => {
+  const doc = {
+    text: 'Read two integers and print their sum.',
+    type: 'coding',
+    marks: 4,
+    coding: {
+      languages: ['python'],
+      placeholders: [
+        { name: 'a', min: 1, max: 90 },
+        { name: 'b', min: 1, max: 90 },
+      ],
+      sampleCases: [{ stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' }],
+      testCases: [{ stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' }],
+    },
+  };
+
+  it('parses the declarations back out of a public payload', () => {
+    const question = normalizeQuestion(doc, 'q1', 1);
+    const asServed = publicQuestion(question); // no seed: the frozen chunk's shape
+    const roundTripped = normalizeQuestion(asServed as unknown as Record<string, unknown>, 'q1', 1);
+    assert.equal(roundTripped.coding?.placeholders.length, 2);
+  });
+
+  it('gives the resumed student exactly what the judge will score against', () => {
+    const question = normalizeQuestion(doc, 'q1', 1);
+    const seed = studentCaseSeed({ testId: 'test-3', studentId: 'student-3', questionId: question.id });
+
+    // What the test-start path serves, then the same question as a resume would
+    // rebuild it (chunk -> publicQuestion with the student's seed).
+    const atStart = publicQuestion(question, seed);
+    const chunk = buildFrozenQuestionChunks([question])[0].questions[0];
+    const atResume = publicQuestion(chunk as unknown as ReturnType<typeof publicQuestion>, seed) as ReturnType<typeof publicQuestion>;
+
+    assert.deepEqual(atResume.coding?.sampleCases, atStart.coding?.sampleCases);
+    const [left, right] = String(atResume.coding?.sampleCases?.[0]?.stdin).split(' ').map(Number);
+    assert.equal(Number(atResume.coding?.sampleCases?.[0]?.expectedOutput), left + right);
+
+    // And the hidden tests the judge materialises draw the same sequence.
+    const hidden = materializeCases(question.coding!.testCases, question.coding!.placeholders, seed);
+    assert.equal(hidden.cases[0].stdin, `${left} ${right}`);
+  });
 })

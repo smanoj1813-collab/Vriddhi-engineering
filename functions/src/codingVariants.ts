@@ -287,11 +287,14 @@ export interface MaterializeResult {
  */
 export function materializeCases(
   cases: VariantCase[],
-  placeholders: VariantPlaceholder[],
+  placeholders: VariantPlaceholder[] | null | undefined,
   seed: number,
 ): MaterializeResult {
   const errors: string[] = [];
-  if (placeholders.length === 0) {
+  // Defensive: a question read from the frozen public payload (the resume path)
+  // may predate the declarations, and a missing list must mean "no variants"
+  // rather than a crash mid-test.
+  if (!Array.isArray(placeholders) || placeholders.length === 0) {
     return {
       cases: cases.map((testCase) => ({
         stdin: testCase.stdin,

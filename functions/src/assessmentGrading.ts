@@ -30,6 +30,11 @@ export interface ServerQuestion {
    * against. Never serialise this object towards a student — `publicQuestion`
    * in studentAssessments.ts strips `testCases` on purpose.
    */
+  /**
+   * Present on a `coding` question. On the resume path this holds the PUBLIC
+   * shape (a frozen chunk: no hidden `testCases`), which is why readers treat
+   * the fields as optional rather than assuming a question document.
+   */
   coding?: CodingQuestionConfig
 }
 
