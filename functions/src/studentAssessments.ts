@@ -1,4 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
 import admin from 'firebase-admin'
@@ -310,6 +310,54 @@ async function writeFrozenQuestionChunks(
     }, { merge: false })
   })
   await batch.commit()
+}
+
+/**
+ * The ids among `requested` that a targeted load did not find — the decision
+ * that makes a cheap read safe. Missing even one means the caller falls back to
+ * the full loader rather than scoring a question it does not understand.
+ * Pure, so the fallback rule is unit-tested (functions/test/codingReadCost.test.ts).
+ */
+export function missingQuestionIds(requested: readonly string[], found: Iterable<string>): string[] {
+  const have = new Set(found);
+  return [...new Set(requested)].filter((id) => id && !have.has(id));
+}
+
+/**
+ * Loads ONLY the named questions (1 read per 10 ids), for the paths that know
+ * exactly which ones they need: the code judge and the in-test sample run.
+ *
+ * Why this exists: `loadTestQuestions` reads the whole
+ * `scheduledTests/{id}/assessmentQuestions` collection — correct for starting a
+ * paper, wasteful for "run my code against one question", which a student may
+ * click a dozen times. On a 40-question paper that is 40 reads per click versus
+ * 1. The caller falls back to the full loader when this returns short
+ * (`missingQuestionIds`), so the cheap path can never quietly score a question
+ * it failed to load.
+ */
+export async function loadQuestionsByIds(
+  testId: string,
+  questionIds: readonly string[]
+): Promise<Map<string, ServerQuestion>> {
+  const unique = missingQuestionIds(questionIds, []) // dedupe + drop blanks
+  const found = new Map<string, ServerQuestion>()
+  if (unique.length === 0) return found
+  const db = getFirestore(admin.app(), 'default')
+  for (let index = 0; index < unique.length; index += 10) {
+    const chunk = unique.slice(index, index + 10)
+    const snapshot = await db
+      .collection('scheduledTests')
+      .doc(testId)
+      .collection('assessmentQuestions')
+      .where(FieldPath.documentId(), 'in', chunk)
+      .get()
+    snapshot.docs.forEach((doc, position) => {
+      const question = normalizeQuestion(doc.data(), doc.id, position + 1)
+      found.set(question.id, question)
+      if (question.questionId) found.set(question.questionId, question)
+    })
+  }
+  return found
 }
 
 export async function loadTestQuestions(

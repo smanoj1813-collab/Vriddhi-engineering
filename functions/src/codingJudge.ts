@@ -21,6 +21,12 @@
 //                             for a student with a live attempt. The hidden
 //                             cases are never reachable from the browser.
 //
+// READ/WRITE BUDGET (a deliberate design constraint, not an accident)
+//   sample run  : 2-3 reads + 1 quota write per click; the paper is NOT loaded.
+//   judged paper: 1 job write, then ~3 reads + ~3 writes per coding submission,
+//                 and 1 read per 10 questions (not one per question).
+//   The full question loader is a fallback, never the fast path.
+//
 // GRACEFUL DEGRADATION
 // If the sandbox is not configured or will not run a case, the question is
 // handed to the faculty queue as a manual-graded question with the reason
@@ -64,7 +70,7 @@ import {
   type ServerAnswer,
   type ServerQuestion,
 } from './assessmentGrading';
-import { loadTestQuestions, resolveStudent, rowRef } from './studentAssessments';
+import { loadQuestionsByIds, loadTestQuestions, missingQuestionIds, resolveStudent, rowRef } from './studentAssessments';
 
 /** Runs per answer sheet. Higher than the Coding Lab's: a paper has 4-5 questions. */
 const ASSESSMENT_RUNS_PER_MINUTE = 12;
@@ -275,7 +281,14 @@ export const judgeCodingSubmissions = onDocumentCreated(
 
     const testDoc = await db.collection('scheduledTests').doc(testId).get();
     const test = testDoc.data() || {};
-    const questions = await loadTestQuestions(testId, test);
+    // Read cost: only the questions being judged (1 read per 10), not the whole
+    // paper. The full loader runs only if the targeted read came back short —
+    // legacy papers keep their embedded questions, and those still need it.
+    const targeted = await loadQuestionsByIds(testId, pendingIds);
+    const missing = missingQuestionIds(pendingIds, targeted.keys());
+    const questions = missing.length === 0
+      ? [...targeted.values()]
+      : await loadTestQuestions(testId, test);
     const answers = new Map<string, ServerAnswer>(
       (Array.isArray(row.answers) ? row.answers as ServerAnswer[] : []).map((answer) => [answer.questionId, answer]),
     );
@@ -463,10 +476,11 @@ export const runAssessmentCode = onCall(
 
     const db = getFirestore(admin.app(), 'default');
     const attemptRef = rowRef(testId, student.id);
-    const [attemptDoc, testDoc] = await Promise.all([
-      attemptRef.get(),
-      db.collection('scheduledTests').doc(testId).get(),
-    ]);
+    // Read cost on the hot path: attempt + the one question being run (2 reads).
+    // The scheduled-test document is read ONLY when the targeted lookup misses
+    // (legacy papers embed their questions), so a student clicking "run" ten
+    // times costs ten cheap lookups rather than ten whole-paper loads.
+    const attemptDoc = await attemptRef.get();
     const row = attemptDoc.data();
     if (!attemptDoc.exists || !row || row.studentId !== student.id) {
       throw new HttpsError('failed-precondition', 'You do not have an attempt for this test.');
@@ -474,9 +488,14 @@ export const runAssessmentCode = onCall(
     if (String(row.status) !== 'in_progress') {
       throw new HttpsError('failed-precondition', 'This attempt is no longer being written.');
     }
-    if (!testDoc.exists) throw new HttpsError('failed-precondition', 'Scheduled test not found');
-    const questions = await loadTestQuestions(testId, testDoc.data() || {});
-    const question = questions.find((item) => item.id === questionId || item.questionId === questionId);
+    const targeted = await loadQuestionsByIds(testId, [questionId]);
+    let question = targeted.get(questionId);
+    if (!question) {
+      const testDoc = await db.collection('scheduledTests').doc(testId).get();
+      if (!testDoc.exists) throw new HttpsError('failed-precondition', 'Scheduled test not found');
+      const questions = await loadTestQuestions(testId, testDoc.data() || {});
+      question = questions.find((item) => item.id === questionId || item.questionId === questionId);
+    }
     const coding = parseCodingConfig(question?.coding);
     if (!question || !coding) {
       throw new HttpsError('invalid-argument', 'That question is not a coding question.');
