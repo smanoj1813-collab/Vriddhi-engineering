@@ -468,7 +468,10 @@ export const runAssessmentCode = onCall(
     memory: '512MiB',
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 40,
+    // Capped to fit the asia-south1 CPU quota (20 vCPU per project and region).
+    // Gen-2 functions handle up to 80 concurrent requests per instance by
+    // default, so 10 instances is far more than sample runs need.
+    maxInstances: 10,
     secrets: [JUDGE0_API_KEY],
   },
   async (request) => {
