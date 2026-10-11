@@ -7,6 +7,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { buildFrozenQuestionChunks, normalizeQuestion } from '../src/studentAssessments';
 import {
   MAX_CODING_SOURCE_CHARS,
   allocateCaseMarks,
@@ -237,3 +238,49 @@ describe('codingAnswerProblem', () => {
     );
   });
 });
+
+// ─── the hidden cases must not leave the server ────────────────────────
+//
+// Everything above is about scoring. This is about the thing the whole feature
+// rests on: a student's browser receives the languages, the starter code, the
+// public samples and a COUNT of hidden tests — never a hidden case. The frozen
+// chunk payload is what the player is served during a test, so this asserts on
+// exactly that, in the presence of a deliberately distinctive expected output.
+
+describe('a coding question never leaks its hidden tests', () => {
+  const HIDDEN_INPUT = '7 11 13';
+  const HIDDEN_OUTPUT = 'ANSWER-31-NEVER-IN-THE-BROWSER';
+
+  function codingDoc() {
+    return {
+      text: 'Read two integers and print their sum.',
+      type: 'coding',
+      marks: 6,
+      coding: {
+        languages: ['python', 'cpp'],
+        starterCode: { python: 'print(1)' },
+        sampleCases: [{ stdin: '1 1', expectedOutput: '2' }],
+        testCases: [{ stdin: HIDDEN_INPUT, expectedOutput: HIDDEN_OUTPUT }],
+        timeLimitSeconds: 2,
+      },
+    };
+  }
+
+  it('keeps the hidden cases on the server question object', () => {
+    const question = normalizeQuestion(codingDoc(), 'q1', 1);
+    assert.equal(question.coding?.testCases.length, 1);
+    assert.equal(question.coding?.testCases[0].expectedOutput, HIDDEN_OUTPUT);
+  })
+
+  it('strips them from the frozen chunks the student is served', () => {
+    const questions = [normalizeQuestion(codingDoc(), 'q1', 1)];
+    const chunks = buildFrozenQuestionChunks(questions);
+    const payload = JSON.stringify(chunks);
+    assert.ok(!payload.includes(HIDDEN_OUTPUT), 'the expected output of a hidden case reached the player payload');
+    assert.ok(!payload.includes(HIDDEN_INPUT), 'the input of a hidden case reached the player payload');
+    assert.ok(!payload.includes('testCases'), 'the hidden-case list reached the player payload');
+    // What the student DOES get, so the check above is not passing by omission.
+    assert.equal(chunks[0].questions[0].coding?.caseCount, 1);
+    assert.equal(chunks[0].questions[0].coding?.sampleCases?.length, 1);
+  })
+})
