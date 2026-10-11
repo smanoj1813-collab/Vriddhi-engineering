@@ -1,11 +1,16 @@
-# Rules-suite diagnostics harness.
+# Rules-suite harness for in-progress branches.
 #
-# Temporary, branch-scoped twin of `rules-nightly.yml`: it runs the FULL rules
-# suite on pushes to an `arena/*` branch and attaches the failing test names +
-# assertion text to the check run as annotations. It exists so that a session
-# working on a branch can see *why* the suite is red without a human having to
-# open the (private-repo, log-host-restricted) job log. Delete this file once
-# the branch it was added for is merged.
+# `rules-nightly.yml` runs the full suite against `main` once a day; per-PR CI
+# only runs the course-security slice for speed. This job closes the gap while
+# rules work is still on a branch: it runs the FULL suite on a push to an
+# `arena/*` branch and attaches the failing test names + assertion text to the
+# check run as annotations.
+#
+# It is push-triggered (not workflow_dispatch) on purpose: a session token that
+# can push commits cannot dispatch workflows — `gh workflow run` answers 403
+# "Resource not accessible by integration" — so a push is the only way to get
+# the suite to run against unmerged rule changes. It never runs on `main`, so
+# it cannot duplicate the nightly.
 name: Rules diagnostics
 
 on:
