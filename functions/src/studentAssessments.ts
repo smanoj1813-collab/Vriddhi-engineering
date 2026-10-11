@@ -148,7 +148,7 @@ async function resolveStaff(uid: string, token: Record<string, unknown>): Promis
 // canonicalQuestionType now lives in ./questionTypes (single source of truth
 // shared with the paper pipeline); it is imported above.
 
-function normalizeQuestion(data: admin.firestore.DocumentData, id: string, order: number): ServerQuestion {
+export function normalizeQuestion(data: admin.firestore.DocumentData, id: string, order: number): ServerQuestion {
   // AI-generated papers store embedded questions as { questionId, question }
   // wrappers — unwrap so text/options/type normalise from the inner object
   // (bank documents and editor papers are flat and are unaffected).
@@ -178,6 +178,16 @@ function normalizeQuestion(data: admin.firestore.DocumentData, id: string, order
     ]
   }
   const questionId = String(data.questionId || raw.questionId || raw.id || id)
+  // Question figures reach this normaliser in two shapes: editor papers carry a
+  // flat `imageUrl`, while the question bank stores `images: [{url, altText,
+  // storagePath}]` (src/shared/utils/questionImage.ts). The player renders
+  // `imageUrl` (QuestionRenderer), so resolve both here rather than teaching
+  // every reader about two shapes.
+  const rawImages = Array.isArray(raw.images) ? raw.images : []
+  const firstImageUrl = rawImages.length > 0 && rawImages[0] && typeof rawImages[0] === 'object'
+    ? String((rawImages[0] as Record<string, unknown>).url || '')
+    : ''
+  const imageUrl = String(raw.imageUrl || firstImageUrl || '')
   return {
     id,
     questionId,
@@ -193,7 +203,7 @@ function normalizeQuestion(data: admin.firestore.DocumentData, id: string, order
     ...(raw.sectionId ? { sectionId: String(raw.sectionId) } : {}),
     ...(raw.sectionName ? { sectionName: String(raw.sectionName) } : {}),
     ...(raw.difficulty ? { difficulty: String(raw.difficulty) } : {}),
-    ...(raw.imageUrl ? { imageUrl: String(raw.imageUrl) } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
     ...(raw.caseText ? { caseText: String(raw.caseText) } : {}),
     ...(Array.isArray(raw.matchPairs) ? { matchPairs: raw.matchPairs } : {}),
   }

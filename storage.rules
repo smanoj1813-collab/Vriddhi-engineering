@@ -213,6 +213,31 @@ service firebase.storage {
         && (isSuperadmin() || tenantCollege() == collegeId);
     }
 
+    // Question-bank figures — the diagrams a logical-reasoning, quantitative
+    // or science question needs. Written by college staff while authoring a
+    // question (the submission form uploads through
+    // src/modules/admin/api/questionImageUpload.ts) and read by the SAME
+    // college's students while a test is on screen: the object the staff
+    // member uploaded is the object the student's browser loads mid-test.
+    //
+    // The college segment is the tenant boundary. Platform-curated questions
+    // (superadmin-authored) use the literal segment `platform`, which every
+    // signed-in user may read, matching their `visibility: public` metadata.
+    // The 2 MB / image-MIME caps mirror QUESTION_IMAGE_MAX_BYTES and
+    // questionImageExtension in src/shared/utils/questionImage.ts — raise both
+    // together or the form and the rules will disagree.
+    match /images/questions/{collegeId}/{subjectId}/{topicId}/{questionId}/{fileName} {
+      allow read: if isSignedIn()
+        && (isSuperadmin() || collegeId == 'platform' || tenantCollege() == collegeId);
+      allow create, update: if isStaff()
+        && (isSuperadmin() || tenantCollege() == collegeId)
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/png|image/jpeg|image/webp');
+      allow delete: if isStaff()
+        && (isSuperadmin() || tenantCollege() == collegeId);
+    }
+
     // Prep content diagrams / visual explanations. The /prep public pages are
     // unauthenticated, so these objects are PUBLIC read. Writes come only from
     // the superadmin Prep Studio "Upload image" control (superadmin-gated in
