@@ -2480,12 +2480,14 @@ describe('indirect-attainment surveys (Slice 5)', () => {
   it('lets a student read and list the open rounds of their college', async () => {
     const db = studentContext().firestore()
     await assertSucceeds(getDoc(doc(db, 'obeSurveys', OPEN_SURVEY)))
-    // The portal query: open rounds of my college.
-    const open = await assertSucceeds(
-      getDocs(query(collection(db, 'obeSurveys'), where('collegeId', '==', COLLEGE_A), where('status', '==', 'open'))),
+    // The portal query: my college's rounds (open/closed is a client-side
+    // filter so the read needs no composite index). Closed rounds stay
+    // readable — they are a course's CO list, not personal data.
+    const mine = await assertSucceeds(
+      getDocs(query(collection(db, 'obeSurveys'), where('collegeId', '==', COLLEGE_A))),
     )
-    assert.equal(open.size, 1)
-    assert.equal(open.docs[0].id, OPEN_SURVEY)
+    assert.equal(mine.size, 2)
+    assert.deepEqual(mine.docs.map((d) => d.id).sort(), [CLOSED_SURVEY, OPEN_SURVEY])
     // Another college's round is invisible, read or listed.
     await assertFails(getDoc(doc(db, 'obeSurveys', OPEN_SURVEY_B)))
     const foreign = await assertFails(
@@ -2494,17 +2496,9 @@ describe('indirect-attainment surveys (Slice 5)', () => {
     assert.ok(foreign)
   })
 
-  it('shows staff their closed rounds too, and refuses every client write', async () => {
+  it('refuses every client write to a round, staff and superadmin included', async () => {
     const staff = facultyContext().firestore()
     await assertSucceeds(getDoc(doc(staff, 'obeSurveys', CLOSED_SURVEY)))
-
-    // A student cannot see the closed round (their query filters open ones).
-    const closedForStudent = await assertFails(
-      getDocs(
-        query(collection(studentContext().firestore(), 'obeSurveys'), where('collegeId', '==', COLLEGE_A), where('status', '==', 'closed')),
-      ),
-    )
-    assert.ok(closedForStudent)
 
     // Rounds are created and closed by the callable only.
     for (const ctx of [studentContext(), facultyContext(), principalContext(), superadminContext()]) {

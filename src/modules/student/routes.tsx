@@ -31,6 +31,7 @@ const StudentFacultyConnectPage = lazy(() => import('./pages/StudentFacultyConne
 const StudentJourneyPage = lazy(() => import('./pages/StudentJourneyPage'));
 const StudentCurriculumPage = lazy(() => import('./pages/StudentCurriculumPage'));
 const StudentHallTickets = lazy(() => import('./pages/StudentHallTickets'));
+const StudentSurveys = lazy(() => import('./pages/StudentSurveys'));
 const PWAInstallPage = lazy(() => import('./pages/PWAInstallPage'));
 // Phone section hubs — the "Academics" and "Learning" bottom-bar tabs.
 const StudentHubPage = lazy(() => import('./pages/StudentHubPage'));
@@ -66,6 +67,9 @@ export const studentRoutes: RouteObject[] = [
       { path: 'journey', element: <StudentJourneyPage /> },
       { path: 'curriculum', element: <StudentCurriculumPage /> },
       { path: 'faculty-connect', element: <StudentFacultyConnectPage /> },
+      // OBE course/program exit surveys (indirect attainment).
+      { path: 'surveys', element: <StudentSurveys /> },
+      { path: 'feedback', element: <StudentSurveys /> },
       { path: 'mentorship', element: <StudentFacultyConnectPage /> },
 
       // Test flow — both /assessments/:id and /test/:id styles supported

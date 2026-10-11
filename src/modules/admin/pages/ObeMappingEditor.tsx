@@ -33,6 +33,7 @@ import {
 } from '../api/obeApi';
 import { ObeMatrixGrid } from '../components/obe/ObeMatrixGrid';
 import { ObeRunsPanel } from '../components/obe/ObeRunsPanel';
+import { ObeSurveysPanel } from '../components/obe/ObeSurveysPanel';
 
 const PO_CODES = GAPC_V4_PROGRAM_OUTCOMES.map((po) => po.code);
 const PO_TITLES = new Map(GAPC_V4_PROGRAM_OUTCOMES.map((po) => [po.code, po.title]));
@@ -627,6 +628,8 @@ export default function ObeMappingEditor() {
           </p>
         )}
       </section>
+
+      {!isNew && stored && <ObeSurveysPanel mapping={stored} canManage={canManage && published} />}
 
       {!isNew && stored && <ObeRunsPanel mapping={stored} canCompute={canManage && published} />}
     </div>

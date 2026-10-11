@@ -1319,15 +1319,15 @@ service cloud.firestore {
     //
     // Reads are wider than the rest of OBE on purpose: the people who answer a
     // course-exit survey are the students, and they must be able to read the
-    // CO statements they are rating. A student's LIST is the portal's "open
-    // rounds" query (status == 'open'); staff additionally see closed rounds
-    // for the evidence view. Operand order is claim-first, as everywhere else.
+    // CO statements they are rating. A college's rounds are therefore readable
+    // by its signed-in members, closed ones included — a round is a course's CO
+    // list, not personal data, and the ANSWERS live in their own collection
+    // with own-only rules. Deliberately no `status` condition: a list query
+    // combining two equality filters would want a composite index, and the
+    // client filters open/closed after the single-field read.
     match /obeSurveys/{surveyId} {
-      allow get: if isSignedIn() && 'collegeId' in resource.data
+      allow get, list: if isSignedIn() && 'collegeId' in resource.data
         && (resource.data.collegeId == collegeId() || isSuperadmin());
-      allow list: if isSignedIn() && 'collegeId' in resource.data
-        && (resource.data.collegeId == collegeId() || isSuperadmin())
-        && (resource.data.status == 'open' || isStaff());
       allow create, update, delete: if false;
     }
 
