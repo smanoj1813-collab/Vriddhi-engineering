@@ -56,6 +56,8 @@ export interface PaperQuestion {
     sampleCases?: Array<{ stdin?: string; expectedOutput?: string }>;
     timeLimitSeconds?: number;
     caseCount?: number;
+    /** True when these numbers were generated for this student. */
+    variesByStudent?: boolean;
   };
   sectionId?: string;
   sectionName?: string;

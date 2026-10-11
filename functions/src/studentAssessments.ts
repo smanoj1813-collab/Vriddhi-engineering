@@ -23,6 +23,7 @@ import {
   buildCodingJudgeJob,
   codingJudgeJobId,
 } from './codingJudgeQueue'
+import { materializeCases, studentCaseSeed } from './codingVariants'
 import { resolveSchemePackForCollege } from './schemePacks'
 import { geminiClient, openaiClient, deepseekClient } from './config/aiProviders'
 import { generateWithGeminiFallback, primaryGeminiModel } from './config/aiModels'
@@ -249,6 +250,11 @@ function frozenPublicQuestion(question: ServerQuestion): ReturnType<typeof publi
   return JSON.parse(JSON.stringify(publicQuestion(question))) as ReturnType<typeof publicQuestion>
 }
 
+/**
+ * The frozen chunks are written once per TEST and shared by every student, so
+ * they must stay template-shaped: materialising a student's numbers into them
+ * would hand those numbers to the whole batch.
+ */
 export function buildFrozenQuestionChunks(questions: ServerQuestion[]): FrozenQuestionChunk[] {
   const chunks: FrozenQuestionChunk[] = []
   let current: ReturnType<typeof publicQuestion>[] = []
@@ -364,7 +370,7 @@ export async function loadTestQuestions(
     .map((question, index) => normalizeQuestion(question.data() || {}, question.id, index + 1))
 }
 
-function publicQuestion(question: ServerQuestion) {
+function publicQuestion(question: ServerQuestion, variantSeed?: number) {
   return {
     id: question.id,
     questionId: question.questionId,
@@ -394,9 +400,17 @@ function publicQuestion(question: ServerQuestion) {
           coding: {
             languages: question.coding.languages,
             starterCode: question.coding.starterCode,
-            sampleCases: question.coding.sampleCases,
+            // Sample cases are materialised for THIS student when a seed is
+            // given (see studentCaseSeed). The frozen question chunks are
+            // shared by every student of a test, so this is the only place the
+            // per-student numbers can be applied — and it is applied to the
+            // public samples only; the hidden cases never leave the server.
+            sampleCases: variantSeed === undefined
+              ? question.coding.sampleCases
+              : materializeCases(question.coding.sampleCases, question.coding.placeholders, variantSeed).cases,
             timeLimitSeconds: question.coding.timeLimitSeconds,
             caseCount: question.coding.testCases.length,
+            variesByStudent: question.coding.placeholders.length > 0,
           },
         }
       : {}),
@@ -1086,7 +1100,12 @@ export const getMyActiveStudentTest = onCall(
       duration: Number(row.duration) || 0,
       startedAt: iso(row.startedAt),
       endsAt: iso(row.endsAt),
-      questions: questions.map(publicQuestion),
+      questions: questions.map((question) => publicQuestion(
+        question,
+        question.coding
+          ? studentCaseSeed({ testId: resolved.testId, studentId: student.id, questionId: question.id })
+          : undefined,
+      )),
       flaggedQuestions: savedAnswers.filter((answer: ServerAnswer) => answer.isFlagged).map((answer: ServerAnswer) => answer.questionId),
       instructions: Array.isArray(resolved.test.instructions)
         ? resolved.test.instructions.map(String)

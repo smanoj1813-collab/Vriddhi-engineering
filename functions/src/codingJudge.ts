@@ -33,6 +33,7 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { CODING_JUDGE_JOBS_COLLECTION } from './codingJudgeQueue';
+import { materializeCases, studentCaseSeed } from './codingVariants';
 import {
   createAndPollSubmission,
   judge0BaseUrl,
@@ -52,6 +53,7 @@ import {
   gradeCodingCases,
   parseCodingConfig,
   verdictForCase,
+  type CodingCase,
   type CodingCaseVerdict,
   type JudgeCaseOutcome,
 } from './codingAssessmentCore';
@@ -129,6 +131,7 @@ async function judgeOneAnswer(
   question: ServerQuestion,
   answer: ServerAnswer,
   marks: number,
+  seedInput: { testId: string; studentId: string },
 ): Promise<CodingQuestionOutcome> {
   const coding = question.coding;
   const code = answer.coding;
@@ -142,9 +145,29 @@ async function judgeOneAnswer(
     };
   }
 
+  // The student's cases: their own numbers, drawn from the same seed the paper
+  // and the in-test sample run use, so what they debugged against is exactly
+  // what is scored here.
+  const materialized = materializeCases(
+    coding.testCases,
+    coding.placeholders,
+    studentCaseSeed({ testId: seedInput.testId, studentId: seedInput.studentId, questionId: question.id }),
+  );
+  if (materialized.errors.length > 0) {
+    // A template the server cannot evaluate would produce a wrong expected
+    // output, which marks correct code wrong. Hand it to faculty instead.
+    return {
+      questionId: question.id,
+      status: 'pending_manual',
+      marksObtained: null,
+      judge: {},
+      judgeError: `The test values could not be prepared: ${materialized.errors[0]}`,
+    };
+  }
+
   const verdicts: CodingCaseVerdict[] = [];
   let failure: string | null = null;
-  for (const [index, testCase] of coding.testCases.entries()) {
+  for (const [index, testCase] of materialized.cases.entries()) {
     try {
       const outcome = await runJudgeCase({
         language: code.language,
@@ -159,7 +182,7 @@ async function judgeOneAnswer(
     }
   }
 
-  if (failure || verdicts.length !== coding.testCases.length) {
+  if (failure || verdicts.length !== materialized.cases.length) {
     return {
       questionId: question.id,
       status: 'pending_manual',
@@ -169,13 +192,16 @@ async function judgeOneAnswer(
     };
   }
 
-  const grade = gradeCodingCases(coding.testCases, verdicts, marks);
+  const grade = gradeCodingCases(materialized.cases as CodingCase[], verdicts, marks);
   return {
     questionId: question.id,
     status: 'judged',
     marksObtained: grade.marksObtained,
     judge: {
       language: code.language,
+      // Recorded so a mark can be explained later: which student's numbers
+      // these tests used, and whether they were per-student at all.
+      varied: materialized.varied,
       marksMax: grade.marksMax,
       passedCount: grade.passedCount,
       caseCount: grade.caseCount,
@@ -271,7 +297,12 @@ export const judgeCodingSubmissions = onDocumentCreated(
         continue;
       }
       try {
-        outcomes.push(await judgeOneAnswer(question, answer, Math.max(0, Number(question.marks) || 0)));
+        outcomes.push(await judgeOneAnswer(
+          question,
+          answer,
+          Math.max(0, Number(question.marks) || 0),
+          { testId, studentId: String(row.studentId || '') },
+        ));
       } catch (error) {
         outcomes.push({
           questionId,
@@ -456,11 +487,20 @@ export const runAssessmentCode = onCall(
       throw new HttpsError('failed-precondition', 'This question has no sample tests — review your code and submit.');
     }
 
+    // The samples the student runs are THEIR samples — the same numbers the
+    // hidden tests and the paper use for them, so what they debug is what is
+    // scored.
+    const sampleSeed = studentCaseSeed({ testId, studentId: student.id, questionId: question.id });
+    const materializedSamples = materializeCases(coding.sampleCases, coding.placeholders, sampleSeed);
+    if (materializedSamples.errors.length > 0) {
+      throw new HttpsError('failed-precondition', `This question's sample tests need fixing: ${materializedSamples.errors[0]}`);
+    }
+
     await consumeAssessmentRunQuota(uid);
 
     const verdicts: Array<Record<string, unknown>> = [];
     let failure: string | null = null;
-    for (const [index, testCase] of coding.sampleCases.entries()) {
+    for (const [index, testCase] of materializedSamples.cases.entries()) {
       try {
         const outcome = await runJudgeCase({
           language: parsed.language,
@@ -496,7 +536,7 @@ export const runAssessmentCode = onCall(
     }
     return {
       questionId: question.id,
-      caseCount: coding.sampleCases.length,
+      caseCount: materializedSamples.cases.length,
       hiddenCaseCount: coding.testCases.length,
       ...(failure ? { failure } : {}),
       results: verdicts,

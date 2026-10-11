@@ -31,6 +31,7 @@ import {
   hiddenTestSummary,
   starterForLanguage,
   summarizeSampleRun,
+  variantNotice,
   type SampleRunResult,
 } from '@/shared/utils/codingQuestion';
 import { runAssessmentCode } from '../services/assessmentCodeApi';
@@ -45,6 +46,8 @@ interface CodingAnswerEditorProps {
   sampleCases?: Array<{ stdin?: string; expectedOutput?: string }>;
   /** How many hidden tests decide the marks. A number, never the cases. */
   hiddenCaseCount?: number;
+  /** The question drew its numbers for this student (variantNotice explains). */
+  variesByStudent?: boolean;
   value?: { language?: string; code?: string };
   onChange: (value: { language: string; code: string }) => void;
   /** Errors from the question (e.g. a failed upload of the answer) — unused here. */
@@ -58,6 +61,7 @@ export default function CodingAnswerEditor({
   starterCode,
   sampleCases = [],
   hiddenCaseCount = 0,
+  variesByStudent = false,
   value,
   onChange,
   disabled = false,
@@ -175,6 +179,12 @@ export default function CodingAnswerEditor({
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {codingLanguageOption(language)?.hint}
       </p>
+
+      {variantNotice(variesByStudent) && (
+        <p className="rounded-lg border border-teal-200 bg-teal-50 p-2.5 text-xs font-semibold text-teal-800 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-200">
+          {variantNotice(variesByStudent)}
+        </p>
+      )}
 
       <textarea
         ref={textareaRef}

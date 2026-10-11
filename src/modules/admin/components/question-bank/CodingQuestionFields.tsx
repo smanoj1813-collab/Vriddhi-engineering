@@ -24,7 +24,12 @@ import {
   Typography,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { CODING_LANGUAGE_OPTIONS, codingConfigProblem } from '@/shared/utils/codingQuestion';
+import {
+  CODING_LANGUAGE_OPTIONS,
+  CODING_MAX_PLACEHOLDERS,
+  codingConfigProblem,
+  type CodingPlaceholder,
+} from '@/shared/utils/codingQuestion';
 import type { QuestionCodingCase, QuestionCodingConfig } from '../../types/questionBank';
 
 interface CodingQuestionFieldsProps {
@@ -43,6 +48,7 @@ export default function CodingQuestionFields({ value, onChange }: CodingQuestion
     sampleCases: value.sampleCases || [],
     testCases: value.testCases?.length ? value.testCases : [emptyCase()],
     timeLimitSeconds: value.timeLimitSeconds || 2,
+    placeholders: value.placeholders || [],
   };
   const problem = codingConfigProblem(config);
   const hiddenCount = (config.testCases || []).filter((testCase) => String(testCase?.expectedOutput || '').trim()).length;
@@ -65,6 +71,89 @@ export default function CodingQuestionFields({ value, onChange }: CodingQuestion
     // so the faculty member sees the requirement instead of an empty panel.
     patch({ [list]: list === 'testCases' && cases.length === 0 ? [emptyCase()] : cases } as Partial<QuestionCodingConfig>);
   };
+
+  /**
+   * Per-student numbers. A faculty member writes `{{a}} {{b}}` as the input and
+   * `{{a + b}}` as the expected output; every student's paper draws its own a
+   * and b, so an answer copied from someone else does not fit that student's
+   * numbers — the cheapest large-scale cheat in an online paper.
+   */
+  function PlaceholderEditor({
+    placeholders,
+    onChange,
+  }: {
+    placeholders: CodingPlaceholder[];
+    onChange: (placeholders: CodingPlaceholder[]) => void;
+  }) {
+    const update = (index: number, field: keyof CodingPlaceholder, raw: string) => {
+      const next = [...placeholders];
+      next[index] = {
+        ...next[index],
+        [field]: field === 'name' ? raw : Math.round(Number(raw) || 0),
+      };
+      onChange(next);
+    };
+    return (
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="subtitle2">Per-student numbers (optional)</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+          Declare a name and the range it is drawn from, then use it in a test as {'{{a}}'} for the value or{' '}
+          {'{{a + b}}'} to work out the expected output (+, − and × only). Each student gets their own draw, so a
+          memorised answer to one student&apos;s numbers fails another&apos;s. Leave this empty to give every student the
+          same tests.
+        </Typography>
+        {placeholders.map((placeholder, index) => (
+          <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
+            <TextField
+              size="small"
+              label="Name"
+              value={placeholder.name}
+              onChange={(event) => update(index, 'name', event.target.value)}
+              placeholder="a"
+              sx={{ width: 140 }}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="From"
+              value={placeholder.min}
+              onChange={(event) => update(index, 'min', event.target.value)}
+              sx={{ width: 120 }}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="To"
+              value={placeholder.max}
+              onChange={(event) => update(index, 'max', event.target.value)}
+              sx={{ width: 120 }}
+            />
+            <IconButton
+              size="small"
+              color="error"
+              aria-label="Remove placeholder"
+              onClick={() => onChange(placeholders.filter((_, i) => i !== index))}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        ))}
+        {placeholders.length === 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            No per-student numbers yet — the same tests go to everyone.
+          </Typography>
+        )}
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          disabled={placeholders.length >= CODING_MAX_PLACEHOLDERS}
+          onClick={() => onChange([...placeholders, { name: '', min: 1, max: 99 }])}
+        >
+          Add a number
+        </Button>
+      </Paper>
+    );
+  }
 
   function CaseList({
     list,
@@ -187,10 +276,15 @@ export default function CodingQuestionFields({ value, onChange }: CodingQuestion
         ))}
       </Paper>
 
+      <PlaceholderEditor
+        placeholders={config.placeholders || []}
+        onChange={(placeholders) => patch({ placeholders })}
+      />
+
       <CaseList
         list="testCases"
         title="Hidden test cases (these decide the marks)"
-        help="Never shown to the student. Marks are awarded per test that passes, so partial credit is real. A test is only counted when its expected output is filled in."
+        help="Never shown to the student. Marks are awarded per test that passes, so partial credit is real. Use your placeholders here ({{a}}) to make each student's test different."
         placeholder="e.g. 4 7"
       />
 

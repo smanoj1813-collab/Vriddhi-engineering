@@ -20,6 +20,13 @@
 // per passing case — with the question's own marks as the ceiling, always.
 
 /** Languages the platform can actually compile and run (mirrors the runner). */
+import {
+  materializeCases,
+  parseVariantSpec,
+  variantSpecProblem,
+  type VariantPlaceholder,
+} from './codingVariants';
+
 export const CODING_LANGUAGES = ['c', 'cpp', 'java', 'python'] as const;
 export type CodingLanguage = (typeof CODING_LANGUAGES)[number];
 
@@ -69,6 +76,12 @@ export interface CodingCase {
 export interface CodingQuestionConfig {
   /** Languages the student may answer in. Never empty after parsing. */
   languages: CodingLanguage[];
+  /**
+   * Placeholders the test cases draw from, so each student's numbers differ
+   * (functions/src/codingVariants.ts). Empty for a question that gives every
+   * student the same tests.
+   */
+  placeholders: VariantPlaceholder[];
   starterCode: Partial<Record<CodingLanguage, string>>;
   /** Shown to the student; running these is allowed during the test. */
   sampleCases: CodingCase[];
@@ -157,6 +170,10 @@ export function parseCodingConfig(raw: unknown): CodingQuestionConfig | null {
 
   return {
     languages,
+    // Placeholders are read from the question document; validity is the
+    // authoring form's business (variantSpecProblem), and an invalid entry is
+    // simply dropped rather than blocking the whole question.
+    placeholders: parseVariantSpec(value.placeholders).placeholders,
     starterCode,
     sampleCases: parseCaseList(value.sampleCases ?? value.samples, MAX_CODING_SAMPLE_CASES),
     testCases: parseCaseList(value.testCases ?? value.hiddenCases ?? value.tests, MAX_CODING_TEST_CASES),
@@ -178,6 +195,16 @@ export function codingScheduleProblem(config: CodingQuestionConfig | null): stri
   if (config.testCases.every((testCase) => !testCase.expectedOutput.trim())) {
     return 'Every hidden test case needs an expected output.';
   }
+  const placeholdersProblem = variantSpecProblem(config.placeholders);
+  if (placeholdersProblem) return placeholdersProblem;
+  // A template that cannot be evaluated must not reach a student: it would be
+  // compared against literally, and every correct answer would be marked wrong.
+  const dry = materializeCases(
+    config.testCases.map((testCase) => ({ stdin: testCase.stdin, expectedOutput: testCase.expectedOutput })),
+    config.placeholders,
+    1,
+  );
+  if (dry.errors.length > 0) return `Fix the test values: ${dry.errors[0]}`;
   return null;
 }
 

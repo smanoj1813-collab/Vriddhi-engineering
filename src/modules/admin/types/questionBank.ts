@@ -42,6 +42,12 @@ export interface QuestionCodingConfig {
   sampleCases?: QuestionCodingCase[];
   testCases?: QuestionCodingCase[];
   timeLimitSeconds?: number;
+  /**
+   * Declared placeholders (per-student test values). A case writes `{{a}}` or
+   * `{{a + b}}`; without any declaration every student gets the same tests.
+   * See functions/src/codingVariants.ts.
+   */
+  placeholders?: Array<{ name: string; min: number; max: number }>;
 }
 
 export interface Question {

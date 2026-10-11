@@ -10,6 +10,9 @@ import assert from 'node:assert/strict';
 import {
   CODING_LANGUAGE_OPTIONS,
   codingConfigProblem,
+  codingPlaceholderProblem,
+  codingTemplateProblem,
+  variantNotice,
   CODING_SOURCE_MAX_CHARS,
   applyTabIndent,
   codingAnswerIsReady,
@@ -118,4 +121,56 @@ test('the authoring check bounds the lists and the time limit', () => {
     String(codingConfigProblem({ languages: ['python'], testCases: [{ expectedOutput: '1' }], timeLimitSeconds: 30 })),
     /between 1 and 10 seconds/,
   );
+});
+
+test('the placeholder check refuses names and ranges that cannot be drawn', () => {
+  assert.equal(codingPlaceholderProblem([{ name: 'a', min: 1, max: 90 }]), null);
+  assert.match(String(codingPlaceholderProblem([{ name: '1a', min: 1, max: 2 }])), /not a placeholder name/);
+  assert.match(String(codingPlaceholderProblem([{ name: 'a', min: 5, max: 1 }])), /low bound/);
+  assert.match(
+    String(codingPlaceholderProblem([{ name: 'a', min: 1, max: 2 }, { name: 'a', min: 3, max: 4 }])),
+    /declared twice/,
+  );
+});
+
+test('the value check catches the typos a faculty member would want to see', () => {
+  const placeholders = [{ name: 'a', min: 1, max: 9 }, { name: 'b', min: 1, max: 9 }];
+  assert.equal(
+    codingTemplateProblem({
+      placeholders,
+      testCases: [{ stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' }],
+    }),
+    null,
+  );
+  assert.match(
+    String(codingTemplateProblem({ placeholders, testCases: [{ expectedOutput: '{{a + c}}' }] })),
+    /uses c, which is not one of your placeholders/,
+  );
+  assert.match(
+    String(codingTemplateProblem({ placeholders, testCases: [{ expectedOutput: '{{a / b}}' }] })),
+    /\+, − and × only/,
+  );
+  assert.match(
+    String(codingTemplateProblem({ placeholders, testCases: [{ expectedOutput: '{{}}' }] })),
+    /empty \{\{\}\}/,
+  );
+  assert.match(
+    String(codingTemplateProblem({ placeholders, testCases: [{ expectedOutput: '{{a' }] })),
+    /unbalanced braces/,
+  );
+});
+
+test('a broken template makes the whole question unready', () => {
+  const problem = codingConfigProblem({
+    languages: ['python'],
+    testCases: [{ stdin: '{{a}}', expectedOutput: '{{a + b}}' }],
+    placeholders: [{ name: 'a', min: 1, max: 9 }],
+  });
+  assert.match(String(problem), /uses b/);
+});
+
+test('a per-student question says so, and a fixed one says nothing', () => {
+  assert.match(String(variantNotice(true)), /generated for you/);
+  assert.equal(variantNotice(false), null);
+  assert.equal(variantNotice(undefined), null);
 });

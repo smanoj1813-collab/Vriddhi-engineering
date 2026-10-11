@@ -128,6 +128,18 @@ export function displayOutput(value: unknown, maxChars = 2000): string {
 }
 
 /**
+ * A per-student question: the same question, drawn with this student's own
+ * numbers, so an answer copied from someone else does not fit. Students are
+ * told plainly — it is fairer, and it removes the "my friend's answer was
+ * accepted" conversation at the faculty desk.
+ */
+export function variantNotice(variesByStudent: unknown): string | null {
+  return variesByStudent === true
+    ? 'The numbers in these tests are generated for you — a friend\'s answer with their numbers will not pass yours.'
+    : null;
+}
+
+/**
  * What the student is told about the tests deciding their marks. Shows the
  * COUNT (which is fair — a student should know how much is riding on hidden
  * tests) and never the cases.
@@ -138,6 +150,13 @@ export function hiddenTestSummary(hiddenCaseCount: unknown): string {
   return `Graded automatically against ${count} hidden test${count === 1 ? '' : 's'} — marks are awarded per test that passes.`;
 }
 
+/** A placeholder a test case may draw: `{{a}}` inserts it, `{{a + b}}` uses it. */
+export interface CodingPlaceholder {
+  name: string;
+  min: number;
+  max: number;
+}
+
 /** The shape the authoring form edits and the server scores. */
 export interface CodingConfigLike {
   languages?: string[];
@@ -145,6 +164,67 @@ export interface CodingConfigLike {
   sampleCases?: Array<{ stdin?: string; expectedOutput?: string }>;
   testCases?: Array<{ stdin?: string; expectedOutput?: string }>;
   timeLimitSeconds?: number;
+  placeholders?: CodingPlaceholder[];
+}
+
+export const CODING_MAX_PLACEHOLDERS = 8;
+const PLACEHOLDER_NAME = /^[a-z][a-z0-9_]{0,15}$/i;
+const PLACEHOLDER_TOKEN = /{{\s*([^{}]+?)\s*}}/g;
+
+/**
+ * Client-side check of the test VALUES. This is a lint, not the authority: the
+ * server re-parses and evaluates every template before anything is scheduled
+ * (functions/src/codingVariants.ts) and refuses the paper if it cannot. What
+ * this catches is the typo a faculty member would rather see while typing —
+ * a token naming a placeholder they forgot to declare, a division the evaluator
+ * does not support, unbalanced braces.
+ */
+export function codingTemplateProblem(config: CodingConfigLike | null | undefined): string | null {
+  const placeholders = config?.placeholders || [];
+  const names = new Set(placeholders.map((placeholder) => String(placeholder.name || '').trim()));
+  const cases = [...(config?.testCases || []), ...(config?.sampleCases || [])];
+  for (const testCase of cases) {
+    for (const side of ['stdin', 'expectedOutput'] as const) {
+      const text = String(testCase?.[side] || '');
+      PLACEHOLDER_TOKEN.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = PLACEHOLDER_TOKEN.exec(text)) !== null) {
+        const expression = String(match[1]);
+        if (expression.includes('/') || expression.includes('%')) {
+          return 'Test values support +, − and × only — move any division into the question itself.';
+        }
+        const referenced = expression.match(/[a-z][a-z0-9_]*/gi) || [];
+        if (referenced.length === 0) return `"{{${expression}}}" has nothing to work out.`;
+        const unknown = referenced.find((name) => !names.has(name));
+        if (unknown) return `"{{${expression}}}" uses ${unknown}, which is not one of your placeholders.`;
+      }
+      if (/{{\s*}}/.test(text)) return 'A test value has an empty {{}} — put a placeholder name inside it.';
+      if (!/{{\s*([^{}]+?)\s*}}/.test(text) && (text.includes('{{') || text.includes('}}'))) {
+        return 'A test value has unbalanced braces — check your {{placeholders}}.';
+      }
+    }
+  }
+  return null;
+}
+
+/** Problems with the declared placeholders, in the form's words. */
+export function codingPlaceholderProblem(placeholders: CodingPlaceholder[] | undefined): string | null {
+  const list = placeholders || [];
+  if (list.length > CODING_MAX_PLACEHOLDERS) return `Keep it to ${CODING_MAX_PLACEHOLDERS} placeholders.`;
+  const seen = new Set<string>();
+  for (const placeholder of list) {
+    const name = String(placeholder.name || '').trim();
+    if (!PLACEHOLDER_NAME.test(name)) {
+      return `"${name || '(blank)'}" is not a placeholder name — letters, digits and underscore, starting with a letter.`;
+    }
+    if (seen.has(name)) return `"${name}" is declared twice.`;
+    seen.add(name);
+    if (!Number.isInteger(Number(placeholder.min)) || !Number.isInteger(Number(placeholder.max))) {
+      return `Give ${name} whole-number bounds.`;
+    }
+    if (Number(placeholder.min) > Number(placeholder.max)) return `The low bound for ${name} is above the high bound.`;
+  }
+  return null;
 }
 
 export const CODING_MAX_HIDDEN_CASES = 20;
@@ -174,7 +254,7 @@ export function codingConfigProblem(config: CodingConfigLike | null | undefined)
   if (Number.isFinite(timeLimit) && (timeLimit < 1 || timeLimit > 10)) {
     return 'Set the time limit between 1 and 10 seconds per test.';
   }
-  return null;
+  return codingPlaceholderProblem(config.placeholders) || codingTemplateProblem(config);
 }
 
 /** Tab inserts two spaces: a textarea in a browser has no editor to do it. */

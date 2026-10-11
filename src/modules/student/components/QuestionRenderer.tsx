@@ -180,6 +180,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
           starterCode={question.coding?.starterCode}
           sampleCases={question.coding?.sampleCases ?? []}
           hiddenCaseCount={question.coding?.caseCount ?? 0}
+          variesByStudent={question.coding?.variesByStudent === true}
           value={answer?.coding}
           onChange={(value) =>
             onAnswer({

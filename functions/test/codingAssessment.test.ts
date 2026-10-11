@@ -8,6 +8,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildFrozenQuestionChunks, normalizeQuestion } from '../src/studentAssessments';
+import { materializeCases, studentCaseSeed } from '../src/codingVariants';
+import { findSchedulingProblem } from '../src/questionTypes';
 import {
   MAX_CODING_SOURCE_CHARS,
   allocateCaseMarks,
@@ -282,5 +284,102 @@ describe('a coding question never leaks its hidden tests', () => {
     // What the student DOES get, so the check above is not passing by omission.
     assert.equal(chunks[0].questions[0].coding?.caseCount, 1);
     assert.equal(chunks[0].questions[0].coding?.sampleCases?.length, 1);
+  })
+})
+
+// ─── per-student variants, end to end through the payload ──────────────
+//
+// The frozen question chunks are written ONCE PER TEST and shared by the whole
+// batch, so the templated form has to live there and the materialised numbers
+// have to be produced per student further out. If that ever inverts, every
+// student in a test gets the same numbers — and the point of the feature is
+// that they do not.
+
+describe('variants: the shared payload stays templated', () => {
+  function variantDoc() {
+    return {
+      text: 'Read two integers and print their sum.',
+      type: 'coding',
+      marks: 5,
+      coding: {
+        languages: ['python'],
+        placeholders: [
+          { name: 'a', min: 1, max: 90 },
+          { name: 'b', min: 1, max: 90 },
+        ],
+        sampleCases: [{ stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' }],
+        testCases: [
+          { stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' },
+          { stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' },
+        ],
+      },
+    };
+  }
+
+  it('keeps the templates in the frozen chunks, and the hidden cases out', () => {
+    const [question] = [normalizeQuestion(variantDoc(), 'q1', 1)];
+    const payload = JSON.stringify(buildFrozenQuestionChunks([question]));
+    assert.ok(!payload.includes('testCases'));
+    const chunkQuestion = buildFrozenQuestionChunks([question])[0].questions[0];
+    assert.equal(chunkQuestion.coding?.variesByStudent, true);
+    // The template is what a shared chunk may hold...
+    assert.match(String(chunkQuestion.coding?.sampleCases?.[0]?.stdin), /\{\{a\}\}/);
+  })
+
+  it('materialises the same student to the same numbers as the judge will use', () => {
+    const [question] = [normalizeQuestion(variantDoc(), 'q1', 1)];
+    const seed = studentCaseSeed({ testId: 'test-9', studentId: 'student-9', questionId: question.id });
+    const samples = materializeCases(question.coding!.sampleCases, question.coding!.placeholders, seed);
+    const hidden = materializeCases(question.coding!.testCases, question.coding!.placeholders, seed);
+
+    // What the student debugs against is what is scored: same draw sequence.
+    assert.equal(samples.cases[0].stdin, hidden.cases[0].stdin);
+    assert.equal(samples.cases[0].expectedOutput, hidden.cases[0].expectedOutput);
+    // And their second test differs from their first (the draw advances).
+    assert.notEqual(hidden.cases[0].stdin, hidden.cases[1].stdin);
+    // The expected output really is the sum of the two drawn inputs.
+    const [left, right] = hidden.cases[0].stdin.split(' ').map(Number);
+    assert.equal(Number(hidden.cases[0].expectedOutput), left + right);
+  })
+
+  it('gives a different student different numbers for the same question', () => {
+    const [question] = [normalizeQuestion(variantDoc(), 'q1', 1)];
+    const mine = materializeCases(
+      question.coding!.testCases,
+      question.coding!.placeholders,
+      studentCaseSeed({ testId: 'test-9', studentId: 'student-9', questionId: question.id }),
+    );
+    const theirs = materializeCases(
+      question.coding!.testCases,
+      question.coding!.placeholders,
+      studentCaseSeed({ testId: 'test-9', studentId: 'student-10', questionId: question.id }),
+    );
+    assert.notDeepEqual(mine.cases, theirs.cases);
+  })
+
+  it('refuses to schedule a question whose template cannot be evaluated', () => {
+    const question = normalizeQuestion(
+      {
+        text: 'Read two integers and print their sum.',
+        type: 'coding',
+        marks: 5,
+        coding: {
+          languages: ['python'],
+          placeholders: [{ name: 'a', min: 1, max: 9 }],
+          testCases: [{ stdin: '{{a}} {{b}}', expectedOutput: '{{a + b}}' }],
+        },
+      },
+      'q1',
+      1,
+    );
+    const problem = findSchedulingProblem({
+      order: 1,
+      text: question.text,
+      type: question.type,
+      marks: question.marks,
+      options: [],
+      coding: question.coding,
+    });
+    assert.match(String(problem), /"b" is not declared/);
   })
 })
