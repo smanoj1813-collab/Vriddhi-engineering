@@ -18,6 +18,7 @@ on:
       - 'functions/test/firestore.rules.test.ts'
       - 'functions/package.json'
       - 'functions/package-lock.json'
+      - 'scripts/github-test-annotations.cjs'
   workflow_dispatch:
 
 jobs:
