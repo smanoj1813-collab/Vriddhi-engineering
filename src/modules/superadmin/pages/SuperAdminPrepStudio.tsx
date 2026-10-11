@@ -26,6 +26,7 @@ import { Box, Typography, Alert, Card, CardContent, Button, Stack, TextField } f
 import { Link as LinkIcon, Check } from '@mui/icons-material';
 import PrepContentStudioTab from '@/modules/admin/components/PrepContentStudioTab';
 import CodingLabCollegeAssignment from '@/modules/superadmin/components/CodingLabCollegeAssignment';
+import CodeRunnerSetupCheck from '@/modules/superadmin/components/CodeRunnerSetupCheck';
 
 function PublicCatalogLinkCard() {
   const [copied, setCopied] = useState(false);
@@ -111,6 +112,7 @@ export default function SuperAdminPrepStudio() {
       </Box>
       <PublicCatalogLinkCard />
       <CodingLabCollegeAssignment />
+      <CodeRunnerSetupCheck />
       <PrepContentStudioTab />
     </Box>
   );
