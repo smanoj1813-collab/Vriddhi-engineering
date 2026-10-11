@@ -1313,6 +1313,66 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Indirect-attainment survey rounds (Slice 5). Opened by the saveObeSurvey
+    // callable — which copies the CO list from a PUBLISHED mapping — so client
+    // writes are denied outright, like every other OBE artefact.
+    //
+    // Reads are wider than the rest of OBE on purpose: the people who answer a
+    // course-exit survey are the students, and they must be able to read the
+    // CO statements they are rating. A student's LIST is the portal's "open
+    // rounds" query (status == 'open'); staff additionally see closed rounds
+    // for the evidence view. Operand order is claim-first, as everywhere else.
+    match /obeSurveys/{surveyId} {
+      allow get: if isSignedIn() && 'collegeId' in resource.data
+        && (resource.data.collegeId == collegeId() || isSuperadmin());
+      allow list: if isSignedIn() && 'collegeId' in resource.data
+        && (resource.data.collegeId == collegeId() || isSuperadmin())
+        && (resource.data.status == 'open' || isStaff());
+      allow create, update, delete: if false;
+    }
+
+    // One document per respondent per round: {surveyId}__{uid}. The id is
+    // pinned to the caller's own uid, so a student can only ever file their own
+    // answers, and the collegeId field must match the token claim — the same
+    // shape as the courseProgress ownership rules students already use.
+    //
+    // The RATINGS are deliberately not validated here (rules cannot iterate a
+    // map): previewObeSurveyScores / computeObeAttainment re-check every value
+    // against the round's CO list and scale and drop anything off-scale before
+    // it can influence attainment evidence.
+    match /obeSurveyResponses/{responseId} {
+      function ownAnswers() {
+        return isSignedIn() && role() == 'student' && collegeId() != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.collegeId == collegeId()
+          && request.resource.data.scores is map
+          && request.resource.data.scores.size() > 0
+          && responseId == request.resource.data.surveyId + '__' + request.auth.uid;
+      }
+
+      // Answers only ever go to a round that exists and is still OPEN. The
+      // document read costs ~10 expressions, which the identity checks below
+      // are ordered ahead of so a malformed write never pays for it. This is
+      // also what stops a student filing answers against a made-up surveyId:
+      // the lookup itself errors, and an error denies.
+      function roundIsOpen() {
+        return get(/databases/$(database)/documents/obeSurveys/$(request.resource.data.surveyId))
+          .data.status == 'open';
+      }
+
+      allow get: if isSignedIn() && (resource.data.uid == request.auth.uid
+        || (isStaff() && sameCollege(resource.data)));
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid
+        || (isStaff() && sameCollege(resource.data)));
+      allow create: if ownAnswers() && roundIsOpen();
+      // A respondent may correct their own answers while the round is open;
+      // nobody may rewrite the row onto somebody else, and there is no delete
+      // path at all.
+      allow update: if ownAnswers() && 'uid' in resource.data
+        && resource.data.uid == request.auth.uid && roundIsOpen();
+      allow delete: if false;
+    }
+
     // Academic calendar (Auto-Scheduler v2 P4): public/college holidays,
     // study holidays, fests and exam windows — the dates `generateClassSessions`
     // suppresses and the timetable screens banner as "Holiday — no classes".

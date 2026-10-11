@@ -2426,3 +2426,194 @@ describe('vriddhi platform employees (employee role)', () => {
     await assertFails(getDoc(doc(otherEmployee, 'platform_employees', EMPLOYEE_UID)))
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Indirect-attainment surveys (Slice 5)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('indirect-attainment surveys (Slice 5)', () => {
+  const OPEN_SURVEY = 'survey-open-a'
+  const CLOSED_SURVEY = 'survey-closed-a'
+  const OPEN_SURVEY_B = 'survey-open-b'
+  const answerId = (surveyId: string, uid: string) => `${surveyId}__${uid}`
+
+  function surveyDoc(overrides: Record<string, unknown>) {
+    return {
+      collegeId: COLLEGE_A,
+      mappingId: 'MAP_A',
+      courseCode: 'CS301',
+      academicYear: '2025-26',
+      audience: 'course-exit',
+      scaleMax: 5,
+      cos: [{ code: 'CO1', statement: 'Apply sorting algorithms.' }],
+      status: 'open',
+      ...overrides,
+    }
+  }
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore()
+      await Promise.all([
+        setDoc(doc(db, 'obeSurveys', OPEN_SURVEY), surveyDoc({})),
+        setDoc(doc(db, 'obeSurveys', CLOSED_SURVEY), surveyDoc({ status: 'closed' })),
+        setDoc(doc(db, 'obeSurveys', OPEN_SURVEY_B), surveyDoc({ collegeId: COLLEGE_B })),
+        setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID)), {
+          surveyId: OPEN_SURVEY,
+          collegeId: COLLEGE_A,
+          uid: STUDENT_UID,
+          role: 'student',
+          scores: { CO1: 4 },
+          scaleMax: 5,
+        }),
+        setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, OTHER_UID)), {
+          surveyId: OPEN_SURVEY,
+          collegeId: COLLEGE_A,
+          uid: OTHER_UID,
+          role: 'student',
+          scores: { CO1: 5 },
+          scaleMax: 5,
+        }),
+      ])
+    })
+  })
+
+  it('lets a student read and list the open rounds of their college', async () => {
+    const db = studentContext().firestore()
+    await assertSucceeds(getDoc(doc(db, 'obeSurveys', OPEN_SURVEY)))
+    // The portal query: open rounds of my college.
+    const open = await assertSucceeds(
+      getDocs(query(collection(db, 'obeSurveys'), where('collegeId', '==', COLLEGE_A), where('status', '==', 'open'))),
+    )
+    assert.equal(open.size, 1)
+    assert.equal(open.docs[0].id, OPEN_SURVEY)
+    // Another college's round is invisible, read or listed.
+    await assertFails(getDoc(doc(db, 'obeSurveys', OPEN_SURVEY_B)))
+    const foreign = await assertFails(
+      getDocs(query(collection(db, 'obeSurveys'), where('collegeId', '==', COLLEGE_B))),
+    )
+    assert.ok(foreign)
+  })
+
+  it('shows staff their closed rounds too, and refuses every client write', async () => {
+    const staff = facultyContext().firestore()
+    await assertSucceeds(getDoc(doc(staff, 'obeSurveys', CLOSED_SURVEY)))
+
+    // A student cannot see the closed round (their query filters open ones).
+    const closedForStudent = await assertFails(
+      getDocs(
+        query(collection(studentContext().firestore(), 'obeSurveys'), where('collegeId', '==', COLLEGE_A), where('status', '==', 'closed')),
+      ),
+    )
+    assert.ok(closedForStudent)
+
+    // Rounds are created and closed by the callable only.
+    for (const ctx of [studentContext(), facultyContext(), principalContext(), superadminContext()]) {
+      const db = ctx.firestore()
+      await assertFails(setDoc(doc(db, 'obeSurveys', 'survey-forged'), surveyDoc({})))
+      await assertFails(updateDoc(doc(db, 'obeSurveys', OPEN_SURVEY), { status: 'closed' }))
+      await assertFails(deleteDoc(doc(db, 'obeSurveys', OPEN_SURVEY)))
+    }
+  })
+
+  it('stores a student answer under their own id and nobody else’s', async () => {
+    const db = studentContext().firestore()
+    // Their own row, under the id the rules pin.
+    await assertSucceeds(
+      setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID)), {
+        surveyId: OPEN_SURVEY,
+        collegeId: COLLEGE_A,
+        uid: STUDENT_UID,
+        role: 'student',
+        scores: { CO1: 5 },
+        scaleMax: 5,
+      }),
+    )
+    // A different id with their uid in the field is not their row.
+    await assertFails(
+      setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, 'someone-else')), {
+        surveyId: OPEN_SURVEY,
+        collegeId: COLLEGE_A,
+        uid: STUDENT_UID,
+        role: 'student',
+        scores: { CO1: 5 },
+        scaleMax: 5,
+      }),
+    )
+    // Filing answers under a colleague's uid is the forgery this pins.
+    await assertFails(
+      setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID)), {
+        surveyId: OPEN_SURVEY,
+        collegeId: COLLEGE_A,
+        uid: OTHER_UID,
+        role: 'student',
+        scores: { CO1: 5 },
+        scaleMax: 5,
+      }),
+    )
+    // An empty answer set is not an answer.
+    await assertFails(
+      setDoc(doc(db, 'obeSurveyResponses', answerId(CLOSED_SURVEY, STUDENT_UID)), {
+        surveyId: CLOSED_SURVEY,
+        collegeId: COLLEGE_A,
+        uid: STUDENT_UID,
+        role: 'student',
+        scores: {},
+        scaleMax: 5,
+      }),
+    )
+    // No delete path at all — a submitted answer stays in the evidence set.
+    await assertFails(deleteDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID))))
+  })
+
+  it('closes the round to new answers and refuses answers to a made-up round', async () => {
+    const db = studentContext().firestore()
+    const answers = (surveyId: string) => ({
+      surveyId,
+      collegeId: COLLEGE_A,
+      uid: STUDENT_UID,
+      role: 'student',
+      scores: { CO1: 4 },
+      scaleMax: 5,
+    })
+    // A closed round stops collecting — the evidence set is frozen.
+    await assertFails(setDoc(doc(db, 'obeSurveyResponses', answerId(CLOSED_SURVEY, STUDENT_UID)), answers(CLOSED_SURVEY)))
+    // And a surveyId that does not exist is not a round.
+    await assertFails(setDoc(doc(db, 'obeSurveyResponses', answerId('survey-made-up', STUDENT_UID)), answers('survey-made-up')))
+    // The open round is still writable, so the guard above is not blanket denial.
+    await assertSucceeds(setDoc(doc(db, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID)), answers(OPEN_SURVEY)))
+  })
+
+  it('keeps answers private between respondents and readable to their college’s staff', async () => {
+    const student = studentContext().firestore()
+    await assertSucceeds(getDoc(doc(student, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID))))
+    await assertFails(getDoc(doc(student, 'obeSurveyResponses', answerId(OPEN_SURVEY, OTHER_UID))))
+
+    const staff = facultyContext().firestore()
+    await assertSucceeds(getDoc(doc(staff, 'obeSurveyResponses', answerId(OPEN_SURVEY, OTHER_UID))))
+
+    // Another college's staff see nothing, and students cannot write for one.
+    const foreignStaff = testEnv.authenticatedContext('faculty-b', { role: 'faculty', collegeId: COLLEGE_B }).firestore()
+    await assertFails(getDoc(doc(foreignStaff, 'obeSurveyResponses', answerId(OPEN_SURVEY, STUDENT_UID))))
+    await assertFails(
+      setDoc(doc(foreignStaff, 'obeSurveyResponses', answerId(OPEN_SURVEY, 'faculty-b')), {
+        surveyId: OPEN_SURVEY,
+        collegeId: COLLEGE_B,
+        uid: 'faculty-b',
+        role: 'student',
+        scores: { CO1: 5 },
+        scaleMax: 5,
+      }),
+    )
+    // A staff member cannot file answers at all — only students answer.
+    await assertFails(
+      setDoc(doc(staff, 'obeSurveyResponses', answerId(OPEN_SURVEY, 'faculty-a')), {
+        surveyId: OPEN_SURVEY,
+        collegeId: COLLEGE_A,
+        uid: 'faculty-a',
+        role: 'student',
+        scores: { CO1: 5 },
+        scaleMax: 5,
+      }),
+    )
+  })
+})

@@ -118,6 +118,8 @@ import { bulkImportWeeklySchedules } from './scheduleImport'
 import { saveSchemePack, assignCollegeSchemePack } from './schemePacks'
 // ─── OBE attainment: mapping authorship + trusted compute (Slice 2) ───
 import { saveObeMapping, publishObeMapping, archiveObeMapping, computeObeAttainment, previewObeScoresFromTests } from './obe'
+// ─── OBE indirect attainment: survey rounds + response folding (Slice 5) ───
+import { saveObeSurvey, previewObeSurveyScores } from './obeSurvey'
 // ─── Auto slot scheduler: day×period grid placement + coverage (G4) ───
 import { autoGenerateWeeklySchedule } from './autoSchedule'
 // ─── Academic calendar: holidays, fests, exam windows (Auto-Scheduler v2) ────
@@ -355,6 +357,8 @@ export {
   archiveObeMapping,
   computeObeAttainment,
   previewObeScoresFromTests,
+  saveObeSurvey,
+  previewObeSurveyScores,
   autoGenerateWeeklySchedule,
   saveCalendarEvent,
   deleteCalendarEvent,
