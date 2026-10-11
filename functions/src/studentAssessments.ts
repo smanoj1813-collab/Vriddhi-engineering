@@ -24,6 +24,7 @@ import {
   codingJudgeJobId,
 } from './codingJudgeQueue'
 import { materializeCases, studentCaseSeed } from './codingVariants'
+import { scoredFullMarks, summarizeIntegrity } from './assessmentIntegrityCore'
 import { resolveSchemePackForCollege } from './schemePacks'
 import { geminiClient, openaiClient, deepseekClient } from './config/aiProviders'
 import { generateWithGeminiFallback, primaryGeminiModel } from './config/aiModels'
@@ -2545,6 +2546,12 @@ export const getAssessmentTestReport = onCall(
         grade: row.grade === undefined || row.grade === null ? null : String(row.grade),
         timeSpent: row.timeSpent === undefined ? null : Number(row.timeSpent) || 0,
         submittedAt: row.submittedAt === undefined || row.submittedAt === null ? null : iso(row.submittedAt),
+        // Proctor evidence, counted for the report column. The events were
+        // always recorded on the row; this is the first reader.
+        integrity: summarizeIntegrity(row.proctorEvents, {
+          scoredFullMarks: scoredFullMarks(row),
+          autoSubmitted: row.autoSubmitted === true,
+        }),
         isLateSubmission: row.isLateSubmission === true,
         latePenaltyPercentage: Number(row.latePenaltyPercentage) || 0,
         autoSubmitted: row.autoSubmitted === true,

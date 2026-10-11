@@ -569,6 +569,26 @@ export interface AssessmentTestReportTest {
   totalGraded: number
 }
 
+/**
+ * Counted proctor evidence for one attempt (functions/src/assessmentIntegrityCore.ts).
+ * Facts, not a verdict: the report shows counts and moments, and the flag only
+ * says the attempt is worth reading.
+ */
+export interface AssessmentIntegritySummary {
+  total: number
+  counts: Record<string, number>
+  insertionCount: number
+  focusCount: number
+  tabLimitExceeded: number
+  fullscreenExits: number
+  autoSubmitted: boolean
+  reviewSuggested: boolean
+  reason: string
+  firstEventAt: string
+  lastEventAt: string
+  recentInsertions: Array<{ type: string; at: string; chars: number | null }>
+}
+
 export interface AssessmentTestReportStudent {
   studentId: string
   studentName: string
@@ -579,6 +599,8 @@ export interface AssessmentTestReportStudent {
   semester?: number
   batch?: string
   sectionScores?: Array<{ sectionId: string; sectionName: string; score: number; max: number }> | null
+  /** Counted proctor evidence — empty counts for an attempt with no events. */
+  integrity?: AssessmentIntegritySummary
   totalMarks: number
   autoScore: number | null
   marksObtained: number | null
