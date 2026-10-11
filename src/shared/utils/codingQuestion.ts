@@ -138,6 +138,45 @@ export function hiddenTestSummary(hiddenCaseCount: unknown): string {
   return `Graded automatically against ${count} hidden test${count === 1 ? '' : 's'} — marks are awarded per test that passes.`;
 }
 
+/** The shape the authoring form edits and the server scores. */
+export interface CodingConfigLike {
+  languages?: string[];
+  starterCode?: Record<string, string>;
+  sampleCases?: Array<{ stdin?: string; expectedOutput?: string }>;
+  testCases?: Array<{ stdin?: string; expectedOutput?: string }>;
+  timeLimitSeconds?: number;
+}
+
+export const CODING_MAX_HIDDEN_CASES = 20;
+export const CODING_MAX_SAMPLE_CASES = 5;
+export const CODING_TIME_LIMITS = [1, 2, 3, 5, 10];
+
+/**
+ * Why a coding question cannot be scheduled yet, in the same words the server's
+ * `codingScheduleProblem` uses — so the authoring form refuses the question at
+ * the point it is written, not after the paper has been confirmed.
+ */
+export function codingConfigProblem(config: CodingConfigLike | null | undefined): string | null {
+  if (!config) return 'Add the languages and hidden test cases for this coding question.';
+  const languages = (config.languages || []).filter((id) => codingLanguageOption(id));
+  if (languages.length === 0) return 'Pick at least one language the student may answer in.';
+  const testCases = (config.testCases || []).filter((testCase) => String(testCase?.expectedOutput || '').trim());
+  if (testCases.length === 0) {
+    return 'Add at least one hidden test case with its expected output — without one there is nothing to score the code against.';
+  }
+  if (testCases.length > CODING_MAX_HIDDEN_CASES) {
+    return `Keep it to ${CODING_MAX_HIDDEN_CASES} hidden tests; a paper does not need more.`;
+  }
+  if ((config.sampleCases || []).length > CODING_MAX_SAMPLE_CASES) {
+    return `Keep it to ${CODING_MAX_SAMPLE_CASES} sample tests.`;
+  }
+  const timeLimit = Number(config.timeLimitSeconds);
+  if (Number.isFinite(timeLimit) && (timeLimit < 1 || timeLimit > 10)) {
+    return 'Set the time limit between 1 and 10 seconds per test.';
+  }
+  return null;
+}
+
 /** Tab inserts two spaces: a textarea in a browser has no editor to do it. */
 export function applyTabIndent(value: string, selectionStart: number, selectionEnd: number): {
   value: string;

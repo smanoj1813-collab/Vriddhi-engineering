@@ -13,7 +13,9 @@ export type QuestionType =
   | 'case_based'
   | 'short'
   | 'long'
-  | 'numerical';
+  | 'numerical'
+  // Auto-graded by running the student's program against hidden test cases.
+  | 'coding';
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
@@ -25,6 +27,21 @@ export interface QuestionOption {
   id: string;
   text: string;
   isCorrect: boolean;
+}
+
+export interface QuestionCodingCase {
+  stdin: string;
+  expectedOutput: string;
+  /** Optional per-case weight; without one the question's marks split evenly. */
+  marks?: number;
+}
+
+export interface QuestionCodingConfig {
+  languages: string[];
+  starterCode?: Record<string, string>;
+  sampleCases?: QuestionCodingCase[];
+  testCases?: QuestionCodingCase[];
+  timeLimitSeconds?: number;
 }
 
 export interface Question {
@@ -57,6 +74,12 @@ export interface Question {
   linkedPaperIds?: string[];
   usageCount?: number;
   bloomLevel?: string;
+  /**
+   * Present on a `coding` question: the languages, starter code, public sample
+   * cases and hidden test cases the assessment engine scores against
+   * (functions/src/codingAssessmentCore.ts).
+   */
+  coding?: QuestionCodingConfig;
   /** BCP-47-style app language code: en | hi | kn | ta | te | ml */
   language?: string;
   createdBy: string;

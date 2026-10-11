@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CODING_LANGUAGE_OPTIONS,
+  codingConfigProblem,
   CODING_SOURCE_MAX_CHARS,
   applyTabIndent,
   codingAnswerIsReady,
@@ -76,4 +77,45 @@ test('the student is told how much rides on the hidden tests, never what they ar
 test('tab indents instead of leaving the code box', () => {
   assert.deepEqual(applyTabIndent('ab', 2, 2), { value: 'ab  ', caret: 4 });
   assert.deepEqual(applyTabIndent('abcd', 1, 3), { value: 'a  d', caret: 3 });
+});
+
+test('the authoring check refuses a coding question that cannot be scored', () => {
+  // The same sentence the server uses at Confirm time, so faculty are told at
+  // the point they write the question instead of after the paper is locked.
+  assert.match(
+    String(codingConfigProblem({ languages: ['python'], testCases: [{ stdin: '1', expectedOutput: '' }] })),
+    /at least one hidden test case/,
+  )
+  assert.match(String(codingConfigProblem({ languages: [], testCases: [{ expectedOutput: '5' }] })), /at least one language/);
+  assert.match(String(codingConfigProblem(null)), /Add the languages and hidden test cases/);
+  assert.match(
+    String(codingConfigProblem({ languages: ['rust'], testCases: [{ expectedOutput: '5' }] })),
+    /at least one language/,
+    'a language the runner cannot compile is not a language',
+  );
+});
+
+test('the authoring check passes a properly filled coding question', () => {
+  assert.equal(
+    codingConfigProblem({
+      languages: ['python', 'cpp'],
+      starterCode: { python: 'print(1)' },
+      sampleCases: [{ stdin: '1 1', expectedOutput: '2' }],
+      testCases: [
+        { stdin: '2 3', expectedOutput: '5' },
+        { stdin: '4 4', expectedOutput: '8' },
+      ],
+      timeLimitSeconds: 2,
+    }),
+    null,
+  );
+});
+
+test('the authoring check bounds the lists and the time limit', () => {
+  const many = Array.from({ length: 21 }, () => ({ stdin: '1', expectedOutput: '1' }));
+  assert.match(String(codingConfigProblem({ languages: ['python'], testCases: many })), /20 hidden tests/);
+  assert.match(
+    String(codingConfigProblem({ languages: ['python'], testCases: [{ expectedOutput: '1' }], timeLimitSeconds: 30 })),
+    /between 1 and 10 seconds/,
+  );
 });
