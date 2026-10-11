@@ -181,6 +181,7 @@ const QuestionRenderer: React.FC<QuestionRendererProps> = ({
           sampleCases={question.coding?.sampleCases ?? []}
           hiddenCaseCount={question.coding?.caseCount ?? 0}
           variesByStudent={question.coding?.variesByStudent === true}
+          dryRunLimit={question.coding?.dryRunLimit ?? 0}
           value={answer?.coding}
           onChange={(value) =>
             onAnswer({

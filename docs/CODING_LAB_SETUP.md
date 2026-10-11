@@ -27,14 +27,20 @@ For Firebase project `<project-id>`:
 
    For an unauthenticated self-hosted endpoint, set a non-sensitive placeholder value. The function will send it in the configured key header; if your gateway rejects unknown headers, configure the gateway to ignore that header or use a managed endpoint that supports authentication.
 
-3. Deploy the function:
+3. Deploy the functions. The key is bound to **every** function that calls the runner — the Coding Lab (`runStudentCode`), the in-test sample runner (`runAssessmentCode`), the hidden-test judge (`judgeCodingSubmissions`) and the setup check (`checkCodeRunnerSetup`). Deploy them together so none is left without the key:
 
    ```sh
    npm --prefix functions run build
-   firebase deploy --only functions:runStudentCode --project <project-id>
+   firebase deploy --only functions:runStudentCode,functions:runAssessmentCode,functions:judgeCodingSubmissions,functions:checkCodeRunnerSetup --project <project-id>
    ```
 
+4. Verify it from inside the deployed project. Sign in as a **superadmin** and call the `checkCodeRunnerSetup` callable (no arguments). It reads nothing from Firestore, writes nothing, and makes one request to the runner. It returns `ready: true` only when the runner answers and has a compiler for each of `c`, `cpp`, `java` and `python`; otherwise `problems` says what to fix. It reports whether a key is present, never its value.
+
 The callable is deployed in `asia-south1`, the same region used by the app's Firebase Functions client. It accepts only `c`, `cpp`, `java`, and `python`; the installed compiler list is fetched from Judge0 and cached briefly so different Judge0 versions do not require hard-coded language IDs.
+
+## Sample runs in an assessment
+
+Faculty choose how many times a student may run the public sample tests on each coding question: 10, 25, 50, 100, or Unlimited. The default is 25. The count is per student, per test, per question, so switching between papers or re-taking one does not reset it. A student who runs out can still submit, because marks come from the hidden tests. The per-minute and per-day throttles apply on top of the per-question budget, even when a question is unlimited, so "Unlimited" cannot become free code execution.
 
 ## Server-enforced execution limits
 

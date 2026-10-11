@@ -141,7 +141,7 @@ function requireAssessmentManager(staff: StaffIdentity): void {
   }
 }
 
-async function resolveStaff(uid: string, token: Record<string, unknown>): Promise<StaffIdentity> {
+export async function resolveStaff(uid: string, token: Record<string, unknown>): Promise<StaffIdentity> {
   const userDoc = await getFirestore(admin.app(), 'default').collection('users').doc(uid).get()
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
@@ -465,6 +465,7 @@ export function publicQuestion(question: ServerQuestion, variantSeed?: number) {
             // its hidden testCases) or the PUBLIC shape (a frozen chunk on the
             // resume path, without them), so both fields are read defensively.
             caseCount: question.coding.testCases?.length ?? 0,
+            dryRunLimit: question.coding.dryRunLimit ?? 0,
             variesByStudent: (question.coding.placeholders ?? []).length > 0,
             // The RANGES, not the values. A resumed attempt is rebuilt from the
             // frozen chunks (shared by the whole batch, so they hold templates),

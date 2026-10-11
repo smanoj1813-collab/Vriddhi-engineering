@@ -18,7 +18,8 @@ import {
   type Judge0Language,
 } from './codeRunnerCore'
 
-const JUDGE0_API_KEY = defineSecret('JUDGE0_API_KEY')
+/** Bound as a runtime secret by every function that talks to the sandbox. */
+export const JUDGE0_API_KEY = defineSecret('JUDGE0_API_KEY')
 const LANGUAGE_CACHE_TTL_MS = 30 * 60 * 1000
 const SUBMISSION_DEADLINE_MS = 12_000
 /** A judged case waits for compile + run; the wall limit above plus queue time. */

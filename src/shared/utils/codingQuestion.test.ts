@@ -9,6 +9,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CODING_LANGUAGE_OPTIONS,
+  dryRunLimitLabel,
+  dryRunsLeftText,
   codingConfigProblem,
   codingPlaceholderProblem,
   codingTemplateProblem,
@@ -173,4 +175,19 @@ test('a per-student question says so, and a fixed one says nothing', () => {
   assert.match(String(variantNotice(true)), /generated for you/);
   assert.equal(variantNotice(false), null);
   assert.equal(variantNotice(undefined), null);
+});
+
+test('the budget is described the same way everywhere', () => {
+  assert.equal(dryRunLimitLabel(25), '25 sample runs per student');
+  assert.equal(dryRunLimitLabel(1), '1 sample run per student');
+  assert.equal(dryRunLimitLabel(0), 'Unlimited sample runs');
+  assert.equal(dryRunLimitLabel(undefined), 'Unlimited sample runs', 'no limit configured = unlimited, never "0 runs"');
+});
+
+test('the runs-left line is honest at zero and silent when unlimited', () => {
+  assert.equal(dryRunsLeftText(7), '7 sample runs left.');
+  assert.equal(dryRunsLeftText(1), '1 sample run left.');
+  assert.equal(dryRunsLeftText(0), 'No sample runs left — you can still submit your answer.');
+  assert.equal(dryRunsLeftText(-1), null, 'unlimited shows no counter');
+  assert.equal(dryRunsLeftText(undefined), null);
 });

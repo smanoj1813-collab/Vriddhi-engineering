@@ -41,6 +41,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { CODING_JUDGE_JOBS_COLLECTION } from './codingJudgeQueue';
 import { materializeCases, studentCaseSeed } from './codingVariants';
 import {
+  JUDGE0_API_KEY,
   createAndPollSubmission,
   judge0BaseUrl,
   listJudge0Languages,
@@ -56,6 +57,7 @@ import {
 } from './codeRunnerCore';
 import {
   codingAnswerProblem,
+  countDryRun,
   gradeCodingCases,
   parseCodingConfig,
   verdictForCase,
@@ -242,6 +244,9 @@ export const judgeCodingSubmissions = onDocumentCreated(
     minInstances: 0,
     maxInstances: 20,
     retry: true,
+    // Without this the judge runs with no runner credential and every case
+    // fails in production while working perfectly in the emulator.
+    secrets: [JUDGE0_API_KEY],
   },
   async (event) => {
     const jobRef = event.data?.ref;
@@ -458,7 +463,14 @@ export const judgeCodingSubmissions = onDocumentCreated(
  * call, so the "run it" button cannot be used to read the answer key.
  */
 export const runAssessmentCode = onCall(
-  { region: 'asia-south1', memory: '512MiB', timeoutSeconds: 60, minInstances: 0, maxInstances: 40 },
+  {
+    region: 'asia-south1',
+    memory: '512MiB',
+    timeoutSeconds: 60,
+    minInstances: 0,
+    maxInstances: 40,
+    secrets: [JUDGE0_API_KEY],
+  },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required');
@@ -515,7 +527,8 @@ export const runAssessmentCode = onCall(
       throw new HttpsError('failed-precondition', `This question's sample tests need fixing: ${materializedSamples.errors[0]}`);
     }
 
-    await consumeAssessmentRunQuota(uid);
+    // `testId:questionId` scopes the per-question counter to this sitting.
+    const dryRunQuota = await consumeAssessmentRunQuota(uid, `${testId}:${question.id}`, coding.dryRunLimit);
 
     const verdicts: Array<Record<string, unknown>> = [];
     let failure: string | null = null;
@@ -560,18 +573,37 @@ export const runAssessmentCode = onCall(
       ...(failure ? { failure } : {}),
       results: verdicts,
       output: limitRunnerOutput(verdicts.map((verdict) => String(verdict.got || '')).join('\n')),
+      // What the editor shows as "N sample runs left". -1 = unlimited.
+      dryRunsUsed: dryRunQuota.dryRunsUsed,
+      dryRunLimit: dryRunQuota.dryRunLimit,
+      dryRunsRemaining: dryRunQuota.dryRunsRemaining,
     };
   },
 );
 
-/** Per-student budget for in-test sample runs. Same window logic as the Lab. */
-async function consumeAssessmentRunQuota(uid: string): Promise<{ remaining: number }> {
+/**
+ * Per-student budget for in-test sample runs.
+ *
+ * Two budgets in ONE document and ONE write (the document was already read and
+ * written here, so the per-question limit costs nothing extra):
+ *   - the whole-student throttle (12/minute, 400/day) — the abuse brake, and the
+ *     reason "unlimited" still cannot be turned into a free code-execution
+ *     service;
+ *   - the question's own dry-run limit, counted per test:question (see
+ *     countDryRun). `0` = unlimited.
+ */
+async function consumeAssessmentRunQuota(
+  uid: string,
+  questionKey: string,
+  dryRunLimit: number,
+): Promise<{ remaining: number; dryRunsUsed: number; dryRunLimit: number; dryRunsRemaining: number }> {
   const db = getFirestore(admin.app(), 'default');
   const ref = db.collection('assessmentCodeUsage').doc(uid);
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
+    const stored = snapshot.data();
     const decision = decideCodeRunnerQuota(
-      snapshot.data(),
+      stored,
       Date.now(),
       ASSESSMENT_RUNS_PER_DAY,
       ASSESSMENT_RUNS_PER_MINUTE,
@@ -584,14 +616,29 @@ async function consumeAssessmentRunQuota(uid: string): Promise<{ remaining: numb
           : `You have used today's ${ASSESSMENT_RUNS_PER_DAY} code runs. Submit your answer without running it.`,
       );
     }
+
+    const counted = countDryRun(stored?.runsByKey, questionKey, dryRunLimit);
+    if (!counted.allowed) {
+      throw new HttpsError(
+        'resource-exhausted',
+        `You have used all ${counted.limit} sample runs for this question. You can still submit your answer — it is graded against hidden tests, not the samples.`,
+      );
+    }
+
     transaction.set(ref, {
       dayKey: decision.dayKey,
       dailyRuns: decision.dailyRuns,
       minuteKey: decision.minuteKey,
       minuteRuns: decision.minuteRuns,
+      runsByKey: counted.next,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    return { remaining: decision.dailyRemaining };
+    return {
+      remaining: decision.dailyRemaining,
+      dryRunsUsed: counted.used,
+      dryRunLimit: counted.limit,
+      dryRunsRemaining: counted.remaining,
+    };
   });
 }
 

@@ -11,13 +11,18 @@ import { buildFrozenQuestionChunks, normalizeQuestion, publicQuestion } from '..
 import { materializeCases, studentCaseSeed } from '../src/codingVariants';
 import { findSchedulingProblem } from '../src/questionTypes';
 import {
+  CODING_DEFAULT_DRY_RUN_LIMIT,
   MAX_CODING_SOURCE_CHARS,
   allocateCaseMarks,
   caseMarkWeights,
   codingAnswerProblem,
   codingCaseStatusFromJudgeId,
   codingScheduleProblem,
+  countDryRun,
+  decideDryRunQuota,
+  MAX_TRACKED_QUESTION_RUNS,
   gradeCodingCases,
+  normalizeDryRunLimit,
   normalizeCodingLanguage,
   normalizeJudgeOutput,
   parseCodingConfig,
@@ -434,3 +439,137 @@ describe('resume: a chunk-shaped question still materialises for the student', (
     assert.equal(hidden.cases[0].stdin, `${left} ${right}`);
   });
 })
+
+// ─── the dry-run budget ────────────────────────────────────────────────
+//
+// This is a knob a faculty member sets per question, so the boundary has to be
+// exactly what they think it is: choosing 25 means the 25th run works and the
+// 26th does not, and choosing "Unlimited" means never refusing.
+
+describe('normalizeDryRunLimit', () => {
+  it('defaults to 25 when the faculty member has not chosen', () => {
+    assert.equal(normalizeDryRunLimit(undefined), CODING_DEFAULT_DRY_RUN_LIMIT);
+    assert.equal(normalizeDryRunLimit(null), CODING_DEFAULT_DRY_RUN_LIMIT);
+    assert.equal(normalizeDryRunLimit('abc'), CODING_DEFAULT_DRY_RUN_LIMIT);
+    assert.equal(normalizeDryRunLimit(''), CODING_DEFAULT_DRY_RUN_LIMIT);
+    assert.equal(normalizeDryRunLimit(-5), CODING_DEFAULT_DRY_RUN_LIMIT);
+  });
+
+  it('keeps 0 as unlimited rather than reading it as "no runs"', () => {
+    assert.equal(normalizeDryRunLimit(0), 0);
+    assert.equal(normalizeDryRunLimit('0'), 0);
+  });
+
+  it('accepts a chosen budget and clamps the absurd', () => {
+    assert.equal(normalizeDryRunLimit(10), 10);
+    assert.equal(normalizeDryRunLimit('50'), 50);
+    assert.equal(normalizeDryRunLimit(1e9), 500);
+  });
+});
+
+describe('decideDryRunQuota', () => {
+  it('allows the 25th run and refuses the 26th', () => {
+    assert.equal(decideDryRunQuota(0, 25).allowed, true);
+    assert.equal(decideDryRunQuota(24, 25).allowed, true);
+    assert.equal(decideDryRunQuota(24, 25).remaining, 1);
+    const exhausted = decideDryRunQuota(25, 25);
+    assert.equal(exhausted.allowed, false);
+    assert.equal(exhausted.remaining, 0);
+    assert.equal(decideDryRunQuota(999, 25).allowed, false);
+  });
+
+  it('never refuses when the question is unlimited', () => {
+    assert.equal(decideDryRunQuota(0, 0).allowed, true);
+    assert.equal(decideDryRunQuota(5000, 0).allowed, true);
+    assert.equal(decideDryRunQuota(5000, 0).remaining, -1, 'unlimited reports -1, never a count that shrinks');
+  });
+
+  it('treats junk counts as zero rather than refusing a fresh question', () => {
+    assert.equal(decideDryRunQuota(undefined, 25).allowed, true);
+    assert.equal(decideDryRunQuota('x', 25).used, 0);
+    assert.equal(decideDryRunQuota(-3, 25).used, 0);
+  });
+
+  it('a limit of 1 means one run', () => {
+    assert.equal(decideDryRunQuota(0, 1).allowed, true);
+    assert.equal(decideDryRunQuota(1, 1).allowed, false);
+  });
+});
+
+describe('the parsed config carries the budget', () => {
+  it('defaults a question written before this setting existed', () => {
+    const config = parseCodingConfig({ languages: ['python'], testCases: [{ expectedOutput: '1' }] });
+    assert.equal(config?.dryRunLimit, CODING_DEFAULT_DRY_RUN_LIMIT);
+  });
+
+  it('honours the faculty member choice, including unlimited', () => {
+    assert.equal(parseCodingConfig({ dryRunLimit: 10 })?.dryRunLimit, 10);
+    assert.equal(parseCodingConfig({ dryRunLimit: 0 })?.dryRunLimit, 0);
+  });
+});
+
+describe('countDryRun — the per-question budget as it is stored', () => {
+  it('counts up to the limit and refuses the next run without changing the map', () => {
+    let stored: Record<string, number> = {};
+    for (let run = 1; run <= 25; run += 1) {
+      const counted = countDryRun(stored, 't1:q1', 25);
+      assert.equal(counted.allowed, true, `run ${run} should be allowed`);
+      assert.equal(counted.used, run);
+      assert.equal(counted.remaining, 25 - run);
+      stored = counted.next;
+    }
+    const refused = countDryRun(stored, 't1:q1', 25);
+    assert.equal(refused.allowed, false, 'the 26th run is refused');
+    assert.equal(refused.next['t1:q1'], 25, 'a refused run is not counted');
+  });
+
+  it('does not reset when the student switches to another paper and back', () => {
+    // The loophole: the old map reset on any other test. Alternating must not help.
+    let stored: Record<string, number> = {};
+    for (let run = 0; run < 25; run += 1) {
+      stored = countDryRun(stored, 'testA:q1', 25).next;
+      stored = countDryRun(stored, 'testB:q1', 25).next;
+    }
+    assert.equal(countDryRun(stored, 'testA:q1', 25).allowed, false, 'testA:q1 is exhausted despite the detour');
+    assert.equal(countDryRun(stored, 'testB:q1', 25).allowed, false, 'testB:q1 is exhausted too');
+  });
+
+  it('keeps questions in one test independent', () => {
+    let stored = countDryRun({}, 't1:q1', 1).next;
+    assert.equal(countDryRun(stored, 't1:q1', 1).allowed, false);
+    assert.equal(countDryRun(stored, 't1:q2', 1).allowed, true, 'a different question has its own budget');
+  });
+
+  it('never refuses an unlimited question and reports -1 remaining', () => {
+    let stored: Record<string, number> = {};
+    for (let run = 0; run < 40; run += 1) stored = countDryRun(stored, 't1:q1', 0).next;
+    const after = countDryRun(stored, 't1:q1', 0);
+    assert.equal(after.allowed, true);
+    assert.equal(after.remaining, -1);
+    assert.equal(after.next['t1:q1'], 41);
+  });
+
+  it('does not mutate the map it was given', () => {
+    const original = { 't1:q1': 3 };
+    countDryRun(original, 't1:q1', 25);
+    assert.deepEqual(original, { 't1:q1': 3 });
+  });
+
+  it('ignores junk stored values rather than refusing a fresh question', () => {
+    const counted = countDryRun({ 't1:q1': 'x', 't1:q2': -4, 't1:q3': null }, 't1:q1', 25);
+    assert.equal(counted.allowed, true);
+    assert.equal(counted.used, 1);
+    assert.equal(counted.next['t1:q2'], undefined, 'junk entries are dropped');
+  });
+
+  it('bounds the document: the oldest counters go first', () => {
+    let stored: Record<string, number> = {};
+    for (let index = 0; index < MAX_TRACKED_QUESTION_RUNS + 20; index += 1) {
+      stored = countDryRun(stored, `t1:q${index}`, 0).next;
+    }
+    const keys = Object.keys(stored);
+    assert.equal(keys.length, MAX_TRACKED_QUESTION_RUNS);
+    assert.equal(stored['t1:q0'], undefined, 'the very first counter was pruned');
+    assert.equal(stored[`t1:q${MAX_TRACKED_QUESTION_RUNS + 19}`], 1, 'the newest is kept');
+  });
+});

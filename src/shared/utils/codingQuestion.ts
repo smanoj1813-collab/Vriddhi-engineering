@@ -128,6 +128,19 @@ export function displayOutput(value: unknown, maxChars = 2000): string {
 }
 
 /**
+ * How many sample runs the student has left, or null when the question is
+ * unlimited or the count is not known yet. Shown next to the Run button: a
+ * student who does not know the budget rations clicks they do not need, and one
+ * who does not know it ran out thinks the button is broken.
+ */
+export function dryRunsLeftText(remaining: unknown): string | null {
+  const value = Number(remaining);
+  if (!Number.isFinite(value) || value < 0) return null;
+  if (value === 0) return 'No sample runs left — you can still submit your answer.';
+  return `${value} sample run${value === 1 ? '' : 's'} left.`;
+}
+
+/**
  * A per-student question: the same question, drawn with this student's own
  * numbers, so an answer copied from someone else does not fit. Students are
  * told plainly — it is fairer, and it removes the "my friend's answer was
@@ -165,9 +178,21 @@ export interface CodingConfigLike {
   testCases?: Array<{ stdin?: string; expectedOutput?: string }>;
   timeLimitSeconds?: number;
   placeholders?: CodingPlaceholder[];
+  dryRunLimit?: number;
 }
 
 export const CODING_MAX_PLACEHOLDERS = 8;
+
+/** Dry-run budgets a faculty member can pick. 0 = unlimited. */
+export const CODING_DRY_RUN_CHOICES = [10, 25, 50, 100, 0] as const;
+export const CODING_DEFAULT_DRY_RUN_LIMIT = 25;
+
+/** "25 runs" / "Unlimited runs" — one label, used by the form and the report. */
+export function dryRunLimitLabel(limit: unknown): string {
+  const value = Math.round(Number(limit) || 0);
+  if (value <= 0) return 'Unlimited sample runs';
+  return `${value} sample run${value === 1 ? '' : 's'} per student`;
+}
 const PLACEHOLDER_NAME = /^[a-z][a-z0-9_]{0,15}$/i;
 const PLACEHOLDER_TOKEN = /{{\s*([^{}]+?)\s*}}/g;
 

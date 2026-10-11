@@ -28,6 +28,7 @@ import {
   codingAnswerProblem,
   codingLanguageOption,
   displayOutput,
+  dryRunsLeftText,
   hiddenTestSummary,
   starterForLanguage,
   summarizeSampleRun,
@@ -48,6 +49,8 @@ interface CodingAnswerEditorProps {
   hiddenCaseCount?: number;
   /** The question drew its numbers for this student (variantNotice explains). */
   variesByStudent?: boolean;
+  /** Sample runs the faculty member allows; 0 = unlimited. */
+  dryRunLimit?: number;
   value?: { language?: string; code?: string };
   onChange: (value: { language: string; code: string }) => void;
   /** Errors from the question (e.g. a failed upload of the answer) — unused here. */
@@ -62,6 +65,7 @@ export default function CodingAnswerEditor({
   sampleCases = [],
   hiddenCaseCount = 0,
   variesByStudent = false,
+  dryRunLimit = 0,
   value,
   onChange,
   disabled = false,
@@ -77,6 +81,11 @@ export default function CodingAnswerEditor({
   const [runSummary, setRunSummary] = useState<string | null>(null);
   const [results, setResults] = useState<SampleRunResult[]>([]);
   const [output, setOutput] = useState('');
+  // Starts from the question's budget and is corrected after every run with the
+  // server's own count, so the number shown is the number enforced.
+  const [runsRemaining, setRunsRemaining] = useState<number>(
+    dryRunLimit > 0 ? dryRunLimit : -1,
+  );
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Restore an answer the student already wrote (resume, or coming back to the
@@ -126,10 +135,14 @@ export default function CodingAnswerEditor({
       setOutput(response.output || '');
       setRunSummary(response.failure || summarizeSampleRun(response.results));
       if (response.failure) setRunError(response.failure);
+      if (typeof response.dryRunsRemaining === 'number') setRunsRemaining(response.dryRunsRemaining);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not run your code.';
       setRunError(message);
       setRunSummary(null);
+      // A refused run is still a spent budget on the server only when it was
+      // refused FOR the budget; anything else leaves the count alone.
+      if (/sample runs for this question/i.test(message)) setRunsRemaining(0);
     } finally {
       setRunning(false);
     }
@@ -205,11 +218,16 @@ export default function CodingAnswerEditor({
         <p className="text-xs text-slate-400">
           {code.length.toLocaleString()} characters
           {charsLeft < 2000 && <span className="text-amber-600"> · {charsLeft.toLocaleString()} left</span>}
+          {dryRunsLeftText(runsRemaining) && (
+            <span className={runsRemaining === 0 ? 'ml-2 text-rose-500' : 'ml-2'}>
+              · {dryRunsLeftText(runsRemaining)}
+            </span>
+          )}
         </p>
         <button
           type="button"
           onClick={() => void handleRun()}
-          disabled={running || disabled || Boolean(problem)}
+          disabled={running || disabled || Boolean(problem) || runsRemaining === 0}
           title={problem ?? 'Runs the sample tests shown below'}
           className="inline-flex items-center gap-1.5 rounded-lg border border-teal-600 px-3 py-1.5 text-xs font-bold text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-teal-300 dark:hover:bg-teal-950/40"
         >

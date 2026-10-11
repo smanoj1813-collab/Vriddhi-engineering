@@ -65,6 +65,7 @@ import {
 } from './studentPortal'
 import { runStudentCode } from './codeRunner'
 import { judgeCodingSubmissions, runAssessmentCode } from './codingJudge'
+import { checkCodeRunnerSetup } from './codeRunnerPreflight'
 import {
   getMyStudentTests,
   getMyTestInstructions,
@@ -295,6 +296,7 @@ export {
   runStudentCode,
   judgeCodingSubmissions,
   runAssessmentCode,
+  checkCodeRunnerSetup,
   listMentorDirectory,
   getMyAssignments,
   beginMyAssignmentSubmission,

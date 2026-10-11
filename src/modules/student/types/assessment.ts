@@ -58,6 +58,8 @@ export interface PaperQuestion {
     caseCount?: number;
     /** True when these numbers were generated for this student. */
     variesByStudent?: boolean;
+    /** Sample runs allowed for this question; 0 = unlimited. */
+    dryRunLimit?: number;
   };
   sectionId?: string;
   sectionName?: string;

@@ -40,6 +40,98 @@ export const CODING_TIME_LIMIT_MIN_SECONDS = 1;
 export const CODING_TIME_LIMIT_MAX_SECONDS = 10;
 export const CODING_DEFAULT_TIME_LIMIT_SECONDS = 2;
 
+/**
+ * How many times a student may run their code against a question's public
+ * sample tests during the test. `0` means unlimited — the same convention
+ * `maxTabSwitches` already uses in this engine, so faculty read one meaning
+ * across both settings.
+ *
+ * Default 25 because that is well past the point where a student stops running
+ * (typical use is 3-8 per question): it exists to stop automation and to keep a
+ * live exam's sandbox queue predictable, not to ration debugging.
+ */
+export const CODING_DEFAULT_DRY_RUN_LIMIT = 25;
+export const CODING_MAX_DRY_RUN_LIMIT = 500;
+
+/** Clamps a faculty-supplied dry-run limit; 0 stays 0 (unlimited). */
+export function normalizeDryRunLimit(value: unknown, fallback = CODING_DEFAULT_DRY_RUN_LIMIT): number {
+  // A blank value must take the default, not read as 0 (= unlimited).
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+    return fallback;
+  }
+  const numeric = Math.round(Number(value));
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  if (numeric === 0) return 0;
+  return Math.min(CODING_MAX_DRY_RUN_LIMIT, numeric);
+}
+
+export interface DryRunQuotaDecision {
+  allowed: boolean;
+  limit: number;
+  used: number;
+  /** -1 for an unlimited question. */
+  remaining: number;
+}
+
+/**
+ * The per-question dry-run decision. Pure so the boundary is pinned: the 25th
+ * run is allowed, the 26th is not, and an unlimited question never refuses.
+ */
+export function decideDryRunQuota(used: unknown, limit: unknown): DryRunQuotaDecision {
+  const resolvedLimit = Math.max(0, Math.round(Number(limit) || 0));
+  const resolvedUsed = Math.max(0, Math.floor(Number(used) || 0));
+  if (resolvedLimit === 0) {
+    return { allowed: true, limit: 0, used: resolvedUsed, remaining: -1 };
+  }
+  const remaining = Math.max(0, resolvedLimit - resolvedUsed);
+  return { allowed: remaining > 0, limit: resolvedLimit, used: resolvedUsed, remaining };
+}
+
+/**
+ * How many distinct (test, question) run counters a student's usage document
+ * keeps. Each student has a handful of papers with tens of questions, so this
+ * is generous; the cap only stops the document growing without limit. The
+ * oldest counters go first.
+ */
+export const MAX_TRACKED_QUESTION_RUNS = 300;
+
+/**
+ * Counts one sample run against `questionKey` (`testId:questionId`).
+ *
+ * The counter is keyed by the TEST, not by "the last test the student touched":
+ * switching between two open papers must not reset the count. A re-take of the
+ * same paper shares its budget, so re-taking cannot be used to get fresh runs.
+ *
+ * Returns `next` — the updated map to store — only when the run is allowed; the
+ * input is never mutated. When refused, `next` is the unchanged map.
+ */
+export function countDryRun(
+  runsByKey: unknown,
+  questionKey: string,
+  limit: unknown,
+): { allowed: boolean; used: number; limit: number; remaining: number; next: Record<string, number> } {
+  const current: Record<string, number> = {};
+  if (runsByKey && typeof runsByKey === 'object' && !Array.isArray(runsByKey)) {
+    for (const [key, value] of Object.entries(runsByKey as Record<string, unknown>)) {
+      const count = Math.floor(Number(value));
+      if (Number.isFinite(count) && count > 0) current[key] = count;
+    }
+  }
+  const before = decideDryRunQuota(current[questionKey] ?? 0, limit);
+  if (!before.allowed) {
+    return { allowed: false, used: before.used, limit: before.limit, remaining: 0, next: current };
+  }
+  const after = decideDryRunQuota(before.used + 1, limit);
+  // Delete then re-insert so this question becomes the newest counter.
+  delete current[questionKey];
+  current[questionKey] = before.used + 1;
+  const keys = Object.keys(current);
+  for (const key of keys.slice(0, Math.max(0, keys.length - MAX_TRACKED_QUESTION_RUNS))) {
+    delete current[key];
+  }
+  return { allowed: true, used: after.used, limit: after.limit, remaining: after.remaining, next: current };
+}
+
 /** Spellings the imports and the authoring form have produced. */
 const LANGUAGE_ALIASES: Record<string, CodingLanguage> = {
   c: 'c',
@@ -88,6 +180,8 @@ export interface CodingQuestionConfig {
   /** Hidden. Never sent to the browser, never stored on the attempt row. */
   testCases: CodingCase[];
   timeLimitSeconds: number;
+  /** Public sample runs allowed per student; 0 = unlimited. */
+  dryRunLimit: number;
 }
 
 function trimText(value: unknown, maxChars: number): string {
@@ -174,6 +268,7 @@ export function parseCodingConfig(raw: unknown): CodingQuestionConfig | null {
     // authoring form's business (variantSpecProblem), and an invalid entry is
     // simply dropped rather than blocking the whole question.
     placeholders: parseVariantSpec(value.placeholders).placeholders,
+    dryRunLimit: normalizeDryRunLimit(value.dryRunLimit ?? value.dryRunLimitPerQuestion),
     starterCode,
     sampleCases: parseCaseList(value.sampleCases ?? value.samples, MAX_CODING_SAMPLE_CASES),
     testCases: parseCaseList(value.testCases ?? value.hiddenCases ?? value.tests, MAX_CODING_TEST_CASES),

@@ -43,6 +43,11 @@ export interface QuestionCodingConfig {
   testCases?: QuestionCodingCase[];
   timeLimitSeconds?: number;
   /**
+   * How many times a student may run the public sample tests on this question
+   * during the test. 0 = unlimited. Default 25.
+   */
+  dryRunLimit?: number;
+  /**
    * Declared placeholders (per-student test values). A case writes `{{a}}` or
    * `{{a + b}}`; without any declaration every student gets the same tests.
    * See functions/src/codingVariants.ts.

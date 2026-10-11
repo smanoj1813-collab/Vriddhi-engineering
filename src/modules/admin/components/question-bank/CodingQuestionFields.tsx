@@ -25,9 +25,11 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import {
+  CODING_DRY_RUN_CHOICES,
   CODING_LANGUAGE_OPTIONS,
   CODING_MAX_PLACEHOLDERS,
   codingConfigProblem,
+  dryRunLimitLabel,
   type CodingPlaceholder,
 } from '@/shared/utils/codingQuestion';
 import type { QuestionCodingCase, QuestionCodingConfig } from '../../types/questionBank';
@@ -49,6 +51,7 @@ export default function CodingQuestionFields({ value, onChange }: CodingQuestion
     testCases: value.testCases?.length ? value.testCases : [emptyCase()],
     timeLimitSeconds: value.timeLimitSeconds || 2,
     placeholders: value.placeholders || [],
+    dryRunLimit: value.dryRunLimit ?? 25,
   };
   const problem = codingConfigProblem(config);
   const hiddenCount = (config.testCases || []).filter((testCase) => String(testCase?.expectedOutput || '').trim()).length;
@@ -247,6 +250,31 @@ export default function CodingQuestionFields({ value, onChange }: CodingQuestion
           </ToggleButtonGroup>
           <Typography variant="caption" color="text.secondary">
             Marks are split evenly across the hidden tests unless you set a weight per test.
+          </Typography>
+        </Box>
+
+        {/* The dry-run budget. This is the only knob that trades sandbox cost and
+            queue contention against how freely a student can debug; the per-minute
+            throttle applies on top of it either way. */}
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Typography variant="caption" color="text.secondary">
+            Sample runs a student may make
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={config.dryRunLimit ?? 25}
+            onChange={(_event, next: number | null) => next !== null && patch({ dryRunLimit: next })}
+          >
+            {CODING_DRY_RUN_CHOICES.map((choice) => (
+              <ToggleButton key={choice} value={choice} sx={{ textTransform: 'none' }}>
+                {choice === 0 ? 'Unlimited' : choice}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Typography variant="caption" color="text.secondary">
+            {dryRunLimitLabel(config.dryRunLimit ?? 25)}. Students who run out can still submit — marks come from
+            the hidden tests.
           </Typography>
         </Box>
       </Paper>

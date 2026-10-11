@@ -18,6 +18,10 @@ export interface AssessmentCodeRunResponse {
   failure?: string;
   results: SampleRunResult[];
   output: string;
+  /** Sample-run budget: -1 means the question is unlimited. */
+  dryRunsUsed: number;
+  dryRunLimit: number;
+  dryRunsRemaining: number;
 }
 
 /** Throws with a user-readable `message` on a refused run. */
