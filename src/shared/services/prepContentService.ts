@@ -1,7 +1,7 @@
 // src/shared/services/prepContentService.ts
 //
 // Client service for the PrepInsta-style Prep-Content platform
-// (BBA, B.Com, MBA commerce & management curriculum).
+// (university study packs and placement-preparation catalogues).
 // Uses apiBase to resolve the Cloud Function endpoint and authedFetch.
 
 import { apiUrl, assertJsonResponse } from '@/shared/api/apiBase'
@@ -25,11 +25,11 @@ export interface PrepSubtopic {
 export interface PrepSubject {
   id: string
   name: string
-  stream: 'commerce' | 'management' | 'aptitude' | 'communication' | 'economics' | 'finance' | 'law' | 'strategy' | 'operations' | 'taxation'
+  stream: 'commerce' | 'management' | 'aptitude' | 'communication' | 'economics' | 'finance' | 'law' | 'strategy' | 'operations' | 'taxation' | 'computing'
   programs: string[]
   track?: PrepTrack
   degreeLevel?: 'undergraduate' | 'postgraduate'
-  yearGroup?: '1st-year' | '2nd-year' | 'final-year'
+  yearGroup?: '1st-year' | '2nd-year' | '3rd-year' | '4th-year' | 'final-year' | 'pg-first-year' | 'pg-second-year'
   semester?: number
   universityRegion?: 'karnataka' | 'national'
   syllabusRef?: string

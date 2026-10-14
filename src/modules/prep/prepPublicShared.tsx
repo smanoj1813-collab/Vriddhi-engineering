@@ -24,6 +24,7 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
   { code: 'ba', label: 'BA', level: 'undergraduate' },
   { code: 'bsc', label: 'B.Sc', level: 'undergraduate' },
   { code: 'bca', label: 'BCA', level: 'undergraduate' },
+  { code: 'cse', label: 'CSE', level: 'undergraduate' },
   { code: 'mba', label: 'MBA', level: 'postgraduate' },
   { code: 'mcom', label: 'M.Com', level: 'postgraduate' },
   { code: 'mca', label: 'MCA', level: 'postgraduate' },
@@ -34,7 +35,7 @@ export const PROGRAM_LABELS: Record<string, string> = Object.fromEntries(PROGRAM
 export const AUDIENCE_LABELS: Record<string, string> = {
   ug: 'UG (BBA / B.Com / BA / B.Sc)',
   pg: 'PG (MBA / M.Com / MCA)',
-  tech: 'Tech roles (BCA / MCA)',
+  tech: 'Tech roles (BCA / MCA / CSE)',
 };
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ export const STREAM_COLORS: Record<string, string> = {
   taxation: '#047857', // emerald-700
   operations: '#ea580c', // orange-600
   strategy: '#4338ca', // indigo-700
+  computing: '#0f766e', // teal-700 — computing and engineering
 };
 
 /** Slate-500 — a subject whose stream is missing or unknown. */
@@ -76,7 +78,11 @@ export function yearGroupLabel(yearGroup?: string | null): string | null {
   const mapped: Record<string, string> = {
     '1st-year': '1st year',
     '2nd-year': '2nd year',
+    '3rd-year': '3rd year',
+    '4th-year': '4th year',
     'final-year': 'Final year',
+    'pg-first-year': 'PG 1st year',
+    'pg-second-year': 'PG 2nd year',
   };
   return mapped[yearGroup] || yearGroup.replace(/-/g, ' ');
 }

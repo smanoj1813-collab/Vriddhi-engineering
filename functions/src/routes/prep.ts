@@ -1,6 +1,6 @@
 // functions/src/routes/prep.ts
 //
-// PrepInsta-style Prep-Content API for UG/PG Commerce & Management.
+// PrepInsta-style Prep-Content API for UG/PG academic and placement catalogues.
 // Shared backbone on Firebase project vriddhi-engineering:
 //   - prep_subjects/{subjectId}
 //   - prep_subjects/{subjectId}/topics/{topicId}
@@ -85,6 +85,11 @@ import {
   SEEDED_BCOM_TOPICS,
   SEEDED_BCOM_QUESTIONS,
 } from '../data/bcomSeedData'
+import {
+  CSE_SUBJECTS,
+  SEEDED_CSE_TOPICS,
+  SEEDED_CSE_QUESTIONS,
+} from '../data/cseSeedData'
 import { APTITUDE_SUBJECTS, SEEDED_APTITUDE_TOPICS, SEEDED_APTITUDE_QUESTIONS } from '../data/aptitudeSeedData'
 import { SEEDED_COMPANIES } from '../data/companySeedData'
 import { SEEDED_PREP_PAPERS } from '../data/prepPapers'
@@ -167,6 +172,7 @@ PREP_SEED_BUNDLES.push(
   withUniversalSupplement('bsc', 'B.Sc', BSC_SUBJECTS, SEEDED_BSC_TOPICS, SEEDED_BSC_QUESTIONS),
   withUniversalSupplement('ba', 'BA', BA_SUBJECTS, SEEDED_BA_TOPICS, SEEDED_BA_QUESTIONS),
   withUniversalSupplement('mcom', 'M.Com', MCOM_SUBJECTS, SEEDED_MCOM_TOPICS, SEEDED_MCOM_QUESTIONS),
+  withUniversalSupplement('cse', 'CSE', CSE_SUBJECTS, SEEDED_CSE_TOPICS, SEEDED_CSE_QUESTIONS),
   {
     code: 'universal',
     label: 'Universal Student Learning',

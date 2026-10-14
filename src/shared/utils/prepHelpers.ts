@@ -54,6 +54,7 @@ export function formatStreamLabel(stream?: string | null): string {
     strategy: 'Strategic Management',
     operations: 'Operations & SCM',
     taxation: 'Taxation & GST',
+    computing: 'Computing & Engineering',
     learning: 'Learning & Problem Solving',
   }
   return mapping[stream.toLowerCase()] || stream.charAt(0).toUpperCase() + stream.slice(1)

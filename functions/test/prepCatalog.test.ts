@@ -34,6 +34,7 @@ import { MCOM_SUBJECTS, SEEDED_MCOM_TOPICS, SEEDED_MCOM_QUESTIONS } from '../src
 import { BSC_SUBJECTS, SEEDED_BSC_TOPICS, SEEDED_BSC_QUESTIONS } from '../src/data/bscSeedData.ts'
 import { BA_SUBJECTS, SEEDED_BA_TOPICS, SEEDED_BA_QUESTIONS } from '../src/data/baSeedData.ts'
 import { BCOM_SUBJECTS, SEEDED_BCOM_TOPICS, SEEDED_BCOM_QUESTIONS } from '../src/data/bcomSeedData.ts'
+import { CSE_COURSE_SEEDS, CSE_SUBJECTS, SEEDED_CSE_TOPICS, SEEDED_CSE_QUESTIONS } from '../src/data/cseSeedData.ts'
 import { APTITUDE_SUBJECTS, SEEDED_APTITUDE_TOPICS, SEEDED_APTITUDE_QUESTIONS } from '../src/data/aptitudeSeedData.ts'
 import {
   UNIVERSAL_ACADEMIC_BUNDLE,
@@ -158,6 +159,91 @@ describe('module counts', () => {
       assert.equal(report.subjectCount, fixture.expectedSubjects)
     })
   }
+})
+
+describe('candidate CSE Prep study pack', () => {
+  const cseSupplement = universalAcademicSupplementFor('cse')
+  const routeBundle: PrepCatalogBundle = {
+    programCode: 'cse',
+    subjects: [...CSE_SUBJECTS, ...cseSupplement.subjects],
+    topics: { ...SEEDED_CSE_TOPICS, ...cseSupplement.topics },
+    questions: [...SEEDED_CSE_QUESTIONS, ...cseSupplement.questions],
+  }
+
+  it('validates the complete CSE seed plus the shared universal supplement', () => {
+    const report = validatePrepCatalog(routeBundle)
+    assert.equal(report.valid, true, report.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n'))
+    assert.equal(report.errorCount, 0)
+    assert.equal(report.subjectCount, 23)
+    assert.equal(report.topicCount, 113)
+    assert.equal(report.questionCount, 113)
+  })
+
+  it('contains 21 five-unit study packs with detailed subtopic briefs and one mapped question per unit', () => {
+    assert.equal(CSE_COURSE_SEEDS.length, 21)
+    assert.equal(CSE_SUBJECTS.length, 21)
+    assert.equal(SEEDED_CSE_QUESTIONS.length, 105)
+    for (const subject of CSE_SUBJECTS) {
+      const topics = SEEDED_CSE_TOPICS[subject.id] ?? []
+      assert.equal(subject.topicCount, 5, `${subject.id} subject topicCount`)
+      assert.deepEqual(topics.map((topic) => topic.moduleNumber), [1, 2, 3, 4, 5], `${subject.id} module order`)
+      for (const topic of topics) {
+        assert.ok(topic.subtopicDetails && topic.subtopicDetails.length >= 4, `${topic.id} needs granular subtopics`)
+        for (const subtopic of topic.subtopicDetails ?? []) {
+          assert.ok(subtopic.briefMd.trim().length >= 20, `${subtopic.id} has a thin brief`)
+        }
+        assert.equal(topic.featuredQuestionIds.length, 1, `${topic.id} should map one CSE practice question`)
+      }
+    }
+  })
+
+  it('uses unique CSE subject, topic and question identifiers', () => {
+    const topicIds = Object.values(SEEDED_CSE_TOPICS).flat().map((topic) => topic.id)
+    const questionIds = SEEDED_CSE_QUESTIONS.map((question) => question.id)
+    assert.equal(new Set(CSE_SUBJECTS.map((subject) => subject.id)).size, CSE_SUBJECTS.length)
+    assert.equal(new Set(topicIds).size, topicIds.length)
+    assert.equal(new Set(questionIds).size, questionIds.length)
+    assert.ok(CSE_SUBJECTS.every((subject) => subject.programs.includes('cse') && subject.stream === 'computing'))
+  })
+
+  it('sorts candidate courses by semester and course order', () => {
+    const expectedBySemester: Record<number, string[]> = {
+      3: ['BCS301', 'BCS302', 'BCS303', 'BCS304', 'BCSL305', 'BCS306A', 'BCS306B'],
+      4: ['BCS401', 'BCS402', 'BCS403'],
+      5: ['BCS501', 'BCS502', 'BCS503', 'BCSL504'],
+      6: ['BCS601', 'BCS602'],
+      7: ['BCS701', 'BCS702', 'BCS703'],
+    }
+    for (const [semester, expected] of Object.entries(expectedBySemester)) {
+      const actual = CSE_SUBJECTS
+        .filter((subject) => subject.semester === Number(semester))
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map((subject) => subject.syllabusRef?.match(/· ([A-Z0-9]+) ·/)?.[1])
+      assert.deepEqual(actual, expected, `semester ${semester} order`)
+    }
+  })
+
+  it('keeps the BCS302/303 practicals integrated and BCS304 as its own course', () => {
+    for (const code of ['BCS302', 'BCS303', 'BCS304']) {
+      assert.equal(CSE_COURSE_SEEDS.filter((course) => course.courseCode === code).length, 1, `${code} seed count`)
+    }
+    assert.ok(CSE_COURSE_SEEDS.some((course) => course.courseCode === 'BCS304' && course.name === 'Data Structures and Applications'))
+    assert.equal(CSE_COURSE_SEEDS.filter((course) => ['BCSL302', 'BCSL303'].includes(course.courseCode ?? '')).length, 0)
+    assert.ok(CSE_COURSE_SEEDS.some((course) => course.courseCode === 'BCSL305'))
+  })
+
+  it('keeps the corrected BCS402 identity and labels BCS306A/B as alternatives', () => {
+    const microcontrollers = CSE_SUBJECTS.find((subject) => subject.id === 'cse-vtu22-microcontrollers')
+    assert.equal(microcontrollers?.name, 'Microcontrollers')
+    assert.equal(microcontrollers?.syllabusRef?.match(/· ([A-Z0-9]+) ·/)?.[1], 'BCS402')
+    for (const code of ['BCS306A', 'BCS306B']) {
+      const course = CSE_COURSE_SEEDS.find((entry) => entry.courseCode === code)
+      assert.ok(course?.description.includes('choose this only'), `${code} option guidance`)
+    }
+    assert.equal(resolveSeedPrograms('cse').programs[0], 'cse')
+    assert.ok(PREP_PROGRAM_CATALOG.some((program) => program.code === 'cse'))
+    assert.ok(PREP_SEED_CODES.includes('cse'))
+  })
 })
 
 describe('question mapping', () => {

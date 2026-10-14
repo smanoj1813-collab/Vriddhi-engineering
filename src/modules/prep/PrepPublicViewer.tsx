@@ -234,10 +234,10 @@ function groupAcademicSubjects(subjects: PrepSubject[]): SemesterGroup[] {
       subjects: items,
     });
   }
-  // Year groups keep syllabus order (1st → 2nd → final) and sort after the
+  // Year groups keep syllabus order (1st → 2nd → 3rd → 4th → final) and sort after the
   // numbered semesters, since a program that ships both is rare and the
   // numbered ones are the ones students navigate by.
-  const yearOrder = ['1st-year', '2nd-year', 'final-year'];
+  const yearOrder = ['1st-year', '2nd-year', '3rd-year', '4th-year', 'final-year', 'pg-first-year', 'pg-second-year'];
   const years = [...byYear.keys()].sort((a, b) => {
     const ia = yearOrder.indexOf(a);
     const ib = yearOrder.indexOf(b);

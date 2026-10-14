@@ -58,6 +58,7 @@ const SEEDABLE_PROGRAMS: Array<{ code: string; label: string }> = [
   { code: 'ba', label: 'BA' },
   { code: 'bsc', label: 'B.Sc' },
   { code: 'mcom', label: 'M.Com' },
+  { code: 'cse', label: 'CSE (candidate VTU core pack)' },
   // Supplementary, cross-university concept mastery for all programs.
   { code: 'universal', label: 'Universal Student Learning (all programs)' },
   // Shared placement-aptitude track (Quant / Reasoning / Verbal) — not a
@@ -463,7 +464,7 @@ export default function PrepContentStudioTab() {
   const [showNewSubject, setShowNewSubject] = useState(false);
   const [newSubjName, setNewSubjName] = useState('');
   const [newSubjStream, setNewSubjStream] = useState('management');
-  const [newSubjYear, setNewSubjYear] = useState<'1st-year' | '2nd-year' | 'final-year'>('1st-year');
+  const [newSubjYear, setNewSubjYear] = useState<'1st-year' | '2nd-year' | '3rd-year' | '4th-year' | 'final-year' | 'pg-first-year' | 'pg-second-year'>('1st-year');
 
   // New topic modal state
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -839,9 +840,13 @@ export default function PrepContentStudioTab() {
               className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-700 dark:text-slate-200 w-1/2"
             >
               <option value="all">All Years</option>
-              <option value="1st-year">1st Year (Foundations)</option>
-              <option value="2nd-year">2nd Year (Core Functional)</option>
-              <option value="final-year">Final Year (Capstone)</option>
+              <option value="1st-year">1st Year</option>
+              <option value="2nd-year">2nd Year</option>
+              <option value="3rd-year">3rd Year</option>
+              <option value="4th-year">4th Year</option>
+              <option value="final-year">Final Year</option>
+              <option value="pg-first-year">PG 1st Year</option>
+              <option value="pg-second-year">PG 2nd Year</option>
             </select>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Semester:</span>
@@ -850,13 +855,15 @@ export default function PrepContentStudioTab() {
                 onChange={(e) => setFilterSemester(e.target.value)}
                 className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-700 dark:text-slate-200 text-xs"
               >
-                <option value="all">All Semesters (1–6)</option>
+                <option value="all">All Semesters (1–8)</option>
                 <option value="1">Sem 1 (1st Year)</option>
                 <option value="2">Sem 2 (1st Year)</option>
                 <option value="3">Sem 3 (2nd Year)</option>
                 <option value="4">Sem 4 (2nd Year)</option>
-                <option value="5">Sem 5 (Final Year)</option>
-                <option value="6">Sem 6 (Final Year)</option>
+                <option value="5">Sem 5 (3rd Year)</option>
+                <option value="6">Sem 6 (3rd Year)</option>
+                <option value="7">Sem 7 (4th Year)</option>
+                <option value="8">Sem 8 (4th Year)</option>
               </select>
             </div>
           </div>
@@ -1550,7 +1557,11 @@ export default function PrepContentStudioTab() {
                 >
                   <option value="1st-year">1st Year</option>
                   <option value="2nd-year">2nd Year</option>
+                  <option value="3rd-year">3rd Year</option>
+                  <option value="4th-year">4th Year</option>
                   <option value="final-year">Final Year</option>
+                  <option value="pg-first-year">PG 1st Year</option>
+                  <option value="pg-second-year">PG 2nd Year</option>
                 </select>
               </div>
             </div>

@@ -9,7 +9,7 @@
 import type { PrepSubject, PrepTopic, UniversalQuestion } from '../prepShared'
 
 const PUBLISHED_AT = '2026-10-01T00:00:00.000Z'
-const ALL_PROGRAMS = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'mba', 'mcom', 'mca']
+const ALL_PROGRAMS = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'mba', 'mcom', 'mca']
 
 export const UNIVERSAL_ACADEMIC_SUBJECTS: PrepSubject[] = [
   {
@@ -52,7 +52,7 @@ export const UNIVERSAL_ACADEMIC_SUBJECTS: PrepSubject[] = [
     id: 'universal-science-reasoning',
     name: 'Science Reasoning: Experiments, Data & Units',
     stream: 'science',
-    programs: ['bsc', 'bca', 'mca'],
+    programs: ['bsc', 'bca', 'mca', 'cse'],
     track: 'academic',
     icon: 'FlaskConical',
     order: 903,
