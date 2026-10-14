@@ -101,6 +101,19 @@ function flattenTopics(topics: Record<string, PrepTopic[]>): PrepTopic[] {
   return Object.values(topics).flat()
 }
 
+function undefinedFieldPaths(value: unknown, path = '$'): string[] {
+  if (value === undefined) return [path]
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => undefinedFieldPaths(entry, `${path}[${index}]`))
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) =>
+      undefinedFieldPaths(entry, `${path}.${key}`),
+    )
+  }
+  return []
+}
+
 function bundleFor(f: ProgramFixture): PrepCatalogBundle {
   return {
     programCode: f.programCode,
@@ -177,6 +190,16 @@ describe('candidate CSE Prep study pack', () => {
     assert.equal(report.subjectCount, 23)
     assert.equal(report.topicCount, 113)
     assert.equal(report.questionCount, 113)
+  })
+
+  it('omits undefined optional fields from Firestore seed documents', () => {
+    assert.deepEqual(undefinedFieldPaths(routeBundle), [])
+
+    const foundations = CSE_SUBJECTS.find((subject) => subject.id === 'cse-foundations-computing')
+    assert.ok(foundations)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'yearGroup'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'semester'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'universityRegion'), false)
   })
 
   it('contains 21 five-unit study packs with detailed subtopic briefs and one mapped question per unit', () => {

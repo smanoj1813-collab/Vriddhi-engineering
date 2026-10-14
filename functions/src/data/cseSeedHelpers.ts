@@ -59,6 +59,7 @@ export function buildCseCatalog(courses: CseCourseSeed[]): CseCatalog {
     const courseRef = course.courseCode
       ? `Candidate VTU 2022 map · ${course.courseCode} · Semester ${course.semester} · verify against current college syllabus`
       : course.scopeNote
+    const yearGroup = yearGroupForSemester(course.semester)
     subjects.push({
       id: course.id,
       name: course.name,
@@ -66,10 +67,13 @@ export function buildCseCatalog(courses: CseCourseSeed[]): CseCatalog {
       programs: ['cse'],
       track: 'academic',
       degreeLevel: 'undergraduate',
-      yearGroup: yearGroupForSemester(course.semester),
-      semester: course.semester,
-      universityRegion: course.courseCode ? 'karnataka' : undefined,
-      syllabusRef: courseRef,
+      // Firestore rejects explicit `undefined` values. The unsemestered CSE
+      // foundations supplement intentionally has no year/semester/region, so
+      // omit those optional properties instead of writing them as undefined.
+      ...(yearGroup ? { yearGroup } : {}),
+      ...(course.semester !== undefined ? { semester: course.semester } : {}),
+      ...(course.courseCode ? { universityRegion: 'karnataka' as const } : {}),
+      ...(courseRef ? { syllabusRef: courseRef } : {}),
       icon: 'Code2',
       order: course.order,
       topicCount: course.modules.length,
