@@ -14,12 +14,13 @@ export type PrepStream =
   | 'strategy'
   | 'operations'
   | 'taxation'
-  // Science, arts, computing and electronics streams for the B.Sc, BA, MCA, CSE and ECE catalogs.
+  // Science, arts, computing, electronics and electrical streams for the B.Sc, BA, MCA, CSE, ECE and EEE catalogs.
   | 'mathematics'
   | 'statistics'
   | 'science'
   | 'computing'
   | 'electronics'
+  | 'electrical'
   | 'communication'
   | 'learning'
 
@@ -581,7 +582,7 @@ export interface PrepProgramInfo {
 
 /**
  * Canonical program catalog for the Vriddhi Prep platform.
- * UG: BBA, B.Com, BCA, B.Sc, BA, CSE, ECE  |  PG: MBA, M.Com, MCA
+ * UG: BBA, B.Com, BCA, B.Sc, BA, CSE, ECE, EEE  |  PG: MBA, M.Com, MCA
  */
 export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'bba', label: 'BBA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Business Administration' },
@@ -591,6 +592,7 @@ export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'ba', label: 'BA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Arts' },
   { code: 'cse', label: 'CSE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Computer Science and Engineering' },
   { code: 'ece', label: 'ECE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electronics and Communication Engineering' },
+  { code: 'eee', label: 'EEE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electrical and Electronics Engineering' },
   { code: 'mba', label: 'MBA', degreeLevel: 'postgraduate', fullName: 'Master of Business Administration' },
   { code: 'mcom', label: 'M.Com', degreeLevel: 'postgraduate', fullName: 'Master of Commerce' },
   { code: 'mca', label: 'MCA', degreeLevel: 'postgraduate', fullName: 'Master of Computer Applications' },

@@ -26,6 +26,7 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
   { code: 'bca', label: 'BCA', level: 'undergraduate' },
   { code: 'cse', label: 'CSE', level: 'undergraduate' },
   { code: 'ece', label: 'ECE', level: 'undergraduate' },
+  { code: 'eee', label: 'EEE', level: 'undergraduate' },
   { code: 'mba', label: 'MBA', level: 'postgraduate' },
   { code: 'mcom', label: 'M.Com', level: 'postgraduate' },
   { code: 'mca', label: 'MCA', level: 'postgraduate' },
@@ -65,6 +66,7 @@ export const STREAM_COLORS: Record<string, string> = {
   strategy: '#4338ca', // indigo-700
   computing: '#0f766e', // teal-700 — computing and engineering
   electronics: '#b45309', // amber-700 — electronics and communication
+  electrical: '#a16207', // yellow-700 — electrical power and machines
 };
 
 /** Slate-500 — a subject whose stream is missing or unknown. */

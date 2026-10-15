@@ -36,6 +36,7 @@ import { BA_SUBJECTS, SEEDED_BA_TOPICS, SEEDED_BA_QUESTIONS } from '../src/data/
 import { BCOM_SUBJECTS, SEEDED_BCOM_TOPICS, SEEDED_BCOM_QUESTIONS } from '../src/data/bcomSeedData.ts'
 import { CSE_COURSE_SEEDS, CSE_SUBJECTS, SEEDED_CSE_TOPICS, SEEDED_CSE_QUESTIONS } from '../src/data/cseSeedData.ts'
 import { ECE_COURSE_SEEDS, ECE_SUBJECTS, SEEDED_ECE_TOPICS, SEEDED_ECE_QUESTIONS } from '../src/data/eceSeedData.ts'
+import { EEE_COURSE_SEEDS, EEE_SUBJECTS, SEEDED_EEE_TOPICS, SEEDED_EEE_QUESTIONS } from '../src/data/eeeSeedData.ts'
 import { APTITUDE_SUBJECTS, SEEDED_APTITUDE_TOPICS, SEEDED_APTITUDE_QUESTIONS } from '../src/data/aptitudeSeedData.ts'
 import {
   UNIVERSAL_ACADEMIC_BUNDLE,
@@ -380,6 +381,122 @@ describe('candidate ECE Prep study pack', () => {
     assert.equal(resolveSeedPrograms('ece').programs[0], 'ece')
     assert.ok(PREP_PROGRAM_CATALOG.some((program) => program.code === 'ece'))
     assert.ok(PREP_SEED_CODES.includes('ece'))
+  })
+})
+
+describe('candidate EEE Prep study pack', () => {
+  const eeeSupplement = universalAcademicSupplementFor('eee')
+  const routeBundle: PrepCatalogBundle = {
+    programCode: 'eee',
+    subjects: [...EEE_SUBJECTS, ...eeeSupplement.subjects],
+    topics: { ...SEEDED_EEE_TOPICS, ...eeeSupplement.topics },
+    questions: [...SEEDED_EEE_QUESTIONS, ...eeeSupplement.questions],
+  }
+
+  it('validates the complete EEE seed plus the shared universal supplement', () => {
+    const report = validatePrepCatalog(routeBundle)
+    assert.equal(report.valid, true, report.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n'))
+    assert.equal(report.errorCount, 0)
+    assert.equal(report.subjectCount, 22)
+    assert.equal(report.topicCount, 108)
+    assert.equal(report.questionCount, 108)
+  })
+
+  it('omits undefined optional fields from Firestore seed documents', () => {
+    assert.deepEqual(undefinedFieldPaths(routeBundle), [])
+
+    const foundations = EEE_SUBJECTS.find((subject) => subject.id === 'eee-foundations-circuits-machines')
+    assert.ok(foundations)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'yearGroup'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'semester'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'universityRegion'), false)
+  })
+
+  it('contains 20 five-unit study packs with detailed subtopic briefs and one mapped question per unit', () => {
+    assert.equal(EEE_COURSE_SEEDS.length, 20)
+    assert.equal(EEE_SUBJECTS.length, 20)
+    assert.equal(SEEDED_EEE_QUESTIONS.length, 100)
+    for (const subject of EEE_SUBJECTS) {
+      const topics = SEEDED_EEE_TOPICS[subject.id] ?? []
+      assert.equal(subject.topicCount, 5, `${subject.id} subject topicCount`)
+      assert.deepEqual(topics.map((topic) => topic.moduleNumber), [1, 2, 3, 4, 5], `${subject.id} module order`)
+      for (const topic of topics) {
+        assert.ok(topic.subtopicDetails && topic.subtopicDetails.length >= 4, `${topic.id} needs granular subtopics`)
+        for (const subtopic of topic.subtopicDetails ?? []) {
+          assert.ok(subtopic.briefMd.trim().length >= 20, `${subtopic.id} has a thin brief`)
+        }
+        assert.equal(topic.featuredQuestionIds.length, 1, `${topic.id} should map one EEE practice question`)
+      }
+    }
+  })
+
+  it('uses unique EEE identifiers that do not collide with the CSE or ECE packs', () => {
+    const topicIds = Object.values(SEEDED_EEE_TOPICS).flat().map((topic) => topic.id)
+    const questionIds = SEEDED_EEE_QUESTIONS.map((question) => question.id)
+    assert.equal(new Set(EEE_SUBJECTS.map((subject) => subject.id)).size, EEE_SUBJECTS.length)
+    assert.equal(new Set(topicIds).size, topicIds.length)
+    assert.equal(new Set(questionIds).size, questionIds.length)
+    const otherIds = new Set([
+      ...CSE_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_CSE_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_CSE_QUESTIONS.map((question) => question.id),
+      ...ECE_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_ECE_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_ECE_QUESTIONS.map((question) => question.id),
+    ])
+    for (const id of [...EEE_SUBJECTS.map((subject) => subject.id), ...topicIds, ...questionIds]) {
+      assert.ok(!otherIds.has(id), `${id} collides with another engineering pack`)
+    }
+    assert.ok(EEE_SUBJECTS.every((subject) => subject.programs.includes('eee')))
+  })
+
+  it('tags electrical courses with the electrical stream and the management core with management', () => {
+    const management = EEE_SUBJECTS.filter((subject) => subject.stream === 'management')
+    assert.deepEqual(management.map((subject) => subject.syllabusRef?.match(/· ([A-Z0-9]+) ·/)?.[1]), ['BEE501'])
+    assert.ok(EEE_SUBJECTS.filter((subject) => subject.stream !== 'management').every((subject) => subject.stream === 'electrical'))
+    for (const subject of EEE_SUBJECTS) {
+      for (const question of SEEDED_EEE_QUESTIONS.filter((entry) => entry.prepTags.subjectId === subject.id)) {
+        assert.equal(question.prepTags.stream, subject.stream, `${question.id} stream should follow its subject`)
+        assert.equal(question.prepTags.program, 'eee')
+      }
+    }
+  })
+
+  it('sorts candidate courses by semester and course order', () => {
+    const expectedBySemester: Record<number, string[]> = {
+      3: ['BEE301', 'BEE302', 'BEE303', 'BEE304', 'BEEL305'],
+      4: ['BEE401', 'BEE402', 'BEE403', 'BEEL404'],
+      5: ['BEE501', 'BEE502', 'BEE503', 'BEEL504'],
+      6: ['BEE601', 'BEE602', 'BEEL606'],
+      7: ['BEE701', 'BEE702', 'BEE703'],
+    }
+    for (const [semester, expected] of Object.entries(expectedBySemester)) {
+      const actual = EEE_SUBJECTS
+        .filter((subject) => subject.semester === Number(semester))
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map((subject) => subject.syllabusRef?.match(/· ([A-Z0-9]+) ·/)?.[1])
+      assert.deepEqual(actual, expected, `semester ${semester} order`)
+    }
+    const yearGroups = Object.fromEntries(EEE_SUBJECTS.filter((subject) => subject.semester).map((subject) => [subject.semester, subject.yearGroup]))
+    assert.deepEqual(yearGroups, { 3: '2nd-year', 4: '2nd-year', 5: '3rd-year', 6: '3rd-year', 7: '4th-year' })
+  })
+
+  it('seeds no ESC/AEC options, keeps IPCC practicals integrated and labels the four PCC labs', () => {
+    assert.ok(EEE_COURSE_SEEDS.every((course) => !/^BEE[34]0[56]/.test(course.courseCode ?? '')), 'EEE options are deliberately not seeded')
+    for (const code of ['BEE302', 'BEE303', 'BEE402', 'BEE403', 'BEE502']) {
+      const course = EEE_COURSE_SEEDS.find((entry) => entry.courseCode === code)
+      assert.ok(course?.description.includes('IPCC'), `${code} should mark its practical component as integrated`)
+    }
+    assert.deepEqual(
+      EEE_COURSE_SEEDS.filter((course) => course.courseCode?.startsWith('BEEL')).map((course) => course.courseCode),
+      ['BEEL305', 'BEEL404', 'BEEL504', 'BEEL606'],
+    )
+    for (const course of EEE_COURSE_SEEDS.filter((entry) => entry.courseCode?.startsWith('BEEL'))) {
+      assert.ok(course.description.includes('college lab sheet'), `${course.courseCode} should defer to the college lab sheet`)
+    }
+    assert.equal(resolveSeedPrograms('eee').programs[0], 'eee')
+    assert.ok(PREP_PROGRAM_CATALOG.some((program) => program.code === 'eee'))
+    assert.ok(PREP_SEED_CODES.includes('eee'))
   })
 })
 

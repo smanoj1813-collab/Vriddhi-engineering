@@ -25,7 +25,7 @@ export interface PrepSubtopic {
 export interface PrepSubject {
   id: string
   name: string
-  stream: 'commerce' | 'management' | 'aptitude' | 'communication' | 'economics' | 'finance' | 'law' | 'strategy' | 'operations' | 'taxation' | 'computing' | 'electronics'
+  stream: 'commerce' | 'management' | 'aptitude' | 'communication' | 'economics' | 'finance' | 'law' | 'strategy' | 'operations' | 'taxation' | 'computing' | 'electronics' | 'electrical'
   programs: string[]
   track?: PrepTrack
   degreeLevel?: 'undergraduate' | 'postgraduate'
