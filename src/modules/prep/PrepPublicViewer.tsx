@@ -65,6 +65,8 @@ import {
   AUDIENCE_LABELS,
   DifficultyChip,
   PROGRAM_LABELS,
+  DEFAULT_PUBLIC_PROGRAM,
+  isPublicProgram,
   PrepMarkdown,
   PrepPageNav,
   ProgramControl,
@@ -266,8 +268,11 @@ function subjectPath(subjectId: string, program?: string | null): string {
 function HubView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const fromUrl = String(searchParams.get('program') || '').toLowerCase();
-  // URL wins; otherwise the last program this device looked at; otherwise BBA.
-  const program = PROGRAM_LABELS[fromUrl] ? fromUrl : readStoredProgram() || 'bba';
+  // URL wins (any known program, so shared deep links keep working); otherwise
+  // the last program this device looked at, provided it is still offered on
+  // the public bar; otherwise the default engineering program.
+  const stored = readStoredProgram();
+  const program = PROGRAM_LABELS[fromUrl] ? fromUrl : isPublicProgram(stored) ? stored : DEFAULT_PUBLIC_PROGRAM;
   // `?sem=3` — a subject/topic breadcrumb points back at the semester it lives
   // in, so "back" reopens that group even if another one was expanded last.
   const semParam = String(searchParams.get('sem') || '').trim();
@@ -763,7 +768,7 @@ function SubjectView({ subjectId }: { subjectId: string }) {
   // The hub links here with `?program=`, so "back" returns to the catalog the
   // learner was actually browsing; a bare deep link falls back to the
   // subject's own program list.
-  const backProgram = PROGRAM_LABELS[urlProgram] ? urlProgram : subject.programs?.[0] || readStoredProgram() || 'bba';
+  const backProgram = PROGRAM_LABELS[urlProgram] ? urlProgram : subject.programs?.[0] || readStoredProgram() || DEFAULT_PUBLIC_PROGRAM;
   const hubPath = `/prep?program=${backProgram}`;
   const crumbs = [
     { label: 'Prep', to: '/prep' },
@@ -914,7 +919,7 @@ function TopicView({ subjectId, topicId }: { subjectId: string; topicId: string 
   if (error) return <Container maxWidth="lg" sx={{ py: 3 }}><Card><Box sx={{ p: 3, color: 'error.main' }}>{error}</Box></Card></Container>;
   if (!topic) return null;
 
-  const backProgram = PROGRAM_LABELS[urlProgram] ? urlProgram : subject?.programs?.[0] || readStoredProgram() || 'bba';
+  const backProgram = PROGRAM_LABELS[urlProgram] ? urlProgram : subject?.programs?.[0] || readStoredProgram() || DEFAULT_PUBLIC_PROGRAM;
   const hubPath = `/prep?program=${backProgram}`;
   const subjectHref = `/prep/subject/${subjectId}?program=${backProgram}`;
   const isAptitudeSubject = effectivePrepTrack(subject) === 'aptitude';

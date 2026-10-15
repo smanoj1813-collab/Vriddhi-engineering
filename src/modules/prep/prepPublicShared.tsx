@@ -34,10 +34,27 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
 
 export const PROGRAM_LABELS: Record<string, string> = Object.fromEntries(PROGRAMS.map((p) => [p.code, p.label]));
 
+/**
+ * Programs offered on the PUBLIC Prep hub. This deployment serves engineering
+ * colleges, so the program bar shows only the computing/engineering tracks
+ * (BCA, CSE, ECE, EEE — Civil and Mechanical join when their packs land).
+ * The full PROGRAMS list above is deliberately kept intact: labels still
+ * resolve for deep links, subject chips and the admin Studio, and the other
+ * catalogs remain seeded server-side so re-enabling one is a one-line change.
+ */
+export const PUBLIC_PROGRAM_CODES = ['bca', 'cse', 'ece', 'eee'] as const;
+export const PUBLIC_PROGRAMS = PROGRAMS.filter((p) => (PUBLIC_PROGRAM_CODES as readonly string[]).includes(p.code));
+/** Program the public hub opens on when the URL and device history say nothing usable. */
+export const DEFAULT_PUBLIC_PROGRAM = 'cse';
+
+export function isPublicProgram(code: string | null | undefined): code is string {
+  return !!code && (PUBLIC_PROGRAM_CODES as readonly string[]).includes(code);
+}
+
 export const AUDIENCE_LABELS: Record<string, string> = {
   ug: 'UG (BBA / B.Com / BA / B.Sc)',
   pg: 'PG (MBA / M.Com / MCA)',
-  tech: 'Tech roles (BCA / MCA / CSE / ECE)',
+  tech: 'Tech roles (BCA / MCA / CSE / ECE / EEE)',
 };
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -297,7 +314,7 @@ export function ProgramControl({
   onPick,
   action,
   sticky = true,
-  programOptions = PROGRAMS,
+  programOptions = PUBLIC_PROGRAMS,
 }: {
   active: string;
   onPick: (code: string) => void;
