@@ -78,6 +78,8 @@ import {
   AssignmentTurnedIn,
   AccountBalanceWallet,
   Layers as LayersIcon,
+  Hotel,
+  DirectionsBus,
 } from "@mui/icons-material";
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/Firebase/config';
@@ -642,6 +644,8 @@ const operationsNav: SidebarEntry[] = [
       { label: "Vendors", path: "/admin/vendors", icon: <Storefront fontSize="small" /> },
     ],
   },
+  { kind: "link", label: "Hostel", path: "/admin/hostel", icon: <Hotel fontSize="small" /> },
+  { kind: "link", label: "Transport", path: "/admin/transport", icon: <DirectionsBus fontSize="small" /> },
   { kind: "link", label: "No-Dues", path: "/admin/no-dues", icon: <AssignmentTurnedIn fontSize="small" /> },
   { kind: "link", label: "Install App", path: "/admin/install-app", icon: <InstallMobile fontSize="small" /> },
 ];
