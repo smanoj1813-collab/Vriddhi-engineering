@@ -272,6 +272,11 @@ test('guessPaperMetadata reads Mechanical only when no other program token is pr
   // Words that merely contain the letters are not tokens.
   assert.equal(guessPaperMetadata('BCU-BCom-Management-2022.pdf').program, 'bcom')
   assert.equal(guessPaperMetadata('readme-2022.pdf').program, null)
+
+  // Civil: the spelled-out word or the bare CV token, only when nothing else matches.
+  assert.equal(guessPaperMetadata('VTU-Civil-3rd-Sem-Surveying-2024.pdf').program, 'cv')
+  assert.equal(guessPaperMetadata('CV-5th-Sem-Jan-2025.pdf').program, 'cv')
+  assert.equal(guessPaperMetadata('BCom-CV-Report-2023.pdf').program, 'bcom')
 })
 
 // ─── manifest summary ───────────────────────────────────────────────────────

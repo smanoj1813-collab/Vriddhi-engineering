@@ -105,6 +105,11 @@ import {
   SEEDED_ME_TOPICS,
   SEEDED_ME_QUESTIONS,
 } from '../data/meSeedData'
+import {
+  CV_SUBJECTS,
+  SEEDED_CV_TOPICS,
+  SEEDED_CV_QUESTIONS,
+} from '../data/cvSeedData'
 import { APTITUDE_SUBJECTS, SEEDED_APTITUDE_TOPICS, SEEDED_APTITUDE_QUESTIONS } from '../data/aptitudeSeedData'
 import { SEEDED_COMPANIES } from '../data/companySeedData'
 import { SEEDED_PREP_PAPERS } from '../data/prepPapers'
@@ -191,6 +196,7 @@ PREP_SEED_BUNDLES.push(
   withUniversalSupplement('ece', 'ECE', ECE_SUBJECTS, SEEDED_ECE_TOPICS, SEEDED_ECE_QUESTIONS),
   withUniversalSupplement('eee', 'EEE', EEE_SUBJECTS, SEEDED_EEE_TOPICS, SEEDED_EEE_QUESTIONS),
   withUniversalSupplement('me', 'ME', ME_SUBJECTS, SEEDED_ME_TOPICS, SEEDED_ME_QUESTIONS),
+  withUniversalSupplement('cv', 'Civil', CV_SUBJECTS, SEEDED_CV_TOPICS, SEEDED_CV_QUESTIONS),
   {
     code: 'universal',
     label: 'Universal Student Learning',

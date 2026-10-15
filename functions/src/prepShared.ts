@@ -14,7 +14,7 @@ export type PrepStream =
   | 'strategy'
   | 'operations'
   | 'taxation'
-  // Science, arts, computing, electronics, electrical and mechanical streams for the B.Sc, BA, MCA, CSE, ECE, EEE and ME catalogs.
+  // Science, arts, computing, electronics, electrical, mechanical and civil streams for the B.Sc, BA, MCA, CSE, ECE, EEE, ME and CV catalogs.
   | 'mathematics'
   | 'statistics'
   | 'science'
@@ -22,6 +22,7 @@ export type PrepStream =
   | 'electronics'
   | 'electrical'
   | 'mechanical'
+  | 'civil'
   | 'communication'
   | 'learning'
 
@@ -583,7 +584,7 @@ export interface PrepProgramInfo {
 
 /**
  * Canonical program catalog for the Vriddhi Prep platform.
- * UG: BBA, B.Com, BCA, B.Sc, BA, CSE, ECE, EEE, ME  |  PG: MBA, M.Com, MCA
+ * UG: BBA, B.Com, BCA, B.Sc, BA, CSE, ECE, EEE, ME, CV  |  PG: MBA, M.Com, MCA
  */
 export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'bba', label: 'BBA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Business Administration' },
@@ -595,6 +596,7 @@ export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'ece', label: 'ECE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electronics and Communication Engineering' },
   { code: 'eee', label: 'EEE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electrical and Electronics Engineering' },
   { code: 'me', label: 'ME', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Mechanical Engineering' },
+  { code: 'cv', label: 'Civil', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Civil Engineering' },
   { code: 'mba', label: 'MBA', degreeLevel: 'postgraduate', fullName: 'Master of Business Administration' },
   { code: 'mcom', label: 'M.Com', degreeLevel: 'postgraduate', fullName: 'Master of Commerce' },
   { code: 'mca', label: 'MCA', degreeLevel: 'postgraduate', fullName: 'Master of Computer Applications' },

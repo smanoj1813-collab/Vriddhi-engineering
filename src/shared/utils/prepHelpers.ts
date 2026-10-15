@@ -58,6 +58,7 @@ export function formatStreamLabel(stream?: string | null): string {
     electronics: 'Electronics & Communication',
     electrical: 'Electrical & Power',
     mechanical: 'Mechanical & Thermal',
+    civil: 'Civil & Structural',
     learning: 'Learning & Problem Solving',
   }
   return mapping[stream.toLowerCase()] || stream.charAt(0).toUpperCase() + stream.slice(1)

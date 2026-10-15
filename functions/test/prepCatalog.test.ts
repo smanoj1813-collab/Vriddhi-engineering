@@ -38,6 +38,7 @@ import { CSE_COURSE_SEEDS, CSE_SUBJECTS, SEEDED_CSE_TOPICS, SEEDED_CSE_QUESTIONS
 import { ECE_COURSE_SEEDS, ECE_SUBJECTS, SEEDED_ECE_TOPICS, SEEDED_ECE_QUESTIONS } from '../src/data/eceSeedData.ts'
 import { EEE_COURSE_SEEDS, EEE_SUBJECTS, SEEDED_EEE_TOPICS, SEEDED_EEE_QUESTIONS } from '../src/data/eeeSeedData.ts'
 import { ME_COURSE_SEEDS, ME_SUBJECTS, SEEDED_ME_TOPICS, SEEDED_ME_QUESTIONS } from '../src/data/meSeedData.ts'
+import { CV_COURSE_SEEDS, CV_SUBJECTS, SEEDED_CV_TOPICS, SEEDED_CV_QUESTIONS } from '../src/data/cvSeedData.ts'
 import { APTITUDE_SUBJECTS, SEEDED_APTITUDE_TOPICS, SEEDED_APTITUDE_QUESTIONS } from '../src/data/aptitudeSeedData.ts'
 import {
   UNIVERSAL_ACADEMIC_BUNDLE,
@@ -623,6 +624,134 @@ describe('candidate ME Prep study pack', () => {
     assert.equal(resolveSeedPrograms('me').programs[0], 'me')
     assert.ok(PREP_PROGRAM_CATALOG.some((program) => program.code === 'me'))
     assert.ok(PREP_SEED_CODES.includes('me'))
+  })
+})
+
+describe('candidate CV Prep study pack', () => {
+  const cvSupplement = universalAcademicSupplementFor('cv')
+  const routeBundle: PrepCatalogBundle = {
+    programCode: 'cv',
+    subjects: [...CV_SUBJECTS, ...cvSupplement.subjects],
+    topics: { ...SEEDED_CV_TOPICS, ...cvSupplement.topics },
+    questions: [...SEEDED_CV_QUESTIONS, ...cvSupplement.questions],
+  }
+  const codeOf = (subject: { syllabusRef?: string }) => subject.syllabusRef?.match(/· ([A-Z0-9]+) ·/)?.[1]
+  const CV_LAB_CODES = ['BCVL305', 'BCVL404', 'BCVL504', 'BCVL606']
+  const CV_IPCC_CODES = ['BCV302', 'BCV303', 'BCV402', 'BCV403', 'BCV502']
+
+  it('validates the complete CV seed plus the shared universal supplement', () => {
+    const report = validatePrepCatalog(routeBundle)
+    assert.equal(report.valid, true, report.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n'))
+    assert.equal(report.errorCount, 0)
+    assert.equal(report.subjectCount, 22)
+    assert.equal(report.topicCount, 108)
+    assert.equal(report.questionCount, 108)
+  })
+
+  it('omits undefined optional fields from Firestore seed documents', () => {
+    assert.deepEqual(undefinedFieldPaths(routeBundle), [])
+
+    const foundations = CV_SUBJECTS.find((subject) => subject.id === 'cv-foundations-mechanics-materials-surveying')
+    assert.ok(foundations)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'yearGroup'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'semester'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(foundations, 'universityRegion'), false)
+  })
+
+  it('contains 20 five-unit study packs with detailed subtopic briefs and one mapped question per unit', () => {
+    assert.equal(CV_COURSE_SEEDS.length, 20)
+    assert.equal(CV_SUBJECTS.length, 20)
+    assert.equal(SEEDED_CV_QUESTIONS.length, 100)
+    for (const subject of CV_SUBJECTS) {
+      const topics = SEEDED_CV_TOPICS[subject.id] ?? []
+      assert.equal(subject.topicCount, 5, `${subject.id} subject topicCount`)
+      assert.deepEqual(topics.map((topic) => topic.moduleNumber), [1, 2, 3, 4, 5], `${subject.id} module order`)
+      for (const topic of topics) {
+        assert.ok(topic.subtopicDetails && topic.subtopicDetails.length >= 4, `${topic.id} needs granular subtopics`)
+        for (const subtopic of topic.subtopicDetails ?? []) {
+          assert.ok(subtopic.briefMd.trim().length >= 20, `${subtopic.id} has a thin brief`)
+        }
+        assert.equal(topic.featuredQuestionIds.length, 1, `${topic.id} should map one CV practice question`)
+      }
+    }
+  })
+
+  it('uses unique CV identifiers that do not collide with the CSE, ECE, EEE or ME packs', () => {
+    const topicIds = Object.values(SEEDED_CV_TOPICS).flat().map((topic) => topic.id)
+    const questionIds = SEEDED_CV_QUESTIONS.map((question) => question.id)
+    assert.equal(new Set(CV_SUBJECTS.map((subject) => subject.id)).size, CV_SUBJECTS.length)
+    assert.equal(new Set(topicIds).size, topicIds.length)
+    assert.equal(new Set(questionIds).size, questionIds.length)
+    const otherIds = new Set([
+      ...CSE_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_CSE_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_CSE_QUESTIONS.map((question) => question.id),
+      ...ECE_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_ECE_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_ECE_QUESTIONS.map((question) => question.id),
+      ...EEE_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_EEE_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_EEE_QUESTIONS.map((question) => question.id),
+      ...ME_SUBJECTS.map((subject) => subject.id),
+      ...Object.values(SEEDED_ME_TOPICS).flat().map((topic) => topic.id),
+      ...SEEDED_ME_QUESTIONS.map((question) => question.id),
+    ])
+    for (const id of [...CV_SUBJECTS.map((subject) => subject.id), ...topicIds, ...questionIds]) {
+      assert.ok(!otherIds.has(id), `${id} collides with another engineering pack`)
+    }
+    assert.ok(CV_SUBJECTS.every((subject) => subject.programs.includes('cv')))
+  })
+
+  it('tags civil courses with the civil stream and the management core with management', () => {
+    const management = CV_SUBJECTS.filter((subject) => subject.stream === 'management')
+    assert.deepEqual(management.map(codeOf), ['BCV501'])
+    assert.ok(CV_SUBJECTS.filter((subject) => subject.stream !== 'management').every((subject) => subject.stream === 'civil'))
+    for (const subject of CV_SUBJECTS) {
+      for (const question of SEEDED_CV_QUESTIONS.filter((entry) => entry.prepTags.subjectId === subject.id)) {
+        assert.equal(question.prepTags.stream, subject.stream, `${question.id} stream should follow its subject`)
+        assert.equal(question.prepTags.program, 'cv')
+      }
+    }
+  })
+
+  it('sorts candidate courses by semester and course order', () => {
+    const expectedBySemester: Record<number, string[]> = {
+      3: ['BCV301', 'BCV302', 'BCV303', 'BCV304', 'BCVL305'],
+      4: ['BCV401', 'BCV402', 'BCV403', 'BCVL404'],
+      5: ['BCV501', 'BCV502', 'BCV503', 'BCVL504'],
+      6: ['BCV601', 'BCV602', 'BCVL606'],
+      7: ['BCV701', 'BCV702', 'BCV703'],
+    }
+    for (const [semester, expected] of Object.entries(expectedBySemester)) {
+      const actual = CV_SUBJECTS
+        .filter((subject) => subject.semester === Number(semester))
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+        .map(codeOf)
+      assert.deepEqual(actual, expected, `semester ${semester} order`)
+    }
+    const yearGroups = Object.fromEntries(CV_SUBJECTS.filter((subject) => subject.semester).map((subject) => [subject.semester, subject.yearGroup]))
+    assert.deepEqual(yearGroups, { 3: '2nd-year', 4: '2nd-year', 5: '3rd-year', 6: '3rd-year', 7: '4th-year' })
+  })
+
+  it('seeds no ESC/AEC/PE/OE options, keeps IPCC practicals integrated and labels the four PCC labs', () => {
+    assert.ok(CV_COURSE_SEEDS.every((course) => !/^BCV[34]0[56]/.test(course.courseCode ?? '')), 'CV options are deliberately not seeded')
+    assert.ok(CV_COURSE_SEEDS.every((course) => !/^B(CV|CVL)\d{3}[A-HX]$/.test(course.courseCode ?? '')), 'no lettered option codes are seeded')
+    for (const course of CV_COURSE_SEEDS.filter((entry) => entry.courseCode)) {
+      const ipcc = CV_IPCC_CODES.includes(course.courseCode ?? '')
+      assert.equal(course.description.includes('IPCC'), ipcc, `${course.courseCode} IPCC marking`)
+    }
+    assert.deepEqual(
+      CV_COURSE_SEEDS.filter((course) => CV_LAB_CODES.includes(course.courseCode ?? '')).map((course) => course.courseCode),
+      CV_LAB_CODES,
+    )
+    for (const course of CV_COURSE_SEEDS.filter((entry) => CV_LAB_CODES.includes(entry.courseCode ?? ''))) {
+      assert.ok(course.description.includes('college lab sheet'), `${course.courseCode} should defer to the college lab sheet`)
+    }
+    const supplement = CV_COURSE_SEEDS.find((course) => course.id === 'cv-foundations-mechanics-materials-surveying')
+    assert.ok(supplement && !supplement.courseCode && supplement.scopeNote, 'the foundations supplement makes no course-code claim')
+    assert.equal(resolveSeedPrograms('cv').programs[0], 'cv')
+    assert.ok(PREP_PROGRAM_CATALOG.some((program) => program.code === 'cv'))
+    assert.ok(PREP_SEED_CODES.includes('cv'))
   })
 })
 

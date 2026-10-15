@@ -28,6 +28,7 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
   { code: 'ece', label: 'ECE', level: 'undergraduate' },
   { code: 'eee', label: 'EEE', level: 'undergraduate' },
   { code: 'me', label: 'ME', level: 'undergraduate' },
+  { code: 'cv', label: 'Civil', level: 'undergraduate' },
   { code: 'mba', label: 'MBA', level: 'postgraduate' },
   { code: 'mcom', label: 'M.Com', level: 'postgraduate' },
   { code: 'mca', label: 'MCA', level: 'postgraduate' },
@@ -38,12 +39,12 @@ export const PROGRAM_LABELS: Record<string, string> = Object.fromEntries(PROGRAM
 /**
  * Programs offered on the PUBLIC Prep hub. This deployment serves engineering
  * colleges, so the program bar shows only the computing/engineering tracks
- * (BCA, CSE, ECE, EEE, ME — Civil joins when its pack lands).
+ * (BCA, CSE, ECE, EEE, ME, Civil).
  * The full PROGRAMS list above is deliberately kept intact: labels still
  * resolve for deep links, subject chips and the admin Studio, and the other
  * catalogs remain seeded server-side so re-enabling one is a one-line change.
  */
-export const PUBLIC_PROGRAM_CODES = ['bca', 'cse', 'ece', 'eee', 'me'] as const;
+export const PUBLIC_PROGRAM_CODES = ['bca', 'cse', 'ece', 'eee', 'me', 'cv'] as const;
 export const PUBLIC_PROGRAMS = PROGRAMS.filter((p) => (PUBLIC_PROGRAM_CODES as readonly string[]).includes(p.code));
 /** Program the public hub opens on when the URL and device history say nothing usable. */
 export const DEFAULT_PUBLIC_PROGRAM = 'cse';
@@ -55,7 +56,7 @@ export function isPublicProgram(code: string | null | undefined): code is string
 export const AUDIENCE_LABELS: Record<string, string> = {
   ug: 'UG (BBA / B.Com / BA / B.Sc)',
   pg: 'PG (MBA / M.Com / MCA)',
-  tech: 'Tech roles (BCA / MCA / CSE / ECE / EEE / ME)',
+  tech: 'Tech roles (BCA / MCA / CSE / ECE / EEE / ME / Civil)',
 };
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ export const STREAM_COLORS: Record<string, string> = {
   electronics: '#b45309', // amber-700 — electronics and communication
   electrical: '#a16207', // yellow-700 — electrical power and machines
   mechanical: '#0369a1', // sky-700 — mechanical, thermal and manufacturing
+  civil: '#92400e', // amber-800 — structures, materials and construction
 };
 
 /** Slate-500 — a subject whose stream is missing or unknown. */
