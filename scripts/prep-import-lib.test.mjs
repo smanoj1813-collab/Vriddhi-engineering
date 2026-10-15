@@ -257,6 +257,23 @@ test('guessPaperMetadata never mistakes a page or part number for a year', () =>
   assert.equal(r.program, 'ba')
 })
 
+test('guessPaperMetadata reads Mechanical only when no other program token is present', () => {
+  // Unambiguous spellings always win.
+  assert.equal(guessPaperMetadata('VTU_Mech_5th_Sem_Turbo_Machines_Jan_2025.pdf').program, 'me')
+  assert.equal(guessPaperMetadata('mechanical-3rd-sem-2024.pdf').program, 'me')
+  // The bare 'me' token names the program only when nothing else does…
+  const me = guessPaperMetadata('VTU-ME-5th-Sem-Jan-2025.pdf')
+  assert.equal(me.program, 'me')
+  assert.equal(me.semester, 5)
+  assert.equal(me.year, 2025)
+  // …because BBA/MBA papers also use 'ME' for Managerial Economics, in any position.
+  assert.equal(guessPaperMetadata('BBA-1st-Sem-ME-2023.pdf').program, 'bba')
+  assert.equal(guessPaperMetadata('ME-MBA-1st-Sem-2023.pdf').program, 'mba')
+  // Words that merely contain the letters are not tokens.
+  assert.equal(guessPaperMetadata('BCU-BCom-Management-2022.pdf').program, 'bcom')
+  assert.equal(guessPaperMetadata('readme-2022.pdf').program, null)
+})
+
 // ─── manifest summary ───────────────────────────────────────────────────────
 
 test('summariseManifest counts buckets, languages and what needs AI vision', () => {
