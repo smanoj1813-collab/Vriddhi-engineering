@@ -96,6 +96,9 @@ describe('formatStreamLabel', () => {
     assert.equal(formatStreamLabel('strategy'), 'Strategic Management')
     assert.equal(formatStreamLabel('operations'), 'Operations & SCM')
     assert.equal(formatStreamLabel('taxation'), 'Taxation & GST')
+    assert.equal(formatStreamLabel('computing'), 'Computing & Engineering')
+    assert.equal(formatStreamLabel('electronics'), 'Electronics & Communication')
+    assert.equal(formatStreamLabel('electrical'), 'Electrical & Power')
   })
 
   it('falls back to capitalized string or General when empty', () => {

@@ -16,7 +16,7 @@ export const LR_SUBJECT_ID = 'apt-logical-reasoning'
 export const VA_SUBJECT_ID = 'apt-verbal-ability'
 
 /** Every program in the catalogue lists the shared aptitude subjects. */
-export const ALL_PROGRAMS = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'mba', 'mcom', 'mca']
+export const ALL_PROGRAMS = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'ece', 'eee', 'mba', 'mcom', 'mca']
 
 export const ALL_AUDIENCES: PrepAudience[] = ['ug', 'pg', 'tech']
 

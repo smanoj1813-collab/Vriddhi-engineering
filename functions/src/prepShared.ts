@@ -1,7 +1,7 @@
 // functions/src/prepShared.ts
 //
 // Pure domain types and pure decision helpers for the PrepInsta-style
-// Vriddhi Prep-Content platform (UG/PG Commerce & Management).
+// Vriddhi Prep-Content platform (UG/PG academic and placement catalogues).
 // Kept strictly free of SDK dependencies for node:test decision-table testing.
 
 export type PrepStream =
@@ -14,11 +14,13 @@ export type PrepStream =
   | 'strategy'
   | 'operations'
   | 'taxation'
-  // Science / arts streams added for the B.Sc, BA and MCA catalogs.
+  // Science, arts, computing, electronics and electrical streams for the B.Sc, BA, MCA, CSE, ECE and EEE catalogs.
   | 'mathematics'
   | 'statistics'
   | 'science'
   | 'computing'
+  | 'electronics'
+  | 'electrical'
   | 'communication'
   | 'learning'
 
@@ -208,9 +210,9 @@ export interface PrepSubject {
   track?: PrepTrack
   /** UG vs PG. Absent on legacy (BBA) records — inferred as undergraduate. */
   degreeLevel?: PrepDegreeLevel
-  /** PG programs run 4 semesters, so they get their own year grouping. */
-  yearGroup?: '1st-year' | '2nd-year' | 'final-year' | 'pg-first-year' | 'pg-second-year'
-  semester?: number // UG 1 to 6, PG 1 to 4
+  /** Academic year grouping; engineering programs may span four years. */
+  yearGroup?: '1st-year' | '2nd-year' | '3rd-year' | '4th-year' | 'final-year' | 'pg-first-year' | 'pg-second-year'
+  semester?: number // UG 1 to 8, PG 1 to 4
   universityRegion?: 'karnataka' | 'national'
   syllabusRef?: string
   icon: string
@@ -580,7 +582,7 @@ export interface PrepProgramInfo {
 
 /**
  * Canonical program catalog for the Vriddhi Prep platform.
- * UG: BBA, B.Com, BCA, B.Sc, BA  |  PG: MBA, M.Com, MCA
+ * UG: BBA, B.Com, BCA, B.Sc, BA, CSE, ECE, EEE  |  PG: MBA, M.Com, MCA
  */
 export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'bba', label: 'BBA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Business Administration' },
@@ -588,6 +590,9 @@ export const PREP_PROGRAM_CATALOG: PrepProgramInfo[] = [
   { code: 'bca', label: 'BCA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Computer Applications' },
   { code: 'bsc', label: 'B.Sc', degreeLevel: 'undergraduate', fullName: 'Bachelor of Science' },
   { code: 'ba', label: 'BA', degreeLevel: 'undergraduate', fullName: 'Bachelor of Arts' },
+  { code: 'cse', label: 'CSE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Computer Science and Engineering' },
+  { code: 'ece', label: 'ECE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electronics and Communication Engineering' },
+  { code: 'eee', label: 'EEE', degreeLevel: 'undergraduate', fullName: 'Bachelor of Engineering / Technology in Electrical and Electronics Engineering' },
   { code: 'mba', label: 'MBA', degreeLevel: 'postgraduate', fullName: 'Master of Business Administration' },
   { code: 'mcom', label: 'M.Com', degreeLevel: 'postgraduate', fullName: 'Master of Commerce' },
   { code: 'mca', label: 'MCA', degreeLevel: 'postgraduate', fullName: 'Master of Computer Applications' },

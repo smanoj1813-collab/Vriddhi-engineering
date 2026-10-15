@@ -24,6 +24,9 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
   { code: 'ba', label: 'BA', level: 'undergraduate' },
   { code: 'bsc', label: 'B.Sc', level: 'undergraduate' },
   { code: 'bca', label: 'BCA', level: 'undergraduate' },
+  { code: 'cse', label: 'CSE', level: 'undergraduate' },
+  { code: 'ece', label: 'ECE', level: 'undergraduate' },
+  { code: 'eee', label: 'EEE', level: 'undergraduate' },
   { code: 'mba', label: 'MBA', level: 'postgraduate' },
   { code: 'mcom', label: 'M.Com', level: 'postgraduate' },
   { code: 'mca', label: 'MCA', level: 'postgraduate' },
@@ -31,10 +34,27 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
 
 export const PROGRAM_LABELS: Record<string, string> = Object.fromEntries(PROGRAMS.map((p) => [p.code, p.label]));
 
+/**
+ * Programs offered on the PUBLIC Prep hub. This deployment serves engineering
+ * colleges, so the program bar shows only the computing/engineering tracks
+ * (BCA, CSE, ECE, EEE — Civil and Mechanical join when their packs land).
+ * The full PROGRAMS list above is deliberately kept intact: labels still
+ * resolve for deep links, subject chips and the admin Studio, and the other
+ * catalogs remain seeded server-side so re-enabling one is a one-line change.
+ */
+export const PUBLIC_PROGRAM_CODES = ['bca', 'cse', 'ece', 'eee'] as const;
+export const PUBLIC_PROGRAMS = PROGRAMS.filter((p) => (PUBLIC_PROGRAM_CODES as readonly string[]).includes(p.code));
+/** Program the public hub opens on when the URL and device history say nothing usable. */
+export const DEFAULT_PUBLIC_PROGRAM = 'cse';
+
+export function isPublicProgram(code: string | null | undefined): code is string {
+  return !!code && (PUBLIC_PROGRAM_CODES as readonly string[]).includes(code);
+}
+
 export const AUDIENCE_LABELS: Record<string, string> = {
   ug: 'UG (BBA / B.Com / BA / B.Sc)',
   pg: 'PG (MBA / M.Com / MCA)',
-  tech: 'Tech roles (BCA / MCA)',
+  tech: 'Tech roles (BCA / MCA / CSE / ECE / EEE)',
 };
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -61,6 +81,9 @@ export const STREAM_COLORS: Record<string, string> = {
   taxation: '#047857', // emerald-700
   operations: '#ea580c', // orange-600
   strategy: '#4338ca', // indigo-700
+  computing: '#0f766e', // teal-700 — computing and engineering
+  electronics: '#b45309', // amber-700 — electronics and communication
+  electrical: '#a16207', // yellow-700 — electrical power and machines
 };
 
 /** Slate-500 — a subject whose stream is missing or unknown. */
@@ -76,7 +99,11 @@ export function yearGroupLabel(yearGroup?: string | null): string | null {
   const mapped: Record<string, string> = {
     '1st-year': '1st year',
     '2nd-year': '2nd year',
+    '3rd-year': '3rd year',
+    '4th-year': '4th year',
     'final-year': 'Final year',
+    'pg-first-year': 'PG 1st year',
+    'pg-second-year': 'PG 2nd year',
   };
   return mapped[yearGroup] || yearGroup.replace(/-/g, ' ');
 }
@@ -287,7 +314,7 @@ export function ProgramControl({
   onPick,
   action,
   sticky = true,
-  programOptions = PROGRAMS,
+  programOptions = PUBLIC_PROGRAMS,
 }: {
   active: string;
   onPick: (code: string) => void;
