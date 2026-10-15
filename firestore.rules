@@ -982,6 +982,23 @@ service cloud.firestore {
         allow read, write: if isOps(collegeId);
       }
 
+      // -- Hostel & transport (operations desk; principal via isOps) -----------
+      match /hostelBlocks/{docId} {
+        allow read, write: if isOps(collegeId);
+      }
+      match /hostelRooms/{docId} {
+        allow read, write: if isOps(collegeId);
+      }
+      match /hostelAllocations/{docId} {
+        allow read, write: if isOps(collegeId);
+      }
+      match /transportRoutes/{docId} {
+        allow read, write: if isOps(collegeId);
+      }
+      match /transportEnrolments/{docId} {
+        allow read, write: if isOps(collegeId);
+      }
+
       // -- Inventory, procurement, vendor bills --------------------------------
       match /assets/{docId} {
         allow read: if isBackOffice(collegeId);

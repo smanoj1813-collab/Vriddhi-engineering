@@ -244,3 +244,13 @@ test('Create Test is an authoring desk: principal and mentor stay out', () => {
   assert.equal(canAccessAdminPath('principal', '/admin/test-reports'), true)
   assert.equal(canAccessAdminPath('principal', '/admin/branch-conduction'), true)
 })
+
+test('hostel and transport: operations and principal only', () => {
+  for (const p of ['/admin/hostel', '/admin/transport']) {
+    assert.equal(canAccessAdminPath('operations', p), true, `operations → ${p}`)
+    assert.equal(canAccessAdminPath('principal', p), true, `principal → ${p}`)
+    assert.equal(canAccessAdminPath('accounts', p), false, `accounts → ${p}`)
+    assert.equal(canAccessAdminPath('hod', p), false, `hod → ${p}`)
+    assert.equal(canAccessAdminPath('admin', p), false, `admin → ${p}`)
+  }
+})
