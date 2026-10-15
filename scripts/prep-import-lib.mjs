@@ -41,7 +41,7 @@ export const PREP_UNIVERSITY_CODES = [
 ]
 
 /** PREP_PROGRAM_CATALOG codes (functions/src/prepShared.ts). */
-export const PREP_PROGRAM_CODES = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'mba', 'mcom', 'mca']
+export const PREP_PROGRAM_CODES = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'ece', 'mba', 'mcom', 'mca']
 
 /** University full names → code, longest first so "Bengaluru North" wins over "Bangalore". */
 const UNIVERSITY_NAME_HINTS = [
@@ -278,6 +278,7 @@ export function guessPaperMetadata(fileName) {
     } else if (compact === 'bsc') program = 'bsc'
     else if (compact === 'bca') program = 'bca'
     else if (compact === 'cse') program = 'cse'
+    else if (compact === 'ece') program = 'ece'
     else if (compact === 'ba') program = 'ba'
     else if (compact === 'mcom') program = 'mcom'
     else if (compact === 'mba') program = 'mba'

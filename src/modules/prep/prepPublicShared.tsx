@@ -25,6 +25,7 @@ export const PROGRAMS: Array<{ code: string; label: string; level: 'undergraduat
   { code: 'bsc', label: 'B.Sc', level: 'undergraduate' },
   { code: 'bca', label: 'BCA', level: 'undergraduate' },
   { code: 'cse', label: 'CSE', level: 'undergraduate' },
+  { code: 'ece', label: 'ECE', level: 'undergraduate' },
   { code: 'mba', label: 'MBA', level: 'postgraduate' },
   { code: 'mcom', label: 'M.Com', level: 'postgraduate' },
   { code: 'mca', label: 'MCA', level: 'postgraduate' },
@@ -35,7 +36,7 @@ export const PROGRAM_LABELS: Record<string, string> = Object.fromEntries(PROGRAM
 export const AUDIENCE_LABELS: Record<string, string> = {
   ug: 'UG (BBA / B.Com / BA / B.Sc)',
   pg: 'PG (MBA / M.Com / MCA)',
-  tech: 'Tech roles (BCA / MCA / CSE)',
+  tech: 'Tech roles (BCA / MCA / CSE / ECE)',
 };
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ export const STREAM_COLORS: Record<string, string> = {
   operations: '#ea580c', // orange-600
   strategy: '#4338ca', // indigo-700
   computing: '#0f766e', // teal-700 — computing and engineering
+  electronics: '#b45309', // amber-700 — electronics and communication
 };
 
 /** Slate-500 — a subject whose stream is missing or unknown. */
