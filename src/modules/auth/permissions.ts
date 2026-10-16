@@ -91,6 +91,8 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   'operations.desk': ['operations', 'principal'],
   'library.manage': ['operations', 'principal'],
   'hostel.manage': ['operations', 'principal'],
+  // Timetable approval: ops drafts, the branch HOD approves, principal falls back.
+  'timetable.approval': ['operations', 'hod', 'principal'],
   'transport.manage': ['operations', 'principal'],
   'inventory.manage': ['operations', 'principal'],
   'procurement.order': ['operations', 'principal'],
@@ -195,6 +197,7 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/operations', permission: 'operations.desk' },
   { path: '/admin/library', permission: 'library.manage' },
   { path: '/admin/hostel', permission: 'hostel.manage' },
+  { path: '/admin/timetable-approvals', permission: 'timetable.approval' },
   { path: '/admin/transport', permission: 'transport.manage' },
   { path: '/admin/inventory', permission: 'inventory.manage' },
   { path: '/admin/purchase-orders', permission: 'procurement.order' },

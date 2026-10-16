@@ -1433,6 +1433,32 @@ service cloud.firestore {
       allow delete: if isCollegeStaff() && sameCollege(resource.data);
     }
 
+    // Timetable approval (see functions/src/timetableApproval.ts). Clients only
+    // read: every write goes through the callables, which enforce the workflow.
+    match /timetableApprovals/{approvalId} {
+      // A list query must be constrained to the caller's college (and, for a
+      // HOD, to their branchKey) so the rule can be proven against the query.
+      allow get: if isSignedIn() && sameCollege(resource.data)
+        && (isOps(resource.data.collegeId)
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.branchKey == claimDepartment()));
+      allow list: if isSignedIn()
+        && ((isOps(collegeId()) && resource.data.collegeId == collegeId())
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.collegeId == collegeId()
+                && resource.data.branchKey == claimDepartment()));
+      allow write: if false;
+    }
+
+    match /timetableDrafts/{draftId} {
+      allow get: if isSignedIn() && sameCollege(resource.data)
+        && (isOps(resource.data.collegeId)
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.branchKey == claimDepartment()));
+      allow list: if isSignedIn()
+        && ((isOps(collegeId()) && resource.data.collegeId == collegeId())
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.collegeId == collegeId()
+                && resource.data.branchKey == claimDepartment()));
+      allow write: if false;
+    }
+
     match /classSessions/{sessionId} {
       allow get: if isSignedIn()
         && (isStaff() || sameCollege(resource.data))

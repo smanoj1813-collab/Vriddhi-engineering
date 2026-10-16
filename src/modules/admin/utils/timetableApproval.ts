@@ -101,7 +101,7 @@ export function canTimetableAction(
         return { ok: false, reason: 'You cannot review a timetable you submitted.' }
       }
       if (isHodOf(actor, record.branch)) return { ok: true }
-      if (actor.role === 'principal') {
+      if (actor.role === 'principal' || actor.role === 'superadmin') {
         // Principal acts only as a fallback, with a recorded reason.
         if (!opts.fallbackReason || opts.fallbackReason.trim().length < 5) {
           return { ok: false, reason: 'Principal action needs a fallback reason (the HOD is unavailable).' }
