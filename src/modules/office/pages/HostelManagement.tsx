@@ -3,7 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { BedDouble, Building2, DoorOpen, Download, Plus, Sparkles, UserMinus, Wrench } from 'lucide-react'
-import { Badge, Empty, Field, Loading, Modal, OfficeReadError, PageHeader, StatCard, btn, downloadCsv, errMsg } from '../components/officeUi'
+import { Badge, Empty, Field, Loading, Modal, OfficeReadError, PageHeader, PillTabs, StatCard, btn, downloadCsv, errMsg } from '../components/officeUi'
 import { hostelKeys, useActiveStudents, useHostelAllocations, useHostelBlocks, useHostelRooms } from '../hooks/useHostelTransport'
 import { useCollegeId } from '../hooks/useLibrary'
 import {
@@ -310,7 +310,25 @@ function AutoPlaceModal({ open, onClose, cid, students, rooms, allocatedIds, onD
   const [plan, setPlan] = useState<HostelPlan | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [filter, setFilter] = useState<'all' | HostelGender>('all')
   const candidates = students.filter(s => !allocatedIds.has(s.id))
+  const visible = candidates.filter(s => filter === 'all' || normaliseGender(s.gender) === filter)
+  const visibleTicked = visible.filter(s => picked[s.id]).length
+  const allVisibleTicked = visible.length > 0 && visibleTicked === visible.length
+
+  /** Ticks every visible student, or clears them if they are all ticked already. */
+  const toggleAllVisible = () => {
+    setPlan(null)
+    setPicked(p => {
+      const next = { ...p }
+      if (allVisibleTicked) {
+        for (const s of visible) delete next[s.id]
+      } else {
+        for (const s of visible) if (!next[s.id]) next[s.id] = { distanceKm: '' }
+      }
+      return next
+    })
+  }
 
   const toApplicants = (): HostelApplicant[] =>
     candidates.filter(s => picked[s.id]).map(s => ({
@@ -357,8 +375,23 @@ function AutoPlaceModal({ open, onClose, cid, students, rooms, allocatedIds, onD
         : <button className={btn.primary} onClick={preview} disabled={Object.keys(picked).length === 0}>Preview plan</button>}>
       <div className="space-y-3">
         <p className="text-xs text-vriddhi-muted">Tick students and enter distance from home (km). Farther students are placed first, then earlier applicants. The preview books nothing until you apply.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PillTabs<'all' | HostelGender>
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { id: 'all', label: 'All', count: candidates.length },
+              { id: 'male', label: 'Boys', count: candidates.filter(s => normaliseGender(s.gender) === 'male').length },
+              { id: 'female', label: 'Girls', count: candidates.filter(s => normaliseGender(s.gender) === 'female').length },
+            ]}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={allVisibleTicked} onChange={toggleAllVisible} disabled={visible.length === 0} aria-label="Select all shown students" />
+            Select all shown ({visibleTicked}/{visible.length})
+          </label>
+        </div>
         <div className="max-h-72 overflow-y-auto divide-y divide-vriddhi-border/60">
-          {candidates.map(s => (
+          {visible.map(s => (
             <div key={s.id} className="py-2 flex items-center gap-3 text-sm">
               <input type="checkbox" checked={!!picked[s.id]} onChange={() => toggle(s.id)} aria-label={`Select ${s.name}`} />
               <span className="flex-1 min-w-0 truncate">{s.regNo} — {s.name} <span className="text-vriddhi-muted">{normaliseGender(s.gender) ? `· ${HOSTEL_GENDER_LABEL[normaliseGender(s.gender)!]}` : '· gender missing'}</span></span>
@@ -369,6 +402,7 @@ function AutoPlaceModal({ open, onClose, cid, students, rooms, allocatedIds, onD
             </div>
           ))}
           {candidates.length === 0 && <p className="py-4 text-sm text-vriddhi-muted">Every active student already has a bed.</p>}
+          {candidates.length > 0 && visible.length === 0 && <p className="py-4 text-sm text-vriddhi-muted">No students in this filter.</p>}
         </div>
         {plan && (
           <div className="glass-card p-3 text-sm space-y-2">
