@@ -26,7 +26,9 @@ const LIVE = 'weeklySchedules'
 const STAFF_ROLES = ['operations', 'hod', 'principal', 'superadmin']
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const MAX_SLOTS = 200
-const OPTS = { region: 'asia-south1', memory: '256MiB' as const, timeoutSeconds: 60, minInstances: 0, maxInstances: 30 }
+// Low-traffic office callables. maxInstances is kept small: the project's
+// per-region CPU quota rejected deploys that asked for 30 instances each.
+const OPTS = { region: 'asia-south1', memory: '256MiB' as const, timeoutSeconds: 60, minInstances: 0, maxInstances: 5 }
 
 interface Slot {
   dayOfWeek: string
