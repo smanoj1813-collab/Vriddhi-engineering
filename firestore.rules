@@ -999,6 +999,17 @@ service cloud.firestore {
         allow read, write: if isOps(collegeId);
       }
 
+      // -- Push device tokens. A student's browser registers its own token; only
+      // the Admin SDK (announcement sends) reads them. --------------------------
+      match /pushTokens/{tokenId} {
+        allow read: if false;
+        allow create, update: if isSignedIn()
+          && request.auth.uid == request.resource.data.uid
+          && request.resource.data.token == tokenId
+          && inCollege(collegeId);
+        allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
+      }
+
       // -- Inventory, procurement, vendor bills --------------------------------
       match /assets/{docId} {
         allow read: if isBackOffice(collegeId);
