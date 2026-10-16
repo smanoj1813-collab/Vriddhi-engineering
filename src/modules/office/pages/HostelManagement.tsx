@@ -30,6 +30,13 @@ import type { Student } from '@/modules/admin/api/dashboardApi'
 
 type StudentRow = Student & { gender?: string }
 
+/** createdAt can be a string or a Firestore Timestamp; the planner needs text. */
+function dateText(v: unknown): string {
+  if (typeof v === 'string') return v
+  if (v && typeof (v as { toDate?: unknown }).toDate === 'function') return (v as { toDate: () => Date }).toDate().toISOString()
+  return ''
+}
+
 export default function HostelManagement() {
   const cid = useCollegeId()
   const qc = useQueryClient()
@@ -312,7 +319,7 @@ function AutoPlaceModal({ open, onClose, cid, students, rooms, allocatedIds, onD
       regNo: s.regNo,
       gender: s.gender,
       distanceKm: Number(picked[s.id].distanceKm) || 0,
-      appliedAt: s.createdAt,
+      appliedAt: dateText(s.createdAt),
     }))
 
   const preview = () => {

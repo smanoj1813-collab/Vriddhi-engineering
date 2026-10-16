@@ -127,7 +127,7 @@ export function allocateHostelRooms(
     .filter(a => !alreadyAllocated.has(a.studentId))
     .sort((a, b) =>
       (b.distanceKm ?? 0) - (a.distanceKm ?? 0)
-      || (a.appliedAt ?? '').localeCompare(b.appliedAt ?? '')
+      || String(a.appliedAt ?? '').localeCompare(String(b.appliedAt ?? ''))
       || a.regNo.localeCompare(b.regNo, undefined, { numeric: true }),
     )
 

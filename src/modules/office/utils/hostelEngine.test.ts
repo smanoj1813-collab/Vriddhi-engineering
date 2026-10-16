@@ -114,3 +114,13 @@ test('the plan is deterministic regardless of input order', () => {
   // Block A rooms sort numerically (9 before 10), then block B.
   assert.deepEqual(one, ['r3', 'r1', 'r2'])
 })
+
+test('a non-string appliedAt cannot crash the planner (regression)', () => {
+  const rooms = [{ id: 'r1', blockId: 'b1', blockName: 'A', gender: 'male' as const, roomNo: '101', capacity: 2, occupied: 0, status: 'active' as const }]
+  const applicants = [
+    { studentId: 's1', name: 'One', regNo: '1', gender: 'Male', distanceKm: 5, appliedAt: { toDate: () => new Date() } as unknown as string },
+    { studentId: 's2', name: 'Two', regNo: '2', gender: 'Male', distanceKm: 5, appliedAt: '2026-01-01' },
+  ]
+  const plan = allocateHostelRooms(applicants, rooms)
+  assert.equal(plan.assignments.length, 2)
+})
