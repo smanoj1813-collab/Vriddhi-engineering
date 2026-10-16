@@ -61,6 +61,8 @@ const SEEDABLE_PROGRAMS: Array<{ code: string; label: string }> = [
   { code: 'cse', label: 'CSE (candidate VTU core pack)' },
   { code: 'ece', label: 'ECE (candidate VTU core pack)' },
   { code: 'eee', label: 'EEE (candidate VTU core pack)' },
+  { code: 'me', label: 'ME (candidate VTU core pack)' },
+  { code: 'cv', label: 'Civil (candidate VTU core pack)' },
   // Supplementary, cross-university concept mastery for all programs.
   { code: 'universal', label: 'Universal Student Learning (all programs)' },
   // Shared placement-aptitude track (Quant / Reasoning / Verbal) — not a

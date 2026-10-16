@@ -41,7 +41,7 @@ export const PREP_UNIVERSITY_CODES = [
 ]
 
 /** PREP_PROGRAM_CATALOG codes (functions/src/prepShared.ts). */
-export const PREP_PROGRAM_CODES = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'ece', 'eee', 'mba', 'mcom', 'mca']
+export const PREP_PROGRAM_CODES = ['bba', 'bcom', 'bca', 'bsc', 'ba', 'cse', 'ece', 'eee', 'me', 'cv', 'mba', 'mcom', 'mca']
 
 /** University full names → code, longest first so "Bengaluru North" wins over "Bangalore". */
 const UNIVERSITY_NAME_HINTS = [
@@ -280,12 +280,20 @@ export function guessPaperMetadata(fileName) {
     else if (compact === 'cse') program = 'cse'
     else if (compact === 'ece') program = 'ece'
     else if (compact === 'eee') program = 'eee'
+    else if (compact === 'mech' || compact === 'mechanical') program = 'me'
+    else if (compact === 'civil') program = 'cv'
     else if (compact === 'ba') program = 'ba'
     else if (compact === 'mcom') program = 'mcom'
     else if (compact === 'mba') program = 'mba'
     else if (compact === 'mca') program = 'mca'
     if (program) break
   }
+  // 'me' is short and overloaded (BBA/MBA files also use it for Managerial
+  // Economics), so it only names the Mechanical program when no other program
+  // token appears anywhere in the filename.
+  if (!program && token.some((t) => t.replace(/\./g, '') === 'me')) program = 'me'
+  // Likewise 'cv' (curriculum vitae is a common non-academic filename token).
+  if (!program && token.some((t) => t.replace(/\./g, '') === 'cv')) program = 'cv'
 
   // University: exact code token first, then a full-name hint.
   let universityCode = null

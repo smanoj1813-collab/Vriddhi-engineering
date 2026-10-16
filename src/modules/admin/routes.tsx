@@ -7,6 +7,8 @@ import Layout from '@/shared/components/Layout';
 import { AdminPathGate } from './components/AdminPathGate';
 const LibraryManagement = lazy(() => import('@/modules/office/pages/LibraryManagement'));
 const LibraryFinesPage = lazy(() => import('@/modules/office/pages/LibraryFinesPage'));
+const HostelManagement = lazy(() => import('@/modules/office/pages/HostelManagement'));
+const TransportManagement = lazy(() => import('@/modules/office/pages/TransportManagement'));
 const InventoryManagement = lazy(() => import('@/modules/office/pages/InventoryManagement'));
 const VendorsPage = lazy(() => import('@/modules/office/pages/VendorsPage'));
 const PurchaseRequestsPage = lazy(() => import('@/modules/office/pages/PurchaseRequestsPage'));
@@ -181,6 +183,9 @@ export const adminRoutes: RouteObject[] = [
       { path: 'library', element: <LazyPage><LibraryManagement /></LazyPage> },
       { path: 'library/:tab', element: <LazyPage><LibraryManagement /></LazyPage> },
       { path: 'library-fines', element: <LazyPage><LibraryFinesPage /></LazyPage> },
+      // ── College office: hostel & transport ──
+      { path: 'hostel', element: <LazyPage><HostelManagement /></LazyPage> },
+      { path: 'transport', element: <LazyPage><TransportManagement /></LazyPage> },
       { path: 'inventory', element: <LazyPage><InventoryManagement /></LazyPage> },
       { path: 'inventory/:tab', element: <LazyPage><InventoryManagement /></LazyPage> },
       { path: 'vendors', element: <LazyPage><VendorsPage /></LazyPage> },

@@ -3,7 +3,7 @@
 
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, BookOpen, Boxes, ClipboardList, LayoutDashboard, Library, PackageCheck, ShieldCheck, ShoppingCart, ArrowLeftRight, Wrench } from 'lucide-react'
+import { ArrowRight, BookOpen, Boxes, ClipboardList, LayoutDashboard, Library, PackageCheck, ShieldCheck, ShoppingCart, ArrowLeftRight, BedDouble, Bus, Wrench } from 'lucide-react'
 import { useAuth } from '@/modules/auth/context/AuthContext'
 import { OfficeReadError, PageHeader, StatCard, btn } from '../components/officeUi'
 import { useOfficeSelfHeal } from '../hooks/useOfficeSelfHeal'
@@ -50,6 +50,8 @@ export default function OperationsDesk() {
   const links = [
     { to: '/admin/library/desk', label: 'Issue & return desk', icon: <ArrowLeftRight className="w-4 h-4" /> },
     { to: '/admin/library', label: 'Library', icon: <Library className="w-4 h-4" /> },
+    { to: '/admin/hostel', label: 'Hostel', icon: <BedDouble className="w-4 h-4" /> },
+    { to: '/admin/transport', label: 'Transport', icon: <Bus className="w-4 h-4" /> },
     { to: '/admin/inventory', label: 'Inventory & assets', icon: <Boxes className="w-4 h-4" /> },
     { to: '/admin/purchase-orders', label: 'Purchase orders', icon: <ClipboardList className="w-4 h-4" /> },
     { to: '/admin/purchase-requests', label: 'Purchase requests', icon: <ShoppingCart className="w-4 h-4" /> },

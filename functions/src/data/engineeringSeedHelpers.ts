@@ -1,14 +1,16 @@
 import type { PrepStream, PrepSubject, PrepTopic, UniversalQuestion } from '../prepShared'
 
 /**
- * Shared builder for the curator-authored engineering study packs (CSE, ECE).
+ * Shared builder for the curator-authored engineering study packs (CSE, ECE,
+ * EEE, ME).
  *
  * Each branch supplies a compact curriculum map — courses, five modules per
  * course, granular subtopic briefs and one tagged practice item per module —
  * and this turns it into the same content contract used by every other Prep
  * catalogue. Branch-specific wording (program code, stream, tags, question
- * type label) is injected through an `EngineeringPackProfile` so the CSE and
- * ECE packs stay structurally identical and are validated by the same tests.
+ * type label) is injected through an `EngineeringPackProfile` so every
+ * engineering pack stays structurally identical and is validated by the same
+ * tests.
  */
 
 export type EngineeringQuestionSeed = {

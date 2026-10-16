@@ -90,6 +90,8 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   // ── Operations (library, inventory, stores) ───────────────────
   'operations.desk': ['operations', 'principal'],
   'library.manage': ['operations', 'principal'],
+  'hostel.manage': ['operations', 'principal'],
+  'transport.manage': ['operations', 'principal'],
   'inventory.manage': ['operations', 'principal'],
   'procurement.order': ['operations', 'principal'],
   // Departments raise purchase requests; approval follows the college chain.
@@ -192,6 +194,8 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   // Operations
   { path: '/admin/operations', permission: 'operations.desk' },
   { path: '/admin/library', permission: 'library.manage' },
+  { path: '/admin/hostel', permission: 'hostel.manage' },
+  { path: '/admin/transport', permission: 'transport.manage' },
   { path: '/admin/inventory', permission: 'inventory.manage' },
   { path: '/admin/purchase-orders', permission: 'procurement.order' },
   // Shared
