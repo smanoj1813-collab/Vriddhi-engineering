@@ -136,7 +136,7 @@ import {
   upsertDraftSlot,
   deleteDraftSlot,
 } from './timetableApproval'
-import { submitCurriculumForApproval, reviewCurriculumApproval } from './curriculumApproval'
+import { verifyCurriculumList, reviewCurriculumApproval } from './curriculumApproval'
 // ─── Assignment completion analytics (course/module/batch/division) ───
 import { getAssignmentAnalytics } from './assignmentAnalytics'
 // ─── Announcements: server-authoritative targeting + per-recipient reads ───
@@ -393,7 +393,7 @@ export {
   markLegacyTimetablesApproved,
   upsertDraftSlot,
   deleteDraftSlot,
-  submitCurriculumForApproval,
+  verifyCurriculumList,
   reviewCurriculumApproval,
   getMyAcademicJourney,
   getMyCurriculum,

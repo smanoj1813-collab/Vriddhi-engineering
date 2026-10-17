@@ -1,45 +1,28 @@
-// /admin/curriculum-approvals — the course list for each branch and semester.
-// Admin, or the branch HOD, sends the active list for principal approval.
-// The principal approves or returns it. Approval covers the exact list sent.
+// /admin/curriculum-approvals — course lists assigned by the superadmin.
+// Operations (or admin) verifies each branch and semester list before its classes
+// are scheduled. The principal reviews it (approve or return). HODs can read it.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, CheckCircle2, Send, Undo2 } from 'lucide-react'
+import { BookOpen, CheckCircle2, ShieldCheck, Undo2 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/context/AuthContext'
 import { Badge, Empty, Loading, PageHeader, btn, errMsg } from '../../office/components/officeUi'
 import {
   callReviewCurriculumApproval,
-  callSubmitCurriculumForApproval,
+  callVerifyCurriculumList,
   listCurriculumApprovals,
   listCurriculumScopes,
   type CurriculumApprovalRow,
   type CurriculumScope,
 } from '../api/curriculumApprovalApi'
-import {
-  curriculumApprovalId,
-  normaliseCurriculumBranch,
-  type CurriculumApprovalStatus,
-} from '../utils/curriculumApproval'
-
-const STATUS_TONE: Record<CurriculumApprovalStatus, 'slate' | 'amber' | 'red' | 'green'> = {
-  draft: 'slate',
-  submitted: 'amber',
-  returned: 'red',
-  approved: 'green',
-}
-const STATUS_LABEL: Record<CurriculumApprovalStatus, string> = {
-  draft: 'Not sent',
-  submitted: 'Waiting for principal',
-  returned: 'Returned',
-  approved: 'Approved',
-}
+import { curriculumApprovalId, normaliseCurriculumBranch } from '../utils/curriculumApproval'
 
 export default function CurriculumApprovals() {
   const { user } = useAuth()
   const role = user?.role ?? ''
   const collegeId = user?.collegeId || localStorage.getItem('vriddhi_college_id') || ''
+  const canVerify = role === 'operations' || role === 'admin' || role === 'superadmin'
   const isPrincipal = role === 'principal'
   const isHod = role === 'hod'
-  const canSend = role === 'admin' || role === 'superadmin' || isHod
   const hodBranch = isHod ? normaliseCurriculumBranch(user?.department) : ''
 
   const [scopes, setScopes] = useState<CurriculumScope[] | null>(null)
@@ -68,9 +51,13 @@ export default function CurriculumApprovals() {
     const byId = new Map(approvals.map(a => [a.id, a]))
     return scopes
       .filter(s => !isHod || normaliseCurriculumBranch(s.branch) === hodBranch)
-      .map(s => {
-        const id = curriculumApprovalId(collegeId, s.branch, s.semester)
-        return { scope: s, id, approval: byId.get(id) ?? null, status: (byId.get(id)?.status ?? 'draft') as CurriculumApprovalStatus }
+      .map(scope => {
+        const id = curriculumApprovalId(collegeId, scope.branch, scope.semester)
+        const approval = byId.get(id) ?? null
+        // Verified, but the list has been edited since (or a verify is missing).
+        const verified = !!approval?.verifiedAt
+        const changedSinceVerify = verified && !!scope.latestUpdate && scope.latestUpdate > (approval?.verifiedAt ?? '')
+        return { scope, id, approval, verified, changedSinceVerify }
       })
   }, [scopes, approvals, collegeId, isHod, hodBranch])
 
@@ -94,9 +81,11 @@ export default function CurriculumApprovals() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="Curriculum Approvals"
-        subtitle={isPrincipal
-          ? 'Approve the course list for each branch and semester. It feeds the timetable.'
-          : 'Send each branch and semester course list to the principal for approval.'}
+        subtitle={canVerify
+          ? 'Verify each course list before its classes are scheduled. The principal reviews it too.'
+          : isPrincipal
+            ? 'Review the course list for each branch and semester. Approve or return it.'
+            : 'Course lists for your branch. Read only.'}
         icon={<BookOpen size={20} />}
       />
 
@@ -108,13 +97,18 @@ export default function CurriculumApprovals() {
       )}
 
       {rows.length === 0 && (
-        <Empty title="No course lists yet" hint="Course lists appear here once they are assigned to this college." />
+        <Empty title="No course lists yet" hint="The superadmin assigns course lists to the college. They appear here." />
       )}
 
       <div className="space-y-3">
-        {rows.map(({ scope, id, approval, status }) => {
+        {rows.map(({ scope, id, approval, verified, changedSinceVerify }) => {
           const busy = busyId === id
           const note = notes[id] ?? ''
+          const reviewStatus = approval?.reviewStatus ?? 'pending'
+          const verifyLabel = !verified ? 'Not verified' : changedSinceVerify ? 'Changed since verified' : 'Verified'
+          const verifyTone = !verified ? 'red' : changedSinceVerify ? 'amber' : 'green'
+          const reviewLabel = reviewStatus === 'approved' ? 'Principal approved' : reviewStatus === 'returned' ? 'Returned by principal' : 'Awaiting principal'
+          const reviewTone = reviewStatus === 'approved' ? 'green' : reviewStatus === 'returned' ? 'red' : 'slate'
           return (
             <div key={id} className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -122,29 +116,30 @@ export default function CurriculumApprovals() {
                   <div className="font-medium text-sm">{scope.branch} · Semester {scope.semester}</div>
                   <div className="text-xs text-vriddhi-muted">
                     {scope.courseCount} course{scope.courseCount === 1 ? '' : 's'}
-                    {approval?.submittedAt ? ` · sent ${new Date(approval.submittedAt).toLocaleString('en-IN')}` : ''}
+                    {approval?.verifiedAt ? ` · verified ${new Date(approval.verifiedAt).toLocaleString('en-IN')}` : ''}
                     {approval?.reviewNote ? ` · note: ${approval.reviewNote}` : ''}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
-                  {canSend && status !== 'submitted' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={verifyTone}>{verifyLabel}</Badge>
+                  <Badge tone={reviewTone}>{reviewLabel}</Badge>
+                  {canVerify && (
                     <button
                       type="button"
                       className={btn.primary}
                       disabled={busy}
-                      onClick={() => run(id, 'Send for approval', async () => {
-                        const r = await callSubmitCurriculumForApproval({ collegeId, branch: scope.branch, semester: scope.semester })
-                        return `Sent ${scope.branch}, semester ${scope.semester} (${r.courseCount} courses) to the principal.`
+                      onClick={() => run(id, 'Verify', async () => {
+                        const r = await callVerifyCurriculumList({ collegeId, branch: scope.branch, semester: scope.semester })
+                        return `Verified ${scope.branch}, semester ${scope.semester} (${r.courseCount} courses). Classes can now be scheduled.`
                       })}
                     >
-                      <Send size={14} /> {status === 'approved' ? 'Send changes for approval' : 'Send for approval'}
+                      <ShieldCheck size={14} /> {verified ? 'Verify again' : 'Verify'}
                     </button>
                   )}
                 </div>
               </div>
 
-              {isPrincipal && status === 'submitted' && (
+              {isPrincipal && (
                 <div className="space-y-2 border-t border-vriddhi-border pt-3">
                   <label className="block text-sm">
                     <span className="block text-vriddhi-muted mb-1">Note (required when returning)</span>
@@ -174,6 +169,7 @@ export default function CurriculumApprovals() {
                       disabled={busy}
                       onClick={() => run(id, 'Approve', async () => {
                         await callReviewCurriculumApproval({ collegeId, branch: scope.branch, semester: scope.semester, decision: 'approve', note: note.trim() || undefined })
+                        setNotes(n => ({ ...n, [id]: '' }))
                         return `Approved the course list for ${scope.branch}, semester ${scope.semester}.`
                       })}
                     >

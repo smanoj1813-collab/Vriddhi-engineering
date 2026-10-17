@@ -1,49 +1,44 @@
-// Curriculum course-list approval — pure rules (no Firebase imports, unit tested).
+// Curriculum course-list rules — pure (no Firebase imports, unit tested).
 //
-// Scope: one approval record per (college, branch, semester), covering the
-// active course-list documents for that branch and semester.
-// Flow:  admin (or the branch HOD) sends the list → principal approves or returns.
-//        The principal is the only approver. Nobody reviews their own submission.
+// Superadmin assigns a course list to the college. From then on:
+//  - Operations, admin and superadmin VERIFY the list for a branch and semester.
+//    Timetable drafting and sending to the HOD are blocked until it is verified.
+//    A change to the list after verification needs a fresh verify.
+//  - The principal REVIEWS it (approve or return). This is a sign-off, not a gate.
+//  - HODs can read the list. They cannot act on it.
 //
-// The approval is tied to the exact content that was sent: the server stores a
-// fingerprint at submit and recomputes it at approval. If the list changed in
-// between, approval is refused and the list must be sent again.
-//
-// Mirrored in functions/src/curriculumApprovalRules.ts. A parity test keeps both
-// in step.
+// Verification is bound to the exact content: the server stores a fingerprint of
+// the course documents at verify time and checks it again before timetable writes.
+// Mirrored in functions/src/curriculumApprovalRules.ts; a parity test keeps them in step.
 
-export type CurriculumApprovalStatus = 'draft' | 'submitted' | 'returned' | 'approved'
+export type CurriculumReviewStatus = 'pending' | 'approved' | 'returned'
 
-export type CurriculumActorRole = 'admin' | 'hod' | 'principal' | 'superadmin' | 'operations' | 'faculty' | 'student' | 'other'
+export type CurriculumActorRole =
+  | 'admin' | 'hod' | 'principal' | 'superadmin' | 'operations' | 'faculty' | 'student' | 'other'
 
 export interface CurriculumApprovalRecord {
   collegeId: string
   branch: string
   semester: number
-  status: CurriculumApprovalStatus
-  /** Increments on each submit. */
-  version: number
-  submittedBy?: string
-  submittedAt?: string
+  /** Ops verification. Set by verify; absent until the list is first verified. */
+  verifiedFingerprint?: string
+  verifiedBy?: string
+  verifiedAt?: string
+  /** Principal review. */
+  reviewStatus: CurriculumReviewStatus
+  /** Fingerprint the principal approved. Approval holds only for that content. */
+  reviewFingerprint?: string
   reviewedBy?: string
   reviewedAt?: string
   reviewNote?: string
-  /** Fingerprint of the course lists at submit time. */
-  fingerprint?: string
-  /** Fingerprint at the time of approval (equal to `fingerprint` when approved). */
-  approvedFingerprint?: string
-  approvedBy?: string
-  approvedAt?: string
+  version: number
 }
 
 export interface CurriculumActor {
   uid: string
   role: CurriculumActorRole
-  /** HOD department claim. */
   department?: string
 }
-
-export type CurriculumAction = 'submit' | 'approve' | 'return'
 
 export type CurriculumDecision =
   | { ok: true }
@@ -53,46 +48,42 @@ export function normaliseCurriculumBranch(value: string | null | undefined): str
   return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-/** Stable Firestore doc id for a branch+semester curriculum approval. */
+/** Stable Firestore doc id for a branch+semester curriculum record. */
 export function curriculumApprovalId(collegeId: string, branch: string, semester: number): string {
   const slug = normaliseCurriculumBranch(branch).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   return `${collegeId}__cur__${slug}__sem${semester}`
 }
 
-function isHodOfCurriculum(actor: CurriculumActor, branch: string): boolean {
-  return actor.role === 'hod'
-    && normaliseCurriculumBranch(actor.department) !== ''
-    && normaliseCurriculumBranch(actor.department) === normaliseCurriculumBranch(branch)
+/** Who may verify a course list (ops confirms it before it is scheduled). */
+export function canVerifyCurriculum(actor: CurriculumActor): CurriculumDecision {
+  if (actor.role === 'operations' || actor.role === 'admin' || actor.role === 'superadmin') return { ok: true }
+  return { ok: false, reason: 'Only operations or admin can verify a course list.' }
 }
 
-/** Can `actor` take `action` on the curriculum approval `record` right now? */
-export function canCurriculumAction(
-  record: CurriculumApprovalRecord | null,
-  action: CurriculumAction,
-  actor: CurriculumActor,
-  branch: string,
-): CurriculumDecision {
-  const status: CurriculumApprovalStatus = record?.status ?? 'draft'
-
-  if (action === 'submit') {
-    const allowed = actor.role === 'admin' || actor.role === 'superadmin' || isHodOfCurriculum(actor, branch)
-    if (!allowed) {
-      return { ok: false, reason: `Only the admin or the HOD of ${branch} can send this course list for approval.` }
-    }
-    if (status === 'submitted') {
-      return { ok: false, reason: 'This course list is already waiting for the principal.' }
-    }
-    return { ok: true }
-  }
-
-  // approve / return
-  if (!record) return { ok: false, reason: 'No course list has been sent for this branch and semester.' }
-  if (status !== 'submitted') {
-    return { ok: false, reason: `Only a course list that is waiting for approval can be ${action === 'approve' ? 'approved' : 'returned'}.` }
-  }
-  if (actor.uid && actor.uid === record.submittedBy) {
-    return { ok: false, reason: 'You cannot review a course list you sent.' }
-  }
+/** Who may approve or return a course list (the principal's sign-off). */
+export function canReviewCurriculum(actor: CurriculumActor): CurriculumDecision {
   if (actor.role === 'principal' || actor.role === 'superadmin') return { ok: true }
   return { ok: false, reason: 'Only the principal can approve or return a course list.' }
+}
+
+/**
+ * Timetable writes (draft edits, copy from live, send to HOD) need the course
+ * list verified. `currentFingerprint` is the fingerprint of the list right now.
+ */
+export function curriculumGate(
+  record: CurriculumApprovalRecord | null,
+  currentFingerprint: string | null,
+  branch: string,
+  semester: number,
+): CurriculumDecision {
+  if (currentFingerprint === null) {
+    return { ok: false, reason: `There is no course list for ${branch}, semester ${semester} yet. The superadmin assigns it first.` }
+  }
+  if (!record?.verifiedFingerprint) {
+    return { ok: false, reason: `Verify the course list for ${branch}, semester ${semester} in Curriculum Approvals before scheduling its classes.` }
+  }
+  if (record.verifiedFingerprint !== currentFingerprint) {
+    return { ok: false, reason: `The course list for ${branch}, semester ${semester} changed after it was verified. Verify it again before scheduling.` }
+  }
+  return { ok: true }
 }

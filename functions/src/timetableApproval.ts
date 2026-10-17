@@ -13,6 +13,7 @@
 import * as admin from 'firebase-admin'
 import { getFirestore, type DocumentData, type WriteBatch } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { requireVerifiedCurriculum } from './curriculumApproval'
 import {
   canTimetableAction,
   pickSlotFields,
@@ -176,6 +177,7 @@ export const saveTimetableDraft = onCall(OPTS, async (request) => {
   const record = await loadRecord(id)
   const decision = canTimetableAction(record, 'edit', actor)
   if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, branch, semester)
 
   const old = await draftQuery(id)
   const now = new Date().toISOString()
@@ -211,6 +213,7 @@ export const copyLiveToDraft = onCall(OPTS, async (request) => {
   const record = await loadRecord(id)
   const decision = canTimetableAction(record, 'edit', actor)
   if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, branch, semester)
 
   const live = await liveQuery(collegeId, branch, semester)
   if (live.length === 0) fail('not-found', 'There is no live timetable for this branch and semester to copy')
@@ -251,6 +254,7 @@ export const submitTimetable = onCall(OPTS, async (request) => {
   const record = await loadRecord(id)
   const decision = canTimetableAction(record, 'submit', actor)
   if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, branch, semester)
 
   const drafts = await draftQuery(id)
   if (drafts.empty) fail('failed-precondition', 'Add at least one class before submitting')
@@ -348,6 +352,7 @@ export const upsertDraftSlot = onCall(OPTS, async (request) => {
   const record = await loadRecord(id)
   const decision = canTimetableAction(record, 'edit', actor)
   if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, clean.branch, clean.semester)
 
   const faculty = await resolveFaculty(clean.facultyId)
   const slotId = String(raw.slotId || '').trim()
@@ -386,6 +391,7 @@ export const deleteDraftSlot = onCall(OPTS, async (request) => {
   const record = await loadRecord(id)
   const decision = canTimetableAction(record, 'edit', actor)
   if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, String(d.branch), Number(d.semester))
   await ref.delete()
   await touchRecord(collegeId, String(d.branch), Number(d.semester), record)
   return { ok: true }

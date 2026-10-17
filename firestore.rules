@@ -1461,13 +1461,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Curriculum course-list approvals: office and HODs read their college's
-    // records; writes go through the callables only.
+    // Curriculum verification and review: ops, admin, HOD and principal read their
+    // college's records; writes go through the callables only.
     match /curriculumApprovals/{approvalId} {
       allow get: if isSignedIn() && (isSuperadmin()
-        || (role() in ['principal', 'admin', 'hod'] && resource.data.collegeId == collegeId()));
+        || (role() in ['principal', 'admin', 'hod', 'operations'] && resource.data.collegeId == collegeId()));
       allow list: if isSignedIn() && (isSuperadmin()
-        || (role() in ['principal', 'admin', 'hod'] && resource.data.collegeId == collegeId()));
+        || (role() in ['principal', 'admin', 'hod', 'operations'] && resource.data.collegeId == collegeId()));
       allow write: if false;
     }
 

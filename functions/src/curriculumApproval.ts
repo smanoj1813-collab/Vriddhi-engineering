@@ -1,11 +1,12 @@
-// Curriculum course-list approval callables.
+// Curriculum course-list callables.
 //
-//   submitCurriculumForApproval  admin or the branch HOD: send the active course
-//                                list for a branch and semester to the principal
-//   reviewCurriculumApproval     principal: approve or return
+//   verifyCurriculumList        operations, admin or superadmin: confirm the active
+//                               course list for a branch and semester. Timetable
+//                               writes are blocked until it is verified.
+//   reviewCurriculumApproval    principal: approve or return (sign-off, not a gate).
 //
-// The approval covers the exact content that was sent. A fingerprint of the
-// course documents is stored at submit and checked again at approval.
+// requireVerifiedCurriculum() is called by the timetable callables before they
+// write drafts or send to the HOD.
 // Client writes to `curriculumApprovals` are denied by firestore.rules.
 
 import * as admin from 'firebase-admin'
@@ -13,8 +14,10 @@ import { createHash } from 'node:crypto'
 import { getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import {
-  canCurriculumAction,
+  canReviewCurriculum,
+  canVerifyCurriculum,
   curriculumApprovalId,
+  curriculumGate,
   normaliseCurriculumBranch,
   type CurriculumActor,
   type CurriculumApprovalRecord,
@@ -22,7 +25,7 @@ import {
 
 const APPROVALS = 'curriculumApprovals'
 const CURRICULUM = 'curriculum'
-const STAFF_ROLES = ['admin', 'hod', 'principal', 'superadmin']
+const STAFF_ROLES = ['operations', 'admin', 'principal', 'superadmin']
 const OPTS = { region: 'asia-south1', memory: '256MiB' as const, timeoutSeconds: 60, minInstances: 0, maxInstances: 5 }
 
 function db() {
@@ -38,14 +41,9 @@ async function staffFor(uid: string, token: Record<string, unknown>) {
   const user = userDoc.data()
   const role = String(token.role || user?.role || '')
   const claimCollege = String(token.collegeId || user?.collegeId || '')
-  if (!userDoc.exists || !STAFF_ROLES.includes(role)) fail('permission-denied', 'Admin, HOD or principal access is required')
+  if (!userDoc.exists || !STAFF_ROLES.includes(role)) fail('permission-denied', 'Operations, admin or principal access is required')
   if (role !== 'superadmin' && !claimCollege) fail('permission-denied', 'Your account is not linked to a college')
-  return {
-    uid,
-    role,
-    department: String(token.department || user?.department || ''),
-    collegeId: claimCollege,
-  }
+  return { uid, role, department: String(token.department || user?.department || ''), collegeId: claimCollege }
 }
 
 function requireCollege(actor: { role: string; collegeId: string }, requested: unknown): string {
@@ -93,39 +91,54 @@ async function loadRecord(id: string): Promise<CurriculumApprovalRecord | null> 
   return snap.exists ? (snap.data() as CurriculumApprovalRecord) : null
 }
 
-export const submitCurriculumForApproval = onCall(OPTS, async (request) => {
+/**
+ * Throws unless the course list for this branch and semester is verified and
+ * unchanged since. Called by the timetable callables before any draft write.
+ */
+export async function requireVerifiedCurriculum(collegeId: string, branch: string, semester: number): Promise<void> {
+  const id = curriculumApprovalId(collegeId, branch, semester)
+  const record = await loadRecord(id)
+  const docs = await activeCourseLists(collegeId, branch, semester)
+  const current = docs.length ? fingerprintOf(docs).fingerprint : null
+  const check = curriculumGate(record, current, branch, semester)
+  if (!check.ok) fail('failed-precondition', check.reason)
+}
+
+export const verifyCurriculumList = onCall(OPTS, async (request) => {
   const uid = request.auth?.uid
   if (!uid) fail('permission-denied', 'Authentication is required')
   const actor = await staffFor(uid, request.auth?.token || {})
   const raw = (request.data || {}) as Record<string, unknown>
   const collegeId = requireCollege(actor, raw.collegeId)
   const { branch, semester } = requireScope(raw)
+  const check = canVerifyCurriculum(actor as CurriculumActor)
+  if (!check.ok) fail('permission-denied', check.reason)
+
+  const docs = await activeCourseLists(collegeId, branch, semester)
+  if (docs.length === 0) fail('failed-precondition', 'There is no course list for this branch and semester yet. The superadmin assigns it first.')
+  const { fingerprint, courseCount, ids } = fingerprintOf(docs)
 
   const id = curriculumApprovalId(collegeId, branch, semester)
   const record = await loadRecord(id)
-  const check = canCurriculumAction(record, 'submit', actor as CurriculumActor, branch)
-  if (!check.ok) fail('failed-precondition', check.reason)
-
-  const docs = await activeCourseLists(collegeId, branch, semester)
-  if (docs.length === 0) fail('failed-precondition', 'There is no active course list for this branch and semester yet')
-  const { fingerprint, courseCount, ids } = fingerprintOf(docs)
   const at = new Date().toISOString()
-  const version = (record?.version ?? 0) + 1
+  // A principal approval holds only for the content it reviewed. Otherwise the
+  // review goes back to pending.
+  const keepReview = record?.reviewStatus === 'approved' && record.reviewFingerprint === fingerprint
   await db().collection(APPROVALS).doc(id).set({
     collegeId,
     branch,
     branchKey: normaliseCurriculumBranch(branch),
     semester,
-    status: 'submitted',
-    version,
-    submittedBy: uid,
-    submittedAt: at,
-    fingerprint,
-    curriculumIds: ids,
+    verifiedFingerprint: fingerprint,
+    verifiedBy: uid,
+    verifiedAt: at,
     courseCount,
+    curriculumIds: ids,
+    reviewStatus: keepReview ? 'approved' : 'pending',
+    version: (record?.version ?? 0) + 1,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  })
-  return { ok: true, approvalId: id, version, courseCount }
+  }, { merge: true })
+  return { ok: true, approvalId: id, courseCount, reviewKept: keepReview }
 })
 
 export const reviewCurriculumApproval = onCall(OPTS, async (request) => {
@@ -140,41 +153,29 @@ export const reviewCurriculumApproval = onCall(OPTS, async (request) => {
   const action = decision as 'approve' | 'return'
   const note = String(raw.note || '').trim().slice(0, 500)
   if (action === 'return' && note.length < 3) fail('invalid-argument', 'Give a reason when returning a course list')
+  const check = canReviewCurriculum(actor as CurriculumActor)
+  if (!check.ok) fail('permission-denied', check.reason)
+
+  const docs = await activeCourseLists(collegeId, branch, semester)
+  if (docs.length === 0) fail('failed-precondition', 'There is no course list for this branch and semester yet.')
+  const { fingerprint } = fingerprintOf(docs)
 
   const id = curriculumApprovalId(collegeId, branch, semester)
   const record = await loadRecord(id)
-  const check = canCurriculumAction(record, action, actor as CurriculumActor, branch)
-  if (!check.ok) fail('failed-precondition', check.reason)
-
   const at = new Date().toISOString()
-  if (action === 'return') {
-    await db().collection(APPROVALS).doc(id).set({
-      ...record,
-      status: 'returned',
-      reviewedBy: uid,
-      reviewedAt: at,
-      reviewNote: note,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
-    return { ok: true, status: 'returned' }
-  }
-
-  // Approve only the content that was sent: the lists must not have changed since.
-  const docs = await activeCourseLists(collegeId, branch, semester)
-  const { fingerprint } = fingerprintOf(docs)
-  if (fingerprint !== record!.fingerprint) {
-    fail('failed-precondition', 'The course list changed after it was sent. Ask for it to be sent again.')
-  }
+  const reviewStatus = action === 'approve' ? 'approved' : 'returned'
   await db().collection(APPROVALS).doc(id).set({
-    ...record,
-    status: 'approved',
+    collegeId,
+    branch,
+    branchKey: normaliseCurriculumBranch(branch),
+    semester,
+    reviewStatus,
     reviewedBy: uid,
     reviewedAt: at,
-    approvedBy: uid,
-    approvedAt: at,
-    approvedFingerprint: fingerprint,
-    ...(note ? { reviewNote: note } : {}),
+    reviewNote: note,
+    ...(action === 'approve' ? { reviewFingerprint: fingerprint } : {}),
+    version: (record?.version ?? 0),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  })
-  return { ok: true, status: 'approved' }
+  }, { merge: true })
+  return { ok: true, status: reviewStatus }
 })

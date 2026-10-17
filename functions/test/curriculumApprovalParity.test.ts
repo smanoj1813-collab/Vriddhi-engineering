@@ -1,41 +1,37 @@
 // Keeps the server (functions/src/curriculumApprovalRules.ts) and client
-// (src/modules/admin/utils/curriculumApproval.ts) curriculum approval rules in step.
+// (src/modules/admin/utils/curriculumApproval.ts) curriculum rules in step.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as server from '../src/curriculumApprovalRules'
 import * as client from '../../src/modules/admin/utils/curriculumApproval'
 
-const statuses = [null, 'draft', 'submitted', 'returned', 'approved'] as const
-const actions = ['submit', 'approve', 'return'] as const
-const branches = ['CSE', 'ece']
 const actors = [
-  { uid: 'adm', role: 'admin' },
-  { uid: 'su', role: 'superadmin' },
-  { uid: 'hod1', role: 'hod', department: 'CSE' },
-  { uid: 'hod2', role: 'hod', department: 'Mechanical' },
-  { uid: 'hodNoDept', role: 'hod' },
-  { uid: 'p1', role: 'principal' },
-  { uid: 'ops1', role: 'operations' },
-  { uid: 'f1', role: 'faculty' },
+  { uid: 'o', role: 'operations' }, { uid: 'a', role: 'admin' }, { uid: 'su', role: 'superadmin' },
+  { uid: 'h', role: 'hod', department: 'CSE' }, { uid: 'p', role: 'principal' }, { uid: 'f', role: 'faculty' },
+] as const
+const fingerprints = [null, 'fp1', 'fp2'] as const
+const records = [
+  null,
+  { collegeId: 'c', branch: 'CSE', semester: 3, reviewStatus: 'pending', version: 1 },
+  { collegeId: 'c', branch: 'CSE', semester: 3, reviewStatus: 'approved', version: 1, verifiedFingerprint: 'fp1' },
+  { collegeId: 'c', branch: 'CSE', semester: 3, reviewStatus: 'pending', version: 1, verifiedFingerprint: 'fp2' },
 ] as const
 
-test('server and client curriculum approval rules agree on every case', () => {
+test('server and client curriculum rules agree on every case', () => {
   let compared = 0
-  for (const status of statuses) {
-    for (const action of actions) {
-      for (const actor of actors) {
-        for (const branch of branches) {
-          for (const submittedBy of [undefined, 'adm', actor.uid, 'someone-else']) {
-            const rec = status ? { collegeId: 'c', branch: 'CSE', semester: 3, status, version: 1, submittedBy } : null
-            const s = server.canCurriculumAction(rec, action, actor, branch)
-            const c = client.canCurriculumAction(rec, action, actor, branch)
-            assert.equal(s.ok, c.ok, `${status}/${action}/${actor.role}/${branch}/${submittedBy}`)
-            compared++
-          }
-        }
+  for (const actor of actors) {
+    assert.equal(server.canVerifyCurriculum(actor).ok, client.canVerifyCurriculum(actor).ok, `verify ${actor.role}`)
+    assert.equal(server.canReviewCurriculum(actor).ok, client.canReviewCurriculum(actor).ok, `review ${actor.role}`)
+    compared += 2
+    for (const rec of records) {
+      for (const fp of fingerprints) {
+        const s = server.curriculumGate(rec as never, fp, 'CSE', 3).ok
+        const c = client.curriculumGate(rec as never, fp, 'CSE', 3).ok
+        assert.equal(s, c, `gate ${rec?.verifiedFingerprint}/${fp}`)
+        compared++
       }
     }
   }
-  assert.ok(compared > 500)
+  assert.ok(compared > 50)
   assert.equal(server.curriculumApprovalId('c1', 'Computer Science', 3), client.curriculumApprovalId('c1', 'Computer Science', 3))
 })

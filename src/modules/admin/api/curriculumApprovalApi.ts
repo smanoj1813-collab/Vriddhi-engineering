@@ -5,7 +5,7 @@
 import { addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '@/Firebase/config'
-import type { CurriculumApprovalStatus } from '../utils/curriculumApproval'
+import type { CurriculumReviewStatus } from '../utils/curriculumApproval'
 
 export interface CurriculumScope {
   branch: string
@@ -13,6 +13,8 @@ export interface CurriculumScope {
   /** Active course-list documents for this branch and semester. */
   listCount: number
   courseCount: number
+  /** Latest assignment or edit time across the lists (ISO), for "changed since verified". */
+  latestUpdate: string
 }
 
 export interface CurriculumApprovalRow {
@@ -20,21 +22,19 @@ export interface CurriculumApprovalRow {
   collegeId: string
   branch: string
   semester: number
-  status: CurriculumApprovalStatus
   version: number
   courseCount?: number
-  submittedBy?: string
-  submittedAt?: string
+  verifiedBy?: string
+  verifiedAt?: string
+  reviewStatus: CurriculumReviewStatus
   reviewedBy?: string
   reviewedAt?: string
   reviewNote?: string
-  approvedBy?: string
-  approvedAt?: string
 }
 
-export const callSubmitCurriculumForApproval = (input: { collegeId: string; branch: string; semester: number }) =>
-  httpsCallable<typeof input, { ok: boolean; approvalId: string; version: number; courseCount: number }>(
-    functions, 'submitCurriculumForApproval',
+export const callVerifyCurriculumList = (input: { collegeId: string; branch: string; semester: number }) =>
+  httpsCallable<typeof input, { ok: boolean; approvalId: string; courseCount: number; reviewKept: boolean }>(
+    functions, 'verifyCurriculumList',
   )(input).then(r => r.data)
 
 export const callReviewCurriculumApproval = (input: {
@@ -57,9 +57,11 @@ export async function listCurriculumScopes(collegeId: string): Promise<Curriculu
     if (!branch || !Number.isInteger(semester)) continue
     const key = `${branch.toLowerCase()}|${semester}`
     const courses = Array.isArray(x.courses) ? x.courses.length : Number(x.totalCourses) || 0
-    const row = byKey.get(key) ?? { branch, semester, listCount: 0, courseCount: 0 }
+    const row = byKey.get(key) ?? { branch, semester, listCount: 0, courseCount: 0, latestUpdate: '' }
     row.listCount += 1
     row.courseCount += courses
+    const stamp = String(x.updatedAt ?? x.assignedAt ?? x.createdAt ?? '')
+    if (stamp > row.latestUpdate) row.latestUpdate = stamp
     byKey.set(key, row)
   }
   return [...byKey.values()].sort((a, b) => a.branch.localeCompare(b.branch) || a.semester - b.semester)

@@ -96,8 +96,8 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   // Class Schedule Manager: operations drafts the timetable (HOD approves).
   // Admin keeps direct live edit (superadmin bypasses the matrix).
   'schedule.manage': ['operations', 'admin', 'employee'],
-  // Curriculum course lists: admin or the branch HOD sends, the principal approves.
-  'curriculum.approval': ['admin', 'hod', 'principal'],
+  // Curriculum course lists: operations (or admin) verifies, the principal reviews, HOD reads.
+  'curriculum.approval': ['operations', 'admin', 'hod', 'principal'],
   'transport.manage': ['operations', 'principal'],
   'inventory.manage': ['operations', 'principal'],
   'procurement.order': ['operations', 'principal'],
