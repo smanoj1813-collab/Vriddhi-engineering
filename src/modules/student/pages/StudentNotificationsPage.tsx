@@ -9,6 +9,8 @@ import { useStudentData } from '../hooks/useStudentData';
 import { markNotificationRead, markAllNotificationsRead } from '../api/studentDataApi';
 import { deadlineCountdown, linkageBadgeText } from '../utils/deadlineCountdown';
 import type { Notification } from '../types/student';
+import { useAuth } from '@/modules/auth/context/AuthContext';
+import { enablePush, pushKeyConfigured, type PushOutcome } from '@/shared/push/pushClient';
 
 // ------------------------------------------------------------------
 // The full notification panel.
@@ -111,6 +113,7 @@ export default function StudentNotificationsPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {studentId && <PushOptIn studentId={studentId} />}
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -262,3 +265,52 @@ export default function StudentNotificationsPage() {
     </div>
   );
 }
+
+// Opt-in for phone and desktop alerts. Hidden until the Web Push key is set
+// in the build, so the page never shows a button that cannot work.
+function PushOptIn({ studentId }: { studentId: string }) {
+  const { user } = useAuth();
+  const collegeId = user?.collegeId || localStorage.getItem('vriddhi_college_id') || '';
+  const [state, setState] = useState<PushOutcome | 'idle' | 'busy' | 'error'>('idle');
+  const [error, setError] = useState('');
+
+  if (!pushKeyConfigured() || !collegeId) return null;
+
+  const turnOn = async () => {
+    setState('busy');
+    setError('');
+    try {
+      setState(await enablePush(collegeId, studentId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not turn on notifications.');
+      setState('error');
+    }
+  };
+
+  const message: Record<string, string> = {
+    enabled: 'Phone alerts are on for this device.',
+    denied: 'Notifications are blocked. Allow them in your browser settings, then try again.',
+    unsupported: 'This browser does not support push alerts.',
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="font-medium text-slate-900 dark:text-white">Get alerts on this device</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {state === 'error' ? error : message[state] || 'College notices can also reach you as a phone or desktop alert.'}
+        </p>
+      </div>
+      {state !== 'enabled' && (
+        <button
+          onClick={turnOn}
+          disabled={state === 'busy'}
+          className="px-4 py-2 rounded-xl bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+        >
+          {state === 'busy' ? 'Turning on…' : 'Turn on alerts'}
+        </button>
+      )}
+    </div>
+  );
+}
+

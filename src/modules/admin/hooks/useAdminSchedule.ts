@@ -15,16 +15,50 @@ import {
   fetchDivisionsFromStudents,
 } from '../api/scheduleApi'
 import type { WeeklyClassSchedule, WeeklyScheduleFormData, DayOfWeek } from '../types/schedule'
+import {
+  callDeleteDraftSlot,
+  callUpsertDraftSlot,
+  fetchDraftSchedules,
+  type DraftSlotInput,
+} from '../api/timetableApprovalApi'
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
-export function useAdminSchedule(collegeId: string) {
+/** Maps a form row onto the server's draft-slot shape (the server looks up faculty). */
+function toDraftSlot(data: Partial<WeeklyScheduleFormData> & { facultyId?: string }): DraftSlotInput {
+  return {
+    subject: data.subject ?? '',
+    subjectCode: data.subjectCode ?? '',
+    facultyId: data.facultyId ?? '',
+    branch: data.branch ?? '',
+    batch: data.batch ?? '',
+    semester: Number(data.semester),
+    division: data.division ?? '',
+    section: data.section ?? '',
+    room: data.room ?? '',
+    dayOfWeek: data.dayOfWeek ?? '',
+    startTime: data.startTime ?? '',
+    endTime: data.endTime ?? '',
+    type: data.type ?? 'lecture',
+    ...(data.assignment !== undefined ? { assignment: data.assignment } : {}),
+  }
+}
+
+/**
+ * `draftMode` is the operations path: reads come from the timetable drafts and
+ * every write goes to a draft, so the live timetable changes only after the
+ * branch HOD approves it. Other roles keep direct live writes.
+ */
+export function useAdminSchedule(collegeId: string, options: { draftMode?: boolean } = {}) {
+  const draftMode = !!options.draftMode
   const queryClient = useQueryClient()
-  const queryKey = ['weeklySchedules', 'admin', collegeId]
+  const queryKey = ['weeklySchedules', 'admin', collegeId, draftMode ? 'draft' : 'live']
 
   const { data: schedules, isLoading: schedulesLoading } = useQuery({
     queryKey,
-    queryFn: () => fetchWeeklySchedules(collegeId),
+    queryFn: () => (draftMode
+      ? fetchDraftSchedules(collegeId) as unknown as Promise<WeeklyClassSchedule[]>
+      : fetchWeeklySchedules(collegeId)),
     enabled: !!collegeId,
   })
 
@@ -69,28 +103,45 @@ export function useAdminSchedule(collegeId: string) {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (data: WeeklyScheduleFormData) => createWeeklySchedule(data),
+    mutationFn: (data: WeeklyScheduleFormData) => (draftMode
+      ? callUpsertDraftSlot({ collegeId, slot: toDraftSlot(data) }).then(() => undefined)
+      : createWeeklySchedule(data).then(() => undefined)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<WeeklyScheduleFormData> }) =>
-      updateWeeklySchedule(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<WeeklyScheduleFormData> }) => {
+      if (!draftMode) return updateWeeklySchedule(id, data)
+      // Drafts are replaced whole, so merge the edit onto the current row first.
+      const current = (schedules || []).find(s => s.id === id)
+      if (!current) throw new Error('That class is no longer in the draft. Refresh and try again.')
+      const merged = { ...current, ...data } as unknown as Partial<WeeklyScheduleFormData> & { facultyId?: string }
+      return callUpsertDraftSlot({ collegeId, slotId: id, slot: toDraftSlot(merged) }).then(() => undefined)
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const deactivateMutation = useMutation({
-    mutationFn: (id: string) => deactivateWeeklySchedule(id),
+    mutationFn: (id: string) => (draftMode
+      ? callDeleteDraftSlot({ collegeId, slotId: id }).then(() => undefined)
+      : deactivateWeeklySchedule(id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteWeeklySchedule(id),
+    mutationFn: (id: string) => (draftMode
+      ? callDeleteDraftSlot({ collegeId, slotId: id }).then(() => undefined)
+      : deleteWeeklySchedule(id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const bulkCreateMutation = useMutation({
-    mutationFn: (items: WeeklyScheduleFormData[]) => bulkCreateWeeklySchedules(items),
+    mutationFn: async (items: WeeklyScheduleFormData[]) => {
+      if (!draftMode) return bulkCreateWeeklySchedules(items)
+      for (const item of items) {
+        await callUpsertDraftSlot({ collegeId, slot: toDraftSlot(item) })
+      }
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
