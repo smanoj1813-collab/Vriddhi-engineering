@@ -87,3 +87,20 @@ export function canTimetableAction(
     }
   }
 }
+
+/** Fields a timetable slot carries into the live `weeklySchedules` collection.
+ *  Anything else on a draft is ignored, so client-only data never goes live. */
+export const SLOT_FIELDS = [
+  'subject', 'subjectCode', 'facultyId', 'facultyName', 'facultyInitials',
+  'branch', 'batch', 'semester', 'division', 'section', 'room',
+  'dayOfWeek', 'startTime', 'endTime', 'type', 'assignment',
+  'effectiveFrom', 'effectiveTo',
+] as const
+
+export function pickSlotFields(source: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of SLOT_FIELDS) {
+    if (source[key] !== undefined) out[key] = source[key]
+  }
+  return out
+}

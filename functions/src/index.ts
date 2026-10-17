@@ -133,6 +133,8 @@ import {
   submitTimetable,
   reviewTimetable,
   markLegacyTimetablesApproved,
+  upsertDraftSlot,
+  deleteDraftSlot,
 } from './timetableApproval'
 // ─── Assignment completion analytics (course/module/batch/division) ───
 import { getAssignmentAnalytics } from './assignmentAnalytics'
@@ -388,6 +390,8 @@ export {
   submitTimetable,
   reviewTimetable,
   markLegacyTimetablesApproved,
+  upsertDraftSlot,
+  deleteDraftSlot,
   getMyAcademicJourney,
   getMyCurriculum,
   getMyStudentAcademicContext,

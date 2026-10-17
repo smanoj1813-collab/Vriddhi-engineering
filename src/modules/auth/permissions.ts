@@ -93,6 +93,9 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   'hostel.manage': ['operations', 'principal'],
   // Timetable approval: ops drafts, the branch HOD approves, principal falls back.
   'timetable.approval': ['operations', 'hod', 'principal'],
+  // Class Schedule Manager: operations drafts the timetable (HOD approves).
+  // Admin keeps direct live edit (superadmin bypasses the matrix).
+  'schedule.manage': ['operations', 'admin', 'employee'],
   'transport.manage': ['operations', 'principal'],
   'inventory.manage': ['operations', 'principal'],
   'procurement.order': ['operations', 'principal'],
@@ -198,6 +201,7 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/library', permission: 'library.manage' },
   { path: '/admin/hostel', permission: 'hostel.manage' },
   { path: '/admin/timetable-approvals', permission: 'timetable.approval' },
+  { path: '/admin/class-schedule', permission: 'schedule.manage' },
   { path: '/admin/transport', permission: 'transport.manage' },
   { path: '/admin/inventory', permission: 'inventory.manage' },
   { path: '/admin/purchase-orders', permission: 'procurement.order' },

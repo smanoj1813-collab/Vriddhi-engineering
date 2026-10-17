@@ -158,6 +158,8 @@ const AdminClassSchedule: React.FC = () => {
     return state?.prefill ?? null
   }, [location.state])
 
+  // Operations edits the timetable as drafts; the HOD approves before it is live.
+  const draftMode = user?.role === 'operations'
   const {
     weeklySchedule,
     facultyList,
@@ -171,7 +173,7 @@ const AdminClassSchedule: React.FC = () => {
     deleteSchedule,
     isCreating,
     isUpdating,
-  } = useAdminSchedule(collegeId)
+  } = useAdminSchedule(collegeId, { draftMode })
 
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday')
   // ─── Timetable export (PDF / JPG) ───
@@ -656,13 +658,21 @@ const AdminClassSchedule: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
+      {draftMode && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Changes here are drafts. Students and faculty see a branch's timetable only after its HOD approves it.
+          Generating sessions, bulk upload and auto-generate are disabled until the timetable is approved.
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 500 }}>
             Class Schedule Manager
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Manage weekly recurring class schedules for all branches and batches
+            {draftMode
+              ? 'Prepare branch and semester timetables as drafts, then send them to the HOD'
+              : 'Manage weekly recurring class schedules for all branches and batches'}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -673,6 +683,7 @@ const AdminClassSchedule: React.FC = () => {
           >
             Download
           </Button>
+{!draftMode && (
           <Tooltip title="Creates dated class sessions from this weekly timetable for a term — needed for faculty attendance, rescheduling and the student timetable.">
           <Button
             variant="outlined"
@@ -682,6 +693,8 @@ const AdminClassSchedule: React.FC = () => {
             Generate Sessions
           </Button>
           </Tooltip>
+
+)}{!draftMode && (
           <Button
             variant="outlined"
             startIcon={<AutoIcon />}
@@ -689,6 +702,8 @@ const AdminClassSchedule: React.FC = () => {
           >
             Auto Generate
           </Button>
+
+)}{!draftMode && (
           <Button
             variant="outlined"
             startIcon={<UploadIcon />}
@@ -696,7 +711,8 @@ const AdminClassSchedule: React.FC = () => {
           >
             Bulk Upload
           </Button>
-          <Button
+
+)}          <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => handleOpen()}
@@ -881,6 +897,7 @@ const AdminClassSchedule: React.FC = () => {
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+{!draftMode && (
                     <Tooltip title="Cancel slot and its future sessions">
                       <span>
                         <IconButton
@@ -893,7 +910,8 @@ const AdminClassSchedule: React.FC = () => {
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Delete">
+
+)}                    <Tooltip title="Delete">
                       <IconButton size="small" color="error" onClick={() => handleDelete(schedule.id)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>

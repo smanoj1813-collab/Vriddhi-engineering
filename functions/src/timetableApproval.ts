@@ -15,6 +15,7 @@ import { getFirestore, type DocumentData, type WriteBatch } from 'firebase-admin
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import {
   canTimetableAction,
+  pickSlotFields,
   timetableApprovalId,
   type ApprovalActor,
   type ApprovalRecord,
@@ -220,10 +221,8 @@ export const copyLiveToDraft = onCall(OPTS, async (request) => {
     const d = doc.data()
     const ref = db().collection(DRAFTS).doc()
     ops.push((b: WriteBatch) => b.set(ref, {
-      dayOfWeek: d.dayOfWeek, startTime: d.startTime, endTime: d.endTime,
-      subject: d.subject || '', subjectCode: d.subjectCode || '',
-      facultyId: d.facultyId || '', facultyName: d.facultyName || '', facultyInitials: d.facultyInitials || initials(String(d.facultyName || '')),
-      room: d.room || '', batch: d.batch || '', division: d.division || '', section: d.section || '', type: d.type || 'lecture',
+      ...pickSlotFields(d),
+      facultyInitials: d.facultyInitials || initials(String(d.facultyName || '')),
       collegeId, branch, branchKey: branchKey(branch), semester, approvalId: id, isActive: true, createdAt: now, updatedAt: now,
     }))
   }
@@ -267,6 +266,129 @@ export const submitTimetable = onCall(OPTS, async (request) => {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   })
   return { ok: true, approvalId: id, version: (record?.version ?? 0) + 1 }
+})
+
+// ─── Operations: single-slot edits (used by the Class Schedule Manager) ────
+
+/** Faculty name and initials come from the faculty record, never from the client. */
+async function resolveFaculty(facultyId: string): Promise<{ name: string; initials: string }> {
+  const snap = await db().collection('faculty').doc(facultyId).get()
+  if (!snap.exists) fail('invalid-argument', 'Choose a faculty member who exists in this college')
+  const f = snap.data() as Record<string, unknown>
+  const name = String(f.name || `${f.firstName || ''} ${f.lastName || ''}`).trim() || facultyId
+  return { name, initials: initials(name) }
+}
+
+function cleanSingleSlot(raw: unknown): Slot & {
+  facultyId: string
+  branch: string
+  semester: number
+  effectiveFrom?: string
+  effectiveTo?: string
+  assignment?: Record<string, unknown> | null
+} {
+  const s = (raw ?? {}) as Record<string, unknown>
+  const str = (k: string) => String(s[k] ?? '').trim()
+  const dayOfWeek = str('dayOfWeek').toLowerCase()
+  const startTime = str('startTime')
+  const endTime = str('endTime')
+  const semester = Number(s.semester)
+  if (!DAYS.includes(dayOfWeek)) fail('invalid-argument', 'Choose a valid day')
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) fail('invalid-argument', 'Times must be HH:MM')
+  if (startTime >= endTime) fail('invalid-argument', 'End time must be after start time')
+  if (!str('subject')) fail('invalid-argument', 'Subject is required')
+  if (!str('facultyId')) fail('invalid-argument', 'Faculty is required')
+  if (!str('branch')) fail('invalid-argument', 'Branch is required')
+  if (!Number.isInteger(semester) || semester < 1 || semester > 8) fail('invalid-argument', 'Semester must be 1 to 8')
+  const assignment = s.assignment && typeof s.assignment === 'object'
+    ? {
+        title: String((s.assignment as Record<string, unknown>).title ?? '').slice(0, 200),
+        maxScore: Number((s.assignment as Record<string, unknown>).maxScore) || 0,
+        deadline: String((s.assignment as Record<string, unknown>).deadline ?? '').slice(0, 40),
+      }
+    : s.assignment === null ? null : undefined
+  return {
+    dayOfWeek, startTime, endTime,
+    subject: str('subject'),
+    subjectCode: str('subjectCode'),
+    facultyId: str('facultyId'),
+    facultyName: '',
+    facultyInitials: '',
+    room: str('room'),
+    batch: str('batch'),
+    division: str('division'),
+    section: str('section'),
+    type: str('type') || 'lecture',
+    branch: str('branch'),
+    semester,
+    ...(str('effectiveFrom') ? { effectiveFrom: str('effectiveFrom') } : {}),
+    ...(str('effectiveTo') ? { effectiveTo: str('effectiveTo') } : {}),
+    ...(assignment !== undefined ? { assignment } : {}),
+  }
+}
+
+async function touchRecord(collegeId: string, branch: string, semester: number, record: ApprovalRecord | null) {
+  await db().collection(APPROVALS).doc(timetableApprovalId(collegeId, branch, semester)).set({
+    branchKey: branchKey(branch),
+    collegeId, branch, semester,
+    status: 'draft',
+    version: record?.version ?? 0,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true })
+}
+
+export const upsertDraftSlot = onCall(OPTS, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) fail('permission-denied', 'Authentication is required')
+  const actor = await staffFor(uid, request.auth?.token || {})
+  const raw = (request.data || {}) as Record<string, unknown>
+  const collegeId = requireCollege(actor, raw.collegeId)
+  const clean = cleanSingleSlot(raw.slot)
+  const id = timetableApprovalId(collegeId, clean.branch, clean.semester)
+  const record = await loadRecord(id)
+  const decision = canTimetableAction(record, 'edit', actor)
+  if (!decision.ok) fail('failed-precondition', decision.reason)
+
+  const faculty = await resolveFaculty(clean.facultyId)
+  const slotId = String(raw.slotId || '').trim()
+  const ref = slotId ? db().collection(DRAFTS).doc(slotId) : db().collection(DRAFTS).doc()
+  const now = new Date().toISOString()
+  if (slotId) {
+    const existing = await ref.get()
+    if (!existing.exists || existing.data()?.collegeId !== collegeId) fail('not-found', 'That class is not in this college\'s draft')
+    if (existing.data()?.approvalId !== id) {
+      fail('failed-precondition', 'A class cannot move to another branch or semester. Delete it and add it there.')
+    }
+  }
+  const fields: Record<string, unknown> = {
+    ...pickSlotFields({ ...clean, facultyName: faculty.name, facultyInitials: faculty.initials }),
+    collegeId, approvalId: id, branchKey: branchKey(clean.branch), isActive: true, updatedAt: now,
+  }
+  // An attachment the request does not mention is left alone (merge keeps it).
+  await ref.set(slotId ? fields : { ...fields, createdAt: now }, { merge: true })
+  await touchRecord(collegeId, clean.branch, clean.semester, record)
+  return { ok: true, id: ref.id, approvalId: id }
+})
+
+export const deleteDraftSlot = onCall(OPTS, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) fail('permission-denied', 'Authentication is required')
+  const actor = await staffFor(uid, request.auth?.token || {})
+  const raw = (request.data || {}) as Record<string, unknown>
+  const collegeId = requireCollege(actor, raw.collegeId)
+  const slotId = String(raw.slotId || '').trim()
+  if (!slotId) fail('invalid-argument', 'slotId is required')
+  const ref = db().collection(DRAFTS).doc(slotId)
+  const snap = await ref.get()
+  if (!snap.exists || snap.data()?.collegeId !== collegeId) fail('not-found', 'That class is not in this college\'s draft')
+  const d = snap.data() as Record<string, unknown>
+  const id = String(d.approvalId)
+  const record = await loadRecord(id)
+  const decision = canTimetableAction(record, 'edit', actor)
+  if (!decision.ok) fail('failed-precondition', decision.reason)
+  await ref.delete()
+  await touchRecord(collegeId, String(d.branch), Number(d.semester), record)
+  return { ok: true }
 })
 
 // ─── HOD / principal: review ───────────────────────────────────────────────
@@ -318,12 +440,8 @@ export const reviewTimetable = onCall(OPTS, async (request) => {
     const s = d.data() as DocumentData
     const ref = db().collection(LIVE).doc(`${prefix}${i}`)
     ops.push((b: WriteBatch) => b.set(ref, {
-      collegeId, branch, semester,
-      subject: s.subject, subjectCode: s.subjectCode || '',
-      facultyId: s.facultyId || '', facultyName: s.facultyName, facultyInitials: s.facultyInitials || '',
-      batch: s.batch || '', division: s.division || '', section: s.section || '',
-      room: s.room || '', dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime,
-      type: s.type || 'lecture', isActive: true,
+      ...pickSlotFields(s),
+      collegeId, branch, semester, type: s.type || 'lecture', isActive: true,
       approvalId: id, approvalVersion: version,
       createdAt: now, updatedAt: now,
     }))

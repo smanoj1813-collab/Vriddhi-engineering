@@ -90,3 +90,42 @@ export const callReviewTimetable = (input: ScopeInput & {
 
 export const callMarkLegacyTimetablesApproved = (input: { collegeId: string }) =>
   httpsCallable<typeof input, { ok: boolean; marked: number; skipped: number }>(functions, 'markLegacyTimetablesApproved')(input).then(r => r.data)
+
+// ─── Single-slot draft edits (Class Schedule Manager in operations mode) ───
+
+export interface DraftSlotInput {
+  subject: string
+  subjectCode: string
+  facultyId: string
+  branch: string
+  batch: string
+  semester: number
+  division: string
+  section: string
+  room: string
+  dayOfWeek: string
+  startTime: string
+  endTime: string
+  type: string
+  assignment?: { title: string; maxScore: number; deadline: string } | null
+}
+
+export const callUpsertDraftSlot = (input: { collegeId: string; slotId?: string; slot: DraftSlotInput }) =>
+  httpsCallable<typeof input, { ok: boolean; id: string; approvalId: string }>(functions, 'upsertDraftSlot')(input).then(r => r.data)
+
+export const callDeleteDraftSlot = (input: { collegeId: string; slotId: string }) =>
+  httpsCallable<typeof input, { ok: boolean }>(functions, 'deleteDraftSlot')(input).then(r => r.data)
+
+/** Draft slots shaped like live weekly schedules, so the manager can show both. */
+export async function fetchDraftSchedules(collegeId: string): Promise<Array<Record<string, unknown> & { id: string; isActive: boolean }>> {
+  const snap = await getDocs(query(collection(db, 'timetableDrafts'), where('collegeId', '==', collegeId)))
+  return snap.docs.map(d => {
+    const x = d.data()
+    return {
+      ...x,
+      id: d.id,
+      isActive: true,
+      draftApprovalId: x.approvalId,
+    } as Record<string, unknown> & { id: string; isActive: boolean }
+  })
+}
