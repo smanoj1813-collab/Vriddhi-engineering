@@ -1409,7 +1409,9 @@ service cloud.firestore {
     // single door that validates the type enum, date order and tenancy before
     // anything can void a class session.
     match /academicCalendar/{eventId} {
-      allow get, list: if isSignedIn() && isStaff() && sameCollege(resource.data);
+      // Operations builds the class timetable, so it needs the holiday calendar
+      // (read-only) to avoid scheduling on a holiday.
+      allow get, list: if isSignedIn() && (isStaff() || role() == 'operations') && sameCollege(resource.data);
       allow create, update, delete: if false;
     }
 
