@@ -265,3 +265,11 @@ test('Class Schedule Manager: operations drafts, admin edits live; principal and
   assert.equal(canAccessAdminPath('hod', '/admin/timetable-approvals', access), true)
   assert.equal(canAccessAdminPath('principal', '/admin/timetable-approvals', access), true)
 })
+
+test('Curriculum Approvals: admin, HOD and principal reach the page; operations does not', () => {
+  const access = { payrollRoles: ['accounts'] } as Parameters<typeof canAccessAdminPath>[2]
+  assert.equal(canAccessAdminPath('admin', '/admin/curriculum-approvals', access), true)
+  assert.equal(canAccessAdminPath('hod', '/admin/curriculum-approvals', access), true)
+  assert.equal(canAccessAdminPath('principal', '/admin/curriculum-approvals', access), true)
+  assert.equal(canAccessAdminPath('operations', '/admin/curriculum-approvals', access), false)
+})

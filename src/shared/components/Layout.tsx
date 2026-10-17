@@ -203,6 +203,7 @@ const navItems: NavItem[] = [
   { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" />, roles: ["admin"], section: "Operations" },
   { label: "Timetable Approvals", path: "/admin/timetable-approvals", icon: <CalendarToday fontSize="small" />, roles: ["principal"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["admin", "principal"], section: "Operations" },
+  { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Operations" },
   { label: "Admission Center", path: "/admin/admissions", icon: <People fontSize="small" />, roles: ["admin", "principal"], section: "Students" },
   { label: "Fee Management", path: "/admin/fee-management", icon: <AttachMoney fontSize="small" />, roles: ["principal"], section: "Finance" },
   { label: "Faculty Payroll", path: "/admin/payroll", icon: <AccountBalance fontSize="small" />, roles: ["principal"], section: "Finance" },
@@ -394,6 +395,7 @@ const principalNav: SidebarEntry[] = [
     icon: <School fontSize="small" />,
     children: [
       { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" /> },
+      { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
     ],
   },
@@ -507,6 +509,7 @@ const hodNav: SidebarEntry[] = [
     icon: <School fontSize="small" />,
     children: [
       { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" /> },
+      { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
       { label: "Scheme Packs", path: "/admin/scheme-packs", icon: <AccountBalance fontSize="small" /> },
       { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },

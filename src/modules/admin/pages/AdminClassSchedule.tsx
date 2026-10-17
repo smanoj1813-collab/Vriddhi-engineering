@@ -664,6 +664,11 @@ const AdminClassSchedule: React.FC = () => {
           Generating sessions, bulk upload and auto-generate are disabled until the timetable is approved.
         </Alert>
       )}
+      {!draftMode && user?.role === 'admin' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Direct edits here go live at once and skip the HOD approval. Every change is logged in the audit trail, which the principal can see.
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 500 }}>

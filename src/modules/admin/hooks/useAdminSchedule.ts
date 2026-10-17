@@ -15,6 +15,8 @@ import {
   fetchDivisionsFromStudents,
 } from '../api/scheduleApi'
 import type { WeeklyClassSchedule, WeeklyScheduleFormData, DayOfWeek } from '../types/schedule'
+import { useAuth } from '../../auth/context/AuthContext'
+import { writeScheduleAudit, type ScheduleAuditEntry } from '../api/curriculumApprovalApi'
 import {
   callDeleteDraftSlot,
   callUpsertDraftSlot,
@@ -52,6 +54,31 @@ function toDraftSlot(data: Partial<WeeklyScheduleFormData> & { facultyId?: strin
 export function useAdminSchedule(collegeId: string, options: { draftMode?: boolean } = {}) {
   const draftMode = !!options.draftMode
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+
+  // Phase 3: every direct live edit leaves an append-only audit entry.
+  // A failed entry fails the action so the admin knows the trail is incomplete.
+  const auditLive = async (
+    action: ScheduleAuditEntry['action'],
+    row: Partial<WeeklyClassSchedule> & { count?: number },
+  ) => {
+    if (draftMode || !user) return
+    const what = row.count
+      ? `${row.count} classes`
+      : [row.subject, row.dayOfWeek, row.startTime && row.endTime ? `${row.startTime}-${row.endTime}` : '']
+          .filter(Boolean).join(' · ')
+    await writeScheduleAudit({
+      collegeId,
+      actorUid: user.uid,
+      actorName: user.name || user.displayName || user.email || '',
+      actorRole: user.role,
+      action,
+      summary: what || 'class',
+      branch: String(row.branch ?? ''),
+      semester: Number(row.semester) || 0,
+      at: new Date().toISOString(),
+    })
+  }
   const queryKey = ['weeklySchedules', 'admin', collegeId, draftMode ? 'draft' : 'live']
 
   const { data: schedules, isLoading: schedulesLoading } = useQuery({
@@ -105,13 +132,16 @@ export function useAdminSchedule(collegeId: string, options: { draftMode?: boole
   const createMutation = useMutation({
     mutationFn: (data: WeeklyScheduleFormData) => (draftMode
       ? callUpsertDraftSlot({ collegeId, slot: toDraftSlot(data) }).then(() => undefined)
-      : createWeeklySchedule(data).then(() => undefined)),
+      : createWeeklySchedule(data).then(() => auditLive('create', data as Partial<WeeklyClassSchedule>))),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<WeeklyScheduleFormData> }) => {
-      if (!draftMode) return updateWeeklySchedule(id, data)
+      if (!draftMode) {
+        return updateWeeklySchedule(id, data).then(() =>
+          auditLive('update', { ...(schedules || []).find(s => s.id === id), ...(data as Partial<WeeklyClassSchedule>) }))
+      }
       // Drafts are replaced whole, so merge the edit onto the current row first.
       const current = (schedules || []).find(s => s.id === id)
       if (!current) throw new Error('That class is no longer in the draft. Refresh and try again.')
@@ -124,20 +154,24 @@ export function useAdminSchedule(collegeId: string, options: { draftMode?: boole
   const deactivateMutation = useMutation({
     mutationFn: (id: string) => (draftMode
       ? callDeleteDraftSlot({ collegeId, slotId: id }).then(() => undefined)
-      : deactivateWeeklySchedule(id)),
+      : deactivateWeeklySchedule(id).then(() => auditLive('deactivate', (schedules || []).find(s => s.id === id) ?? {}))),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => (draftMode
       ? callDeleteDraftSlot({ collegeId, slotId: id }).then(() => undefined)
-      : deleteWeeklySchedule(id)),
+      : deleteWeeklySchedule(id).then(() => auditLive('delete', (schedules || []).find(s => s.id === id) ?? {}))),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
   const bulkCreateMutation = useMutation({
     mutationFn: async (items: WeeklyScheduleFormData[]) => {
-      if (!draftMode) return bulkCreateWeeklySchedules(items)
+      if (!draftMode) {
+        await bulkCreateWeeklySchedules(items)
+        await auditLive('bulk-create', { count: items.length, branch: items[0]?.branch, semester: items[0]?.semester })
+        return
+      }
       for (const item of items) {
         await callUpsertDraftSlot({ collegeId, slot: toDraftSlot(item) })
       }

@@ -17,6 +17,7 @@ import {
   type ApprovalRow,
   type DraftSlot,
 } from '../api/timetableApprovalApi'
+import { listScheduleAudit, type ScheduleAuditEntry } from '../api/curriculumApprovalApi'
 import type { TimetableApprovalStatus } from '../utils/timetableApproval'
 
 const STATUS_TONE: Record<TimetableApprovalStatus, 'slate' | 'amber' | 'red' | 'green' | 'blue'> = {
@@ -50,6 +51,7 @@ export default function TimetableApprovals() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null)
   const [legacyResult, setLegacyResult] = useState('')
+  const [audit, setAudit] = useState<ScheduleAuditEntry[]>([])
 
   const refresh = useCallback(async () => {
     if (!collegeId) return
@@ -62,6 +64,12 @@ export default function TimetableApprovals() {
   }, [collegeId, isHod, hodDepartment])
 
   useEffect(() => { void refresh() }, [refresh])
+
+  // Principal oversight: direct live edits made by admin (Phase 3 audit trail).
+  useEffect(() => {
+    if (!collegeId || !isPrincipal) return
+    listScheduleAudit(collegeId).then(setAudit).catch(() => setAudit([]))
+  }, [collegeId, isPrincipal])
 
   // HODs see only their branch (also enforced by the rules); ops and principal see all.
   const visibleRows = useMemo(() => rows ?? [], [rows])
@@ -257,6 +265,34 @@ export default function TimetableApprovals() {
           )}
         </div>
       </div>
+
+      {isPrincipal && (
+        <div className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-5 space-y-2">
+          <h3 className="font-semibold text-sm">Direct schedule edits (admin, live)</h3>
+          <p className="text-xs text-vriddhi-muted">These changes went live without HOD approval. Most recent first.</p>
+          {audit.length === 0 && <p className="text-xs">No direct edits recorded.</p>}
+          {audit.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-left text-vriddhi-muted">
+                  <tr><th className="py-1 pr-3">When</th><th className="pr-3">By</th><th className="pr-3">Action</th><th className="pr-3">Branch</th><th>Class</th></tr>
+                </thead>
+                <tbody>
+                  {audit.slice(0, 25).map(a => (
+                    <tr key={a.id} className="border-t border-vriddhi-border">
+                      <td className="py-1 pr-3">{new Date(a.at).toLocaleString('en-IN')}</td>
+                      <td className="pr-3">{a.actorName || a.actorRole}</td>
+                      <td className="pr-3 capitalize">{a.action}</td>
+                      <td className="pr-3">{a.branch} · Sem {a.semester}</td>
+                      <td>{a.summary}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {isPrincipal && (
         <div className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-5 space-y-2">
