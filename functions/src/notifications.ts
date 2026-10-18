@@ -1,4 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore';
+import { sendPushToStudents } from './push'
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
 // functions/src/notifications.ts
@@ -383,16 +384,20 @@ export const sendAnnouncement = onCall(
       .get()
 
     let recipientCount = 0
+    // null = every student in the college (a broadcast). Otherwise the exact
+    // recipients, so push goes to the same students the panel shows.
+    let recipientIds: string[] | null = null
     if (audience === 'all') {
       recipientCount = roster.size
     } else if (audience === 'specific') {
       const wanted = new Set(studentIds)
-      recipientCount = roster.docs.filter((doc) => wanted.has(doc.id)).length
+      recipientIds = roster.docs.filter((doc) => wanted.has(doc.id)).map((doc) => doc.id)
+      recipientCount = recipientIds.length
       if (recipientCount === 0) {
         throw new HttpsError('invalid-argument', 'None of the selected students belong to this college')
       }
     } else {
-      recipientCount = roster.docs.filter((doc) =>
+      recipientIds = roster.docs.filter((doc) =>
         announcementTargetsStudent(
           { collegeId, audience, cohort, studentIds: [] },
           {
@@ -405,7 +410,8 @@ export const sendAnnouncement = onCall(
             semester: Number(doc.data().semester) || 0,
           }
         )
-      ).length
+      ).map((doc) => doc.id)
+      recipientCount = recipientIds.length
     }
 
     if (recipientCount === 0) {
@@ -435,7 +441,14 @@ export const sendAnnouncement = onCall(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     })
 
-    return { id: ref.id, recipientCount }
+    // Best-effort push to the same recipients. Never fails the announcement.
+    const push = await sendPushToStudents(collegeId, recipientIds, {
+      title,
+      body: message.slice(0, 180),
+      url: '/student/notifications',
+    })
+
+    return { id: ref.id, recipientCount, push }
   }
 )
 
@@ -449,8 +462,9 @@ export const listCollegeAnnouncements = onCall(
     const collegeId = staff.role === 'superadmin' ? requestedCollege : staff.collegeId
     if (!collegeId) throw new HttpsError('invalid-argument', 'collegeId is required')
 
-    const snap = await admin
-      .firestore()
+    // Same named database as sendAnnouncement writes to ('default'), not the
+    // (default) database that admin.firestore() would pick.
+    const snap = await getFirestore(admin.app(), 'default')
       .collection('notifications')
       .where('collegeId', '==', collegeId)
       .limit(200)
@@ -513,8 +527,7 @@ const MAX_FEED = 100
 async function loadAddressedAnnouncements(
   student: NotificationStudent
 ): Promise<Array<{ id: string; data: admin.firestore.DocumentData }>> {
-  const snap = await admin
-    .firestore()
+  const snap = await getFirestore(admin.app(), 'default')
     .collection('notifications')
     .where('collegeId', '==', student.collegeId)
     .limit(200)

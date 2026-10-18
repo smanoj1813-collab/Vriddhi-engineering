@@ -553,17 +553,20 @@ const AdminCurriculum: React.FC = () => {
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { refreshCurriculum(); refresh() }}>
             Refresh
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AIIcon />}
-            onClick={() => {
-              const first = activeSemester?.courses[0]?.curriculum || curriculumList[0]
-              if (first) setAutoMapFor(first)
-            }}
-            disabled={curriculumList.length === 0}
-          >
-            Auto-Map
-          </Button>
+          {/* Auto-map moved to Operations (Class Schedule). The principal only reviews the curriculum. */}
+          {user?.role !== 'principal' && (
+            <Button
+              variant="contained"
+              startIcon={<AIIcon />}
+              onClick={() => {
+                const first = activeSemester?.courses[0]?.curriculum || curriculumList[0]
+                if (first) setAutoMapFor(first)
+              }}
+              disabled={curriculumList.length === 0}
+            >
+              Auto-Map
+            </Button>
+          )}
         </Box>
       </Box>
 

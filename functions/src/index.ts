@@ -126,6 +126,17 @@ import { saveObeSurvey, previewObeSurveyScores } from './obeSurvey'
 import { autoGenerateWeeklySchedule } from './autoSchedule'
 // ─── Academic calendar: holidays, fests, exam windows (Auto-Scheduler v2) ────
 import { saveCalendarEvent, deleteCalendarEvent } from './calendar'
+// ─── Timetable approval: ops drafts, HOD approves, principal fallback ───
+import {
+  saveTimetableDraft,
+  copyLiveToDraft,
+  submitTimetable,
+  reviewTimetable,
+  markLegacyTimetablesApproved,
+  upsertDraftSlot,
+  deleteDraftSlot,
+} from './timetableApproval'
+import { verifyCurriculumList, reviewCurriculumApproval } from './curriculumApproval'
 // ─── Assignment completion analytics (course/module/batch/division) ───
 import { getAssignmentAnalytics } from './assignmentAnalytics'
 // ─── Announcements: server-authoritative targeting + per-recipient reads ───
@@ -375,6 +386,15 @@ export {
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  saveTimetableDraft,
+  copyLiveToDraft,
+  submitTimetable,
+  reviewTimetable,
+  markLegacyTimetablesApproved,
+  upsertDraftSlot,
+  deleteDraftSlot,
+  verifyCurriculumList,
+  reviewCurriculumApproval,
   getMyAcademicJourney,
   getMyCurriculum,
   getMyStudentAcademicContext,

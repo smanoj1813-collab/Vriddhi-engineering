@@ -3,6 +3,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import AutoScheduleDialog from './AutoScheduleDialog'
+import AutoMapDialog from '../components/AutoMapDialog'
+import { useCurriculumMapping } from '../hooks/useCurriculumMapping'
+import type { CurriculumDoc } from '../../../shared/types/curriculum'
 import HolidayBanner from '@/shared/components/HolidayBanner'
 import { useAcademicCalendar } from '@/shared/hooks/useAcademicCalendar'
 import { KARNATAKA_PUBLIC_HOLIDAYS } from '@/shared/data/karnatakaPublicHolidays'
@@ -158,6 +161,8 @@ const AdminClassSchedule: React.FC = () => {
     return state?.prefill ?? null
   }, [location.state])
 
+  // Operations edits the timetable as drafts; the HOD approves before it is live.
+  const draftMode = user?.role === 'operations'
   const {
     weeklySchedule,
     facultyList,
@@ -171,7 +176,7 @@ const AdminClassSchedule: React.FC = () => {
     deleteSchedule,
     isCreating,
     isUpdating,
-  } = useAdminSchedule(collegeId)
+  } = useAdminSchedule(collegeId, { draftMode })
 
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday')
   // ─── Timetable export (PDF / JPG) ───
@@ -233,6 +238,12 @@ const AdminClassSchedule: React.FC = () => {
   })
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [autoScheduleOpen, setAutoScheduleOpen] = useState(false)
+  // Auto-map moved here from the principal's Curriculum page. Operations picks
+  // the curriculum, maps faculty, then auto-generates a draft.
+  const curriculumMapping = useCurriculumMapping(collegeId)
+  const [autoMapPickerOpen, setAutoMapPickerOpen] = useState(false)
+  const [autoMapPickId, setAutoMapPickId] = useState('')
+  const [autoMapCurriculum, setAutoMapCurriculum] = useState<CurriculumDoc | null>(null)
   const queryClient = useQueryClient()
   const [csvText, setCsvText] = useState('')
   // Server-side import review: preview (dryRun) → apply. Nothing is written
@@ -656,13 +667,27 @@ const AdminClassSchedule: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
+      {draftMode && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Changes here are drafts. Students and faculty see a branch's timetable only after its HOD approves it.
+          Generating sessions and bulk upload are disabled until the timetable is approved.
+          Auto-generate saves a draft for HOD approval.
+        </Alert>
+      )}
+      {!draftMode && user?.role === 'admin' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Direct edits here go live at once and skip the HOD approval. Every change is logged in the audit trail, which the principal can see.
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 500 }}>
             Class Schedule Manager
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Manage weekly recurring class schedules for all branches and batches
+            {draftMode
+              ? 'Prepare branch and semester timetables as drafts, then send them to the HOD'
+              : 'Manage weekly recurring class schedules for all branches and batches'}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -673,6 +698,7 @@ const AdminClassSchedule: React.FC = () => {
           >
             Download
           </Button>
+{!draftMode && (
           <Tooltip title="Creates dated class sessions from this weekly timetable for a term — needed for faculty attendance, rescheduling and the student timetable.">
           <Button
             variant="outlined"
@@ -682,6 +708,16 @@ const AdminClassSchedule: React.FC = () => {
             Generate Sessions
           </Button>
           </Tooltip>
+
+)}<Button
+            variant="outlined"
+            startIcon={<AutoIcon />}
+            onClick={() => setAutoMapPickerOpen(true)}
+            disabled={curriculumMapping.curriculumList.length === 0}
+          >
+            Auto-Map Faculty
+          </Button>
+        {(
           <Button
             variant="outlined"
             startIcon={<AutoIcon />}
@@ -689,6 +725,8 @@ const AdminClassSchedule: React.FC = () => {
           >
             Auto Generate
           </Button>
+
+)}{!draftMode && (
           <Button
             variant="outlined"
             startIcon={<UploadIcon />}
@@ -696,7 +734,8 @@ const AdminClassSchedule: React.FC = () => {
           >
             Bulk Upload
           </Button>
-          <Button
+
+)}          <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => handleOpen()}
@@ -706,6 +745,56 @@ const AdminClassSchedule: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      <Dialog open={autoMapPickerOpen} onClose={() => setAutoMapPickerOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Auto-map faculty</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 1 }}>
+            <InputLabel>Curriculum</InputLabel>
+            <Select
+              label="Curriculum"
+              value={autoMapPickId}
+              onChange={e => setAutoMapPickId(String(e.target.value))}
+            >
+              {curriculumMapping.curriculumList.map(c => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.branch} · Semester {c.semester}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAutoMapPickerOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!autoMapPickId}
+            onClick={() => {
+              const picked = curriculumMapping.curriculumList.find(c => c.id === autoMapPickId) || null
+              setAutoMapCurriculum(picked)
+              setAutoMapPickerOpen(false)
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {autoMapCurriculum && (
+        <AutoMapDialog
+          curriculum={autoMapCurriculum}
+          knownBatches={batches}
+          divisionOptions={divisionOptions}
+          onClose={() => setAutoMapCurriculum(null)}
+          onApplied={created => {
+            setAutoMapCurriculum(null)
+            curriculumMapping.refresh()
+            setSnackbar({ open: true, message: created > 0
+              ? `${created} subject${created === 1 ? '' : 's'} auto-mapped`
+              : 'No new mappings were applied', severity: created > 0 ? 'success' : 'warning' })
+          }}
+        />
+      )}
 
       <AutoScheduleDialog
         collegeId={collegeId}
@@ -881,6 +970,7 @@ const AdminClassSchedule: React.FC = () => {
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+{!draftMode && (
                     <Tooltip title="Cancel slot and its future sessions">
                       <span>
                         <IconButton
@@ -893,7 +983,8 @@ const AdminClassSchedule: React.FC = () => {
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Delete">
+
+)}                    <Tooltip title="Delete">
                       <IconButton size="small" color="error" onClick={() => handleDelete(schedule.id)}>
                         <DeleteIcon fontSize="small" />
                       </IconButton>

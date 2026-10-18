@@ -277,6 +277,13 @@ service cloud.firestore {
         && (isSuperadmin() || (isStaff() && (sameCollege(data) || !('collegeId' in data))));
     }
 
+    // Operations verifies the course list and builds the timetable, so it
+    // must see the curriculum of its own college. Read only, same college
+    // only; the superadmin-owned write rules are unchanged.
+    function canOpsReadCurriculum(data) {
+      return isSignedIn() && role() == 'operations' && sameCollege(data);
+    }
+
     // The faculty member a curriculum-related row names as owner. Used by
     // facultyTopics (the planner ledger) and curriculumFacultyMappings
     // (tenancy on a legacy row may be absent, so ownership proves access).
@@ -999,6 +1006,17 @@ service cloud.firestore {
         allow read, write: if isOps(collegeId);
       }
 
+      // -- Push device tokens. A student's browser registers its own token; only
+      // the Admin SDK (announcement sends) reads them. --------------------------
+      match /pushTokens/{tokenId} {
+        allow read: if false;
+        allow create, update: if isSignedIn()
+          && request.auth.uid == request.resource.data.uid
+          && request.resource.data.token == tokenId
+          && inCollege(collegeId);
+        allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
+      }
+
       // -- Inventory, procurement, vendor bills --------------------------------
       match /assets/{docId} {
         allow read: if isBackOffice(collegeId);
@@ -1398,7 +1416,9 @@ service cloud.firestore {
     // single door that validates the type enum, date order and tenancy before
     // anything can void a class session.
     match /academicCalendar/{eventId} {
-      allow get, list: if isSignedIn() && isStaff() && sameCollege(resource.data);
+      // Operations builds the class timetable, so it needs the holiday calendar
+      // (read-only) to avoid scheduling on a holiday.
+      allow get, list: if isSignedIn() && (isStaff() || role() == 'operations') && sameCollege(resource.data);
       allow create, update, delete: if false;
     }
 
@@ -1422,6 +1442,53 @@ service cloud.firestore {
       allow delete: if isCollegeStaff() && sameCollege(resource.data);
     }
 
+    // Timetable approval (see functions/src/timetableApproval.ts). Clients only
+    // read: every write goes through the callables, which enforce the workflow.
+    match /timetableApprovals/{approvalId} {
+      // A list query must be constrained to the caller's college (and, for a
+      // HOD, to their branchKey) so the rule can be proven against the query.
+      allow get: if isSignedIn() && sameCollege(resource.data)
+        && (isOps(resource.data.collegeId)
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.branchKey == claimDepartment()));
+      allow list: if isSignedIn()
+        && ((isOps(collegeId()) && resource.data.collegeId == collegeId())
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.collegeId == collegeId()
+                && resource.data.branchKey == claimDepartment()));
+      allow write: if false;
+    }
+
+    match /timetableDrafts/{draftId} {
+      allow get: if isSignedIn() && sameCollege(resource.data)
+        && (isOps(resource.data.collegeId)
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.branchKey == claimDepartment()));
+      allow list: if isSignedIn()
+        && ((isOps(collegeId()) && resource.data.collegeId == collegeId())
+            || (role() == 'hod' && claimDepartment() != '' && resource.data.collegeId == collegeId()
+                && resource.data.branchKey == claimDepartment()));
+      allow write: if false;
+    }
+
+    // Curriculum verification and review: ops, admin, HOD and principal read their
+    // college's records; writes go through the callables only.
+    match /curriculumApprovals/{approvalId} {
+      allow get: if isSignedIn() && (isSuperadmin()
+        || (role() in ['principal', 'admin', 'hod', 'operations'] && resource.data.collegeId == collegeId()));
+      allow list: if isSignedIn() && (isSuperadmin()
+        || (role() in ['principal', 'admin', 'hod', 'operations'] && resource.data.collegeId == collegeId()));
+      allow write: if false;
+    }
+
+    // Append-only audit trail of direct (live) edits to the class schedule.
+    // Staff write only their own entries; nobody can change or delete one.
+    match /scheduleAuditLog/{entryId} {
+      allow get, list: if isSignedIn() && (isSuperadmin()
+        || (role() in ['principal', 'admin'] && resource.data.collegeId == collegeId()));
+      allow create: if isSignedIn() && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.collegeId == collegeId()
+        && role() in ['admin', 'superadmin'];
+      allow update, delete: if false;
+    }
+
     match /classSessions/{sessionId} {
       allow get: if isSignedIn()
         && (isStaff() || sameCollege(resource.data))
@@ -1443,6 +1510,7 @@ service cloud.firestore {
       // used to do (now scoped).
       allow get, list: if isSuperadmin()
         || (isStaff() && sameCollege(resource.data))
+        || (role() == 'operations' && sameCollege(resource.data))
         || isAssignedFaculty(resource.data);
       // Assigning curriculum is a management act (superadmin or the college's
       // admin/hod/principal). The previous isCollegeStaff() also admitted
@@ -1671,7 +1739,7 @@ service cloud.firestore {
     // assigned curriculum with one unbounded query. canReadCurriculum() is
     // now the single definition for both.
     match /curriculum/{docId} {
-      allow get, list: if canReadCurriculum(resource.data);
+      allow get, list: if canReadCurriculum(resource.data) || canOpsReadCurriculum(resource.data);
       allow write: if isSuperadmin()
         || (role() in ['admin', 'hod'] && sameCollege(request.resource.data));
     }
@@ -1682,7 +1750,7 @@ service cloud.firestore {
     // it. Unassigned extracts stay hidden from staff because the field is
     // present and null, which fails sameCollege.
     match /syllabusExtracts/{docId} {
-      allow get, list: if canReadCurriculum(resource.data);
+      allow get, list: if canReadCurriculum(resource.data) || canOpsReadCurriculum(resource.data);
       allow write: if isSuperadmin()
         || (role() in ['admin', 'hod'] && sameCollege(request.resource.data));
     }

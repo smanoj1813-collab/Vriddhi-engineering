@@ -8,6 +8,8 @@ import { AdminPathGate } from './components/AdminPathGate';
 const LibraryManagement = lazy(() => import('@/modules/office/pages/LibraryManagement'));
 const LibraryFinesPage = lazy(() => import('@/modules/office/pages/LibraryFinesPage'));
 const HostelManagement = lazy(() => import('@/modules/office/pages/HostelManagement'));
+const TimetableApprovals = lazy(() => import('./pages/TimetableApprovals'));
+const CurriculumApprovals = lazy(() => import('./pages/CurriculumApprovals'));
 const TransportManagement = lazy(() => import('@/modules/office/pages/TransportManagement'));
 const InventoryManagement = lazy(() => import('@/modules/office/pages/InventoryManagement'));
 const VendorsPage = lazy(() => import('@/modules/office/pages/VendorsPage'));
@@ -185,6 +187,8 @@ export const adminRoutes: RouteObject[] = [
       { path: 'library-fines', element: <LazyPage><LibraryFinesPage /></LazyPage> },
       // ── College office: hostel & transport ──
       { path: 'hostel', element: <LazyPage><HostelManagement /></LazyPage> },
+      { path: 'timetable-approvals', element: <LazyPage><TimetableApprovals /></LazyPage> },
+      { path: 'curriculum-approvals', element: <LazyPage><CurriculumApprovals /></LazyPage> },
       { path: 'transport', element: <LazyPage><TransportManagement /></LazyPage> },
       { path: 'inventory', element: <LazyPage><InventoryManagement /></LazyPage> },
       { path: 'inventory/:tab', element: <LazyPage><InventoryManagement /></LazyPage> },
