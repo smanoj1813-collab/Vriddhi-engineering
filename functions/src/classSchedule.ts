@@ -974,6 +974,20 @@ export async function resolveSchedulingStaff(
 }
 
 /**
+ * Roles that may run auto-mapping and auto-generate. Operations is added here
+ * only: it cannot write live timetable docs directly. Its auto-generate run
+ * lands in the draft queue (see autoSchedule.ts), which HOD approves.
+ */
+export const OPS_SCHEDULE_ROLES = [...SCHEDULING_ROLES, 'operations']
+
+export async function resolveOpsSchedulingStaff(
+  uid: string,
+  token: Record<string, unknown>
+): Promise<SchedulingStaff> {
+  return resolveStaff(uid, token, OPS_SCHEDULE_ROLES, 'Scheduling administration access is required')
+}
+
+/**
  * Same check as resolveSchedulingStaff, but also lets faculty and mentors
  * through — they are the ones standing in front of a class. A self-service
  * caller is pinned to their own identity by ensureClassSession and

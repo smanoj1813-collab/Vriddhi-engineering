@@ -341,6 +341,48 @@ async function touchRecord(collegeId: string, branch: string, semester: number, 
   }, { merge: true })
 }
 
+/**
+ * Replace the draft for one branch and semester with an auto-generated run.
+ * Operations only: the same edit rule and curriculum-verification gate as a
+ * manual draft save. Full placement documents are kept, not the cleaned slot
+ * shape, so approval keeps effective dates and module queues.
+ */
+export async function replaceDraftFromAutoSchedule(
+  actor: ApprovalActor & { collegeId: string; name: string },
+  collegeId: string,
+  branch: string,
+  semester: number,
+  docs: Array<Record<string, unknown>>,
+): Promise<{ approvalId: string; draftCount: number }> {
+  const id = timetableApprovalId(collegeId, branch, semester)
+  const record = await loadRecord(id)
+  const decision = canTimetableAction(record, 'edit', actor)
+  if (!decision.ok) fail('failed-precondition', decision.reason)
+  await requireVerifiedCurriculum(collegeId, branch, semester)
+
+  const old = await draftQuery(id)
+  const now = new Date().toISOString()
+  const ops: Array<(b: WriteBatch) => void> = old.docs.map(d => (b: WriteBatch) => b.delete(d.ref))
+  for (const doc of docs) {
+    const ref = db().collection(DRAFTS).doc()
+    ops.push((b: WriteBatch) => b.set(ref, {
+      ...doc, collegeId, branch, branchKey: branchKey(branch), semester, approvalId: id, isActive: true, createdAt: now, updatedAt: now,
+    }))
+  }
+  await commitChunks(ops)
+
+  await db().collection(APPROVALS).doc(id).set({
+    branchKey: branchKey(branch),
+    collegeId, branch, semester,
+    status: 'draft',
+    version: record?.version ?? 0,
+    ...(record?.submittedBy ? { submittedBy: record.submittedBy } : {}),
+    draftCount: docs.length,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true })
+  return { approvalId: id, draftCount: docs.length }
+}
+
 export const upsertDraftSlot = onCall(OPTS, async (request) => {
   const uid = request.auth?.uid
   if (!uid) fail('permission-denied', 'Authentication is required')

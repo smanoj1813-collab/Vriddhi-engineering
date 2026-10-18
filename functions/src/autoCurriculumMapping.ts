@@ -49,7 +49,7 @@ if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import { Timestamp } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { resolveSchedulingStaff } from './classSchedule'
+import { resolveOpsSchedulingStaff } from './classSchedule'
 import { batchFieldsIntersect, batchKeysMatch, cohortLetters, divisionScopesOverlap } from './cohortBatch'
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -974,7 +974,7 @@ const AUTO_MAP_REGION = { region: 'asia-south1' as const }
 export const autoMapCurriculum = onCall(AUTO_MAP_REGION, async (request) => {
   const uid = request.auth?.uid
   if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
-  const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
+  const staff = await resolveOpsSchedulingStaff(uid, request.auth?.token || {})
   const payload = validateAutoMapPayload(request.data, staff.role, staff.collegeId)
 
   const db = getFirestore(admin.app(), 'default')
@@ -1007,7 +1007,7 @@ export const applyAutoMapping = onCall(
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
-    const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
+    const staff = await resolveOpsSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateAutoMapPayload(request.data, staff.role, staff.collegeId)
 
     const db = getFirestore(admin.app(), 'default')

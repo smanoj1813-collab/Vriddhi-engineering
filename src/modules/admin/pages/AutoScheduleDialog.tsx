@@ -251,7 +251,9 @@ export default function AutoScheduleDialog({ collegeId, open, onClose, onApplied
       // apply replays exactly the previewed grid.
       if (res.randomSeed && !form.seed) setForm((f) => ({ ...f, seed: res.randomSeed as string }));
       if (!dryRun) {
-        setAppliedInfo(`Applied: ${res.created ?? res.plan.placements.length} slots written to the timetable${form.dateFrom ? ` (valid ${form.dateFrom}${form.dateTo ? ` → ${form.dateTo}` : ''})` : ''}`);
+        setAppliedInfo(res.draft
+          ? `Saved as a draft: ${res.created ?? res.plan.placements.length} slots. The HOD must approve it before it goes live.`
+          : `Applied: ${res.created ?? res.plan.placements.length} slots written to the timetable${form.dateFrom ? ` (valid ${form.dateFrom}${form.dateTo ? ` → ${form.dateTo}` : ''})` : ''}`);
         onApplied();
       }
     } catch (e) {

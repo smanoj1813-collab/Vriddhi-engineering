@@ -38,7 +38,9 @@ if (!getApps().length) initializeApp();
 import * as admin from 'firebase-admin'
 import { Timestamp } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { resolveSchedulingStaff, isValidDateKey, daysBetween, MAX_GENERATE_RANGE_DAYS } from './classSchedule'
+import { resolveOpsSchedulingStaff, isValidDateKey, daysBetween, MAX_GENERATE_RANGE_DAYS } from './classSchedule'
+import { replaceDraftFromAutoSchedule } from './timetableApproval'
+import { requireVerifiedCurriculum } from './curriculumApproval'
 import { hoursPerWeek, DEFAULT_SEMESTER_WEEKS, DEFAULT_CAPACITY_WEEKLY_HOURS } from './autoCurriculumMapping'
 import { normalizeDay, isValidTime } from './scheduleImport'
 import { buildCalendarView, toCalendarEventLite, MAX_CALENDAR_READ, type CalendarView, type CalendarEventLite } from './calendar'
@@ -1400,8 +1402,11 @@ export const autoGenerateWeeklySchedule = onCall(
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Authentication is required')
-    const staff = await resolveSchedulingStaff(uid, request.auth?.token || {})
+    const staff = await resolveOpsSchedulingStaff(uid, request.auth?.token || {})
     const payload = validateAutoSchedulePayload(request.data, staff.role, staff.collegeId)
+    // Operations never writes live timetable docs: its run becomes a draft
+    // for HOD review, and the course list must be verified first.
+    const opsDraft = staff.role === 'operations'
 
     const db = getFirestore(admin.app(), 'default')
 
@@ -1414,6 +1419,7 @@ export const autoGenerateWeeklySchedule = onCall(
     }
     const branch = String(curriculum.branch ?? '').trim()
     const semester = Number(curriculum.semester ?? 0) || 0
+    if (opsDraft) await requireVerifiedCurriculum(payload.collegeId, branch, semester)
 
     // 2. Active course ↔ faculty mappings for this cohort. The stored
     // division letter list is the teaching group: explicit A,B stays one
@@ -1510,6 +1516,16 @@ export const autoGenerateWeeklySchedule = onCall(
       .limit(MAX_SCHEDULES_READ)
       .get()
     assertTimetableOccupancyComplete(schedulesSnap.size)
+    // Drafts from other branches and semesters also occupy rooms and faculty.
+    // This run's own scope is skipped: it is replaced below, not avoided.
+    const otherDraftDocs = opsDraft
+      ? (await db.collection('timetableDrafts').where('collegeId', '==', payload.collegeId).limit(MAX_SCHEDULES_READ).get())
+          .docs.filter(d => {
+            const x = d.data() as Record<string, unknown>
+            return !(String(x.branch ?? '') === branch && Number(x.semester ?? 0) === semester)
+          })
+      : []
+    const occupancyDocs = [...schedulesSnap.docs, ...otherDraftDocs]
     const gridSlots = buildSlots(payload.grid)
     const occupancy: Occupancy = {
       facultyBusy: new Set(),
@@ -1522,7 +1538,7 @@ export const autoGenerateWeeklySchedule = onCall(
     }
 
     const existingFacultyMeetings = new Set<string>()
-    for (const document of schedulesSnap.docs) {
+    for (const document of occupancyDocs) {
       const schedule = document.data() as Record<string, unknown>
       if (schedule.isActive === false) continue
       const day = normalizeDay(schedule.dayOfWeek)
@@ -1628,7 +1644,7 @@ export const autoGenerateWeeklySchedule = onCall(
     }
 
     const now = Timestamp.now()
-    const writeBatch = db.batch()
+    const placementDocs: Array<Record<string, unknown>> = []
     for (const p of plan.placements) {
       const initials = p.facultyName
         .split(' ')
@@ -1637,7 +1653,7 @@ export const autoGenerateWeeklySchedule = onCall(
         .join('')
         .toUpperCase()
         .slice(0, 2)
-      writeBatch.set(db.collection('weeklySchedules').doc(), {
+      placementDocs.push({
         collegeId: payload.collegeId,
         subject: p.subject,
         subjectCode: p.subjectCode,
@@ -1671,6 +1687,32 @@ export const autoGenerateWeeklySchedule = onCall(
         updatedAt: now.toDate().toISOString(),
       })
     }
+    if (opsDraft) {
+      if (plan.placements.some(p => p.branch !== branch || p.semester !== semester)) {
+        throw new HttpsError('failed-precondition', 'The run placed classes outside the selected curriculum; nothing was saved')
+      }
+      const saved = await replaceDraftFromAutoSchedule(
+        { uid: staff.uid, role: staff.role, department: '', collegeId: payload.collegeId, name: staff.name },
+        payload.collegeId,
+        branch,
+        semester,
+        placementDocs,
+      )
+      return {
+        dryRun: false,
+        draft: true,
+        approvalId: saved.approvalId,
+        plan,
+        created: plan.placements.length,
+        warnings: [
+          ...responseWarnings,
+          'Saved as a draft. It goes live only after the HOD approves it.',
+        ],
+        ...(plan.randomSeed ? { randomSeed: plan.randomSeed } : {}),
+      }
+    }
+    const writeBatch = db.batch()
+    for (const doc of placementDocs) writeBatch.set(db.collection('weeklySchedules').doc(), doc)
     await writeBatch.commit()
     return {
       dryRun: false,

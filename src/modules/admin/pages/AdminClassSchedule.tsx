@@ -3,6 +3,9 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import AutoScheduleDialog from './AutoScheduleDialog'
+import AutoMapDialog from '../components/AutoMapDialog'
+import { useCurriculumMapping } from '../hooks/useCurriculumMapping'
+import type { CurriculumDoc } from '../../../shared/types/curriculum'
 import HolidayBanner from '@/shared/components/HolidayBanner'
 import { useAcademicCalendar } from '@/shared/hooks/useAcademicCalendar'
 import { KARNATAKA_PUBLIC_HOLIDAYS } from '@/shared/data/karnatakaPublicHolidays'
@@ -235,6 +238,12 @@ const AdminClassSchedule: React.FC = () => {
   })
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [autoScheduleOpen, setAutoScheduleOpen] = useState(false)
+  // Auto-map moved here from the principal's Curriculum page. Operations picks
+  // the curriculum, maps faculty, then auto-generates a draft.
+  const curriculumMapping = useCurriculumMapping(collegeId)
+  const [autoMapPickerOpen, setAutoMapPickerOpen] = useState(false)
+  const [autoMapPickId, setAutoMapPickId] = useState('')
+  const [autoMapCurriculum, setAutoMapCurriculum] = useState<CurriculumDoc | null>(null)
   const queryClient = useQueryClient()
   const [csvText, setCsvText] = useState('')
   // Server-side import review: preview (dryRun) → apply. Nothing is written
@@ -661,7 +670,8 @@ const AdminClassSchedule: React.FC = () => {
       {draftMode && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Changes here are drafts. Students and faculty see a branch's timetable only after its HOD approves it.
-          Generating sessions, bulk upload and auto-generate are disabled until the timetable is approved.
+          Generating sessions and bulk upload are disabled until the timetable is approved.
+          Auto-generate saves a draft for HOD approval.
         </Alert>
       )}
       {!draftMode && user?.role === 'admin' && (
@@ -699,7 +709,15 @@ const AdminClassSchedule: React.FC = () => {
           </Button>
           </Tooltip>
 
-)}{!draftMode && (
+)}<Button
+            variant="outlined"
+            startIcon={<AutoIcon />}
+            onClick={() => setAutoMapPickerOpen(true)}
+            disabled={curriculumMapping.curriculumList.length === 0}
+          >
+            Auto-Map Faculty
+          </Button>
+        {(
           <Button
             variant="outlined"
             startIcon={<AutoIcon />}
@@ -727,6 +745,56 @@ const AdminClassSchedule: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      <Dialog open={autoMapPickerOpen} onClose={() => setAutoMapPickerOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Auto-map faculty</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 1 }}>
+            <InputLabel>Curriculum</InputLabel>
+            <Select
+              label="Curriculum"
+              value={autoMapPickId}
+              onChange={e => setAutoMapPickId(String(e.target.value))}
+            >
+              {curriculumMapping.curriculumList.map(c => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.branch} · Semester {c.semester}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAutoMapPickerOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!autoMapPickId}
+            onClick={() => {
+              const picked = curriculumMapping.curriculumList.find(c => c.id === autoMapPickId) || null
+              setAutoMapCurriculum(picked)
+              setAutoMapPickerOpen(false)
+            }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {autoMapCurriculum && (
+        <AutoMapDialog
+          curriculum={autoMapCurriculum}
+          knownBatches={batches}
+          divisionOptions={divisionOptions}
+          onClose={() => setAutoMapCurriculum(null)}
+          onApplied={created => {
+            setAutoMapCurriculum(null)
+            curriculumMapping.refresh()
+            setSnackbar({ open: true, message: created > 0
+              ? `${created} subject${created === 1 ? '' : 's'} auto-mapped`
+              : 'No new mappings were applied', severity: created > 0 ? 'success' : 'warning' })
+          }}
+        />
+      )}
 
       <AutoScheduleDialog
         collegeId={collegeId}

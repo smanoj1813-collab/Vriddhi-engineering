@@ -216,6 +216,9 @@ export interface AutoScheduleResponse {
   dryRun: boolean;
   plan: AutoSchedulePlan;
   created?: number;
+  /** Operations runs are saved as a draft for HOD approval, not written live. */
+  draft?: boolean;
+  approvalId?: string;
   /** Non-fatal operator hints (e.g. a dateRange wider than one generate run). */
   warnings?: string[];
   /** Effective RNG seed when strategy/room pick is random. */

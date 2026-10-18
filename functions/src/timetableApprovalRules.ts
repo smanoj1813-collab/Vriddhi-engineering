@@ -95,6 +95,9 @@ export const SLOT_FIELDS = [
   'branch', 'batch', 'semester', 'division', 'section', 'room',
   'dayOfWeek', 'startTime', 'endTime', 'type', 'assignment',
   'effectiveFrom', 'effectiveTo',
+  // Carried by the auto-scheduler. Without these an approved auto-generated
+  // timetable would lose its module-queue hint and meeting identity.
+  'mappingId', 'demandKey', 'meetingKey', 'moduleQueue', 'autoScheduled',
 ] as const
 
 export function pickSlotFields(source: Record<string, unknown>): Record<string, unknown> {
