@@ -110,11 +110,11 @@ export default function CurriculumApprovals() {
           const reviewLabel = reviewStatus === 'approved' ? 'Principal approved' : reviewStatus === 'returned' ? 'Returned by principal' : 'Awaiting principal'
           const reviewTone = reviewStatus === 'approved' ? 'green' : reviewStatus === 'returned' ? 'red' : 'slate'
           return (
-            <div key={id} className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-4 space-y-3">
+            <div key={id} className="rounded-2xl vriddhi-card p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="font-medium text-sm">{scope.branch} · Semester {scope.semester}</div>
-                  <div className="text-xs text-vriddhi-muted">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {scope.courseCount} course{scope.courseCount === 1 ? '' : 's'}
                     {approval?.verifiedAt ? ` · verified ${new Date(approval.verifiedAt).toLocaleString('en-IN')}` : ''}
                     {approval?.reviewNote ? ` · note: ${approval.reviewNote}` : ''}
@@ -140,14 +140,14 @@ export default function CurriculumApprovals() {
               </div>
 
               {isPrincipal && (
-                <div className="space-y-2 border-t border-vriddhi-border pt-3">
+                <div className="space-y-2 border-t border-slate-200 dark:border-slate-700 pt-3">
                   <label className="block text-sm">
-                    <span className="block text-vriddhi-muted mb-1">Note (required when returning)</span>
+                    <span className="block text-slate-500 dark:text-slate-400 mb-1">Note (required when returning)</span>
                     <textarea
                       value={note}
                       onChange={e => setNotes(n => ({ ...n, [id]: e.target.value }))}
                       rows={2}
-                      className="w-full rounded-xl border border-vriddhi-border bg-transparent px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
                     />
                   </label>
                   <div className="flex flex-wrap justify-end gap-2">

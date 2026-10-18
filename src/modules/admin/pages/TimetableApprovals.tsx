@@ -187,20 +187,20 @@ export default function TimetableApprovals() {
               key={row.id}
               type="button"
               onClick={() => void open(row)}
-              className={`w-full text-left rounded-xl border p-3 ${selected?.id === row.id ? 'border-vriddhi-accent' : 'border-vriddhi-border'} bg-vriddhi-card`}
+              className={`w-full text-left rounded-xl p-3 vriddhi-card ${selected?.id === row.id ? 'ring-2 ring-teal-500' : ''}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium text-sm">{row.branch} · Sem {row.semester}</span>
                 <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>
               </div>
-              <div className="text-xs text-vriddhi-muted mt-1">
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Version {row.version}{row.legacyCutover ? ' · existing timetable' : ''}
               </div>
             </button>
           ))}
         </div>
 
-        <div className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-5 min-h-[240px]">
+        <div className="rounded-2xl vriddhi-card p-5 min-h-[240px]">
           {!selected && <Empty title="Select a timetable" hint="Choose one on the left." />}
 
           {selected && (
@@ -208,7 +208,7 @@ export default function TimetableApprovals() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">{selected.branch} · Semester {selected.semester}</h2>
-                  <p className="text-xs text-vriddhi-muted">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {STATUS_LABEL[selected.status]}
                     {selected.submittedAt ? ` · sent ${new Date(selected.submittedAt).toLocaleString('en-IN')}` : ''}
                     {selected.reviewNote ? ` · note: ${selected.reviewNote}` : ''}
@@ -235,15 +235,15 @@ export default function TimetableApprovals() {
               )}
 
               {canReview && (
-                <div className="space-y-3 border-t border-vriddhi-border pt-4">
+                <div className="space-y-3 border-t border-slate-200 dark:border-slate-700 pt-4">
                   <label className="block text-sm">
-                    <span className="block text-vriddhi-muted mb-1">Note (required when returning)</span>
-                    <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full rounded-xl border border-vriddhi-border bg-transparent px-3 py-2 text-sm" />
+                    <span className="block text-slate-500 dark:text-slate-400 mb-1">Note (required when returning)</span>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent px-3 py-2 text-sm" />
                   </label>
                   {isPrincipal && (
                     <label className="block text-sm">
-                      <span className="block text-vriddhi-muted mb-1">Fallback reason (required: the HOD is unavailable)</span>
-                      <input value={fallback} onChange={e => setFallback(e.target.value)} className="w-full rounded-xl border border-vriddhi-border bg-transparent px-3 py-2 text-sm" />
+                      <span className="block text-slate-500 dark:text-slate-400 mb-1">Fallback reason (required: the HOD is unavailable)</span>
+                      <input value={fallback} onChange={e => setFallback(e.target.value)} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent px-3 py-2 text-sm" />
                     </label>
                   )}
                   <div className="flex flex-wrap justify-end gap-2">
@@ -267,19 +267,19 @@ export default function TimetableApprovals() {
       </div>
 
       {isPrincipal && (
-        <div className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-5 space-y-2">
+        <div className="rounded-2xl vriddhi-card p-5 space-y-2">
           <h3 className="font-semibold text-sm">Direct schedule edits (admin, live)</h3>
-          <p className="text-xs text-vriddhi-muted">These changes went live without HOD approval. Most recent first.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">These changes went live without HOD approval. Most recent first.</p>
           {audit.length === 0 && <p className="text-xs">No direct edits recorded.</p>}
           {audit.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="text-left text-vriddhi-muted">
+                <thead className="text-left text-slate-500 dark:text-slate-400">
                   <tr><th className="py-1 pr-3">When</th><th className="pr-3">By</th><th className="pr-3">Action</th><th className="pr-3">Branch</th><th>Class</th></tr>
                 </thead>
                 <tbody>
                   {audit.slice(0, 25).map(a => (
-                    <tr key={a.id} className="border-t border-vriddhi-border">
+                    <tr key={a.id} className="border-t border-slate-200 dark:border-slate-700">
                       <td className="py-1 pr-3">{new Date(a.at).toLocaleString('en-IN')}</td>
                       <td className="pr-3">{a.actorName || a.actorRole}</td>
                       <td className="pr-3 capitalize">{a.action}</td>
@@ -295,9 +295,9 @@ export default function TimetableApprovals() {
       )}
 
       {isPrincipal && (
-        <div className="rounded-2xl border border-vriddhi-border bg-vriddhi-card p-5 space-y-2">
+        <div className="rounded-2xl vriddhi-card p-5 space-y-2">
           <h3 className="font-semibold text-sm">One-time cut-over for existing timetables</h3>
-          <p className="text-xs text-vriddhi-muted">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Marks every timetable already live as approved, so nothing goes dark when the approval workflow starts. Safe to run again; it skips anything already recorded.
           </p>
           <button type="button" className={btn.ghost} onClick={runLegacy} disabled={busy}>
@@ -315,7 +315,7 @@ function SlotTable({ slots }: { slots: DraftSlot[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="text-left text-xs text-vriddhi-muted">
+        <thead className="text-left text-xs text-slate-500 dark:text-slate-400">
           <tr>
             <th className="py-2 pr-3">Day</th><th className="pr-3">Time</th><th className="pr-3">Subject</th>
             <th className="pr-3">Faculty</th><th className="pr-3">Room</th><th className="pr-3">Batch</th><th>Type</th>
@@ -323,7 +323,7 @@ function SlotTable({ slots }: { slots: DraftSlot[] }) {
         </thead>
         <tbody>
           {slots.map((s, i) => (
-            <tr key={i} className="border-t border-vriddhi-border">
+            <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
               <td className="py-2 pr-3 capitalize">{s.dayOfWeek}</td>
               <td className="pr-3">{s.startTime}–{s.endTime}</td>
               <td className="pr-3">{s.subject}{s.subjectCode ? ` (${s.subjectCode})` : ''}</td>

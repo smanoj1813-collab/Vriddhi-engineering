@@ -277,6 +277,13 @@ service cloud.firestore {
         && (isSuperadmin() || (isStaff() && (sameCollege(data) || !('collegeId' in data))));
     }
 
+    // Operations verifies the course list and builds the timetable, so it
+    // must see the curriculum of its own college. Read only, same college
+    // only; the superadmin-owned write rules are unchanged.
+    function canOpsReadCurriculum(data) {
+      return isSignedIn() && role() == 'operations' && sameCollege(data);
+    }
+
     // The faculty member a curriculum-related row names as owner. Used by
     // facultyTopics (the planner ledger) and curriculumFacultyMappings
     // (tenancy on a legacy row may be absent, so ownership proves access).
@@ -1503,6 +1510,7 @@ service cloud.firestore {
       // used to do (now scoped).
       allow get, list: if isSuperadmin()
         || (isStaff() && sameCollege(resource.data))
+        || (role() == 'operations' && sameCollege(resource.data))
         || isAssignedFaculty(resource.data);
       // Assigning curriculum is a management act (superadmin or the college's
       // admin/hod/principal). The previous isCollegeStaff() also admitted
@@ -1731,7 +1739,7 @@ service cloud.firestore {
     // assigned curriculum with one unbounded query. canReadCurriculum() is
     // now the single definition for both.
     match /curriculum/{docId} {
-      allow get, list: if canReadCurriculum(resource.data);
+      allow get, list: if canReadCurriculum(resource.data) || canOpsReadCurriculum(resource.data);
       allow write: if isSuperadmin()
         || (role() in ['admin', 'hod'] && sameCollege(request.resource.data));
     }
@@ -1742,7 +1750,7 @@ service cloud.firestore {
     // it. Unassigned extracts stay hidden from staff because the field is
     // present and null, which fails sameCollege.
     match /syllabusExtracts/{docId} {
-      allow get, list: if canReadCurriculum(resource.data);
+      allow get, list: if canReadCurriculum(resource.data) || canOpsReadCurriculum(resource.data);
       allow write: if isSuperadmin()
         || (role() in ['admin', 'hod'] && sameCollege(request.resource.data));
     }
