@@ -7,10 +7,10 @@
 
 | Section | Questions | Type | Suggested time |
 |---|---|---|---|
-| 1. Quantitative Aptitude | 20 | MCQ (4 options) | 25 min |
-| 2. Logical Reasoning | 20 | MCQ (4 options) | 20 min |
-| 3. Verbal Ability | 20 | MCQ (4 options) | 15 min |
-| 4. Technical (CSE) | 20 | MCQ (4 options) | 30 min |
+| 1. Quantitative Aptitude | 20 | MCQ (2–4 options) | 25 min |
+| 2. Logical Reasoning | 20 | MCQ (2–4 options) | 20 min |
+| 3. Verbal Ability | 20 | MCQ (2–4 options) | 15 min |
+| 4. Technical (CSE) | 20 | MCQ (2–4 options) | 30 min |
 | 5. Coding | 2 | Programming | 30 min |
 
 **Instructions for candidates**
