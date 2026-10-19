@@ -21,11 +21,12 @@ import {
   type ApprovalActor,
   type ApprovalRecord,
 } from './timetableApprovalRules'
+import { requireEmployeeGrant } from './employeeGrants'
 
 const APPROVALS = 'timetableApprovals'
 const DRAFTS = 'timetableDrafts'
 const LIVE = 'weeklySchedules'
-const STAFF_ROLES = ['operations', 'hod', 'principal', 'superadmin']
+const STAFF_ROLES = ['operations', 'hod', 'principal', 'superadmin', 'employee']
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const MAX_SLOTS = 200
 // Low-traffic office callables. maxInstances is kept small: the project's
@@ -63,6 +64,7 @@ async function staffFor(uid: string, token: Record<string, unknown>) {
   const claimCollege = String(token.collegeId || user?.collegeId || '')
   if (!userDoc.exists || !STAFF_ROLES.includes(role)) fail('permission-denied', 'Staff access is required')
   if (role !== 'superadmin' && !claimCollege) fail('permission-denied', 'Your account is not linked to a college')
+  if (role === 'employee') await requireEmployeeGrant(uid, claimCollege, 'schedule')
   const actor: ApprovalActor & { collegeId: string; name: string } = {
     uid,
     role,

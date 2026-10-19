@@ -6,6 +6,7 @@ import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { COLLECTION_ROLE, normalizeRole, pickCollegeId } from './identityShared'
 import { findSchedulingProblem } from './questionTypes'
+import { requireEmployeeGrant } from './employeeGrants'
 
 interface PaperStaff {
   uid: string
@@ -14,7 +15,7 @@ interface PaperStaff {
   name: string
 }
 
-export const PAPER_ROLES = ['superadmin', 'admin', 'principal', 'hod', 'faculty', 'mentor']
+export const PAPER_ROLES = ['superadmin', 'admin', 'principal', 'hod', 'faculty', 'mentor', 'employee']
 export const REVIEW_ROLES = ['superadmin', 'admin', 'principal', 'hod']
 const HIGH_STAKES_EXAMS = ['Mid Semester', 'Semester End', 'Model Exam']
 export const EDITABLE_STATES = ['draft', 'modification-requested', 'rejected-by-hod']
@@ -115,6 +116,7 @@ export async function resolvePaperStaff(uid: string, token: Record<string, unkno
   if ((!userDoc.exists && !role) || !PAPER_ROLES.includes(role) || (role !== 'superadmin' && !collegeId)) {
     throw new HttpsError('permission-denied', 'Academic staff access is required')
   }
+  if (role === 'employee') await requireEmployeeGrant(uid, collegeId, 'papers')
   return { uid, role, collegeId, name }
 }
 

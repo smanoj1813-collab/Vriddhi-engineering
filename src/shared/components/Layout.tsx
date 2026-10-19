@@ -1,3 +1,5 @@
+import { useEmployeeGrants } from '@/modules/employee/hooks/useEmployeeGrants';
+import { restrictEmployeeNav } from '@/modules/employee/employeeNavGrants';
 import React, { useState, useEffect } from "react";
 import { useCollegeBranding } from '@/shared/hooks/useCollegeBranding';
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
@@ -977,8 +979,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     NAV_LABEL_KEYS[label] ? t(NAV_LABEL_KEYS[label]) : label;
 
   const { access } = useAccessSettings();
+  const employeeGrants = useEmployeeGrants(effectiveRole === 'employee');
   const collapsibleNav = React.useMemo(() => {
-    const filtered = filterNavForRole(collapsibleNavByRole[effectiveRole], effectiveRole as UserRole, access);
+    const roleFiltered = filterNavForRole(collapsibleNavByRole[effectiveRole], effectiveRole as UserRole, access);
+    // Employees see only the academic pages their grants unlock.
+    const filtered = effectiveRole === 'employee'
+      ? restrictEmployeeNav(roleFiltered, employeeGrants ?? [])
+      : roleFiltered;
     if (!filtered || moduleHiddenPaths.size === 0) return filtered;
     const out: SidebarEntry[] = [];
     for (const entry of filtered) {
@@ -990,7 +997,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
     }
     return out;
-  }, [effectiveRole, access, moduleHiddenPaths]);
+  }, [effectiveRole, access, moduleHiddenPaths, employeeGrants]);
 
   const activeGroup = React.useMemo(() => {
     if (!collapsibleNav) return null;

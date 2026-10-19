@@ -14,7 +14,7 @@
 export type CurriculumReviewStatus = 'pending' | 'approved' | 'returned'
 
 export type CurriculumActorRole =
-  | 'admin' | 'hod' | 'principal' | 'superadmin' | 'operations' | 'faculty' | 'student' | 'other'
+  | 'admin' | 'hod' | 'principal' | 'superadmin' | 'operations' | 'employee' | 'faculty' | 'student' | 'other'
 
 export interface CurriculumApprovalRecord {
   collegeId: string
@@ -56,7 +56,7 @@ export function curriculumApprovalId(collegeId: string, branch: string, semester
 
 /** Who may verify a course list (ops confirms it before it is scheduled). */
 export function canVerifyCurriculum(actor: CurriculumActor): CurriculumDecision {
-  if (actor.role === 'operations' || actor.role === 'admin' || actor.role === 'superadmin') return { ok: true }
+  if (actor.role === 'operations' || actor.role === 'admin' || actor.role === 'superadmin' || actor.role === 'employee') return { ok: true }
   return { ok: false, reason: 'Only operations or admin can verify a course list.' }
 }
 

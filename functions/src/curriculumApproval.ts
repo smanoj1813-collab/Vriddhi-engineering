@@ -22,10 +22,11 @@ import {
   type CurriculumActor,
   type CurriculumApprovalRecord,
 } from './curriculumApprovalRules'
+import { requireEmployeeGrant } from './employeeGrants'
 
 const APPROVALS = 'curriculumApprovals'
 const CURRICULUM = 'curriculum'
-const STAFF_ROLES = ['operations', 'admin', 'principal', 'superadmin']
+const STAFF_ROLES = ['operations', 'admin', 'principal', 'superadmin', 'employee']
 const OPTS = { region: 'asia-south1', memory: '256MiB' as const, timeoutSeconds: 60, minInstances: 0, maxInstances: 5 }
 
 function db() {
@@ -43,6 +44,7 @@ async function staffFor(uid: string, token: Record<string, unknown>) {
   const claimCollege = String(token.collegeId || user?.collegeId || '')
   if (!userDoc.exists || !STAFF_ROLES.includes(role)) fail('permission-denied', 'Operations, admin or principal access is required')
   if (role !== 'superadmin' && !claimCollege) fail('permission-denied', 'Your account is not linked to a college')
+  if (role === 'employee') await requireEmployeeGrant(uid, claimCollege, 'curriculum')
   return { uid, role, department: String(token.department || user?.department || ''), collegeId: claimCollege }
 }
 

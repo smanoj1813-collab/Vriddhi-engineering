@@ -48,6 +48,7 @@ import {
   type SessionConflict,
 } from './utils/timetableConflicts'
 import { normalizeRole, pickCollegeId } from './identityShared'
+import { requireEmployeeGrant, type EmployeeGrant } from './employeeGrants'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -927,7 +928,8 @@ async function resolveStaff(
   uid: string,
   token: Record<string, unknown>,
   allowedRoles: string[],
-  deniedMessage: string
+  deniedMessage: string,
+  grant?: EmployeeGrant,
 ): Promise<SchedulingStaff> {
   const db = getFirestore(admin.app(), 'default')
   const userSnap = await db.collection('users').doc(uid).get()
@@ -949,6 +951,11 @@ async function resolveStaff(
       allowedRoles,
     })
     throw new HttpsError('permission-denied', deniedMessage)
+  }
+
+  if (role === 'employee') {
+    if (!grant) throw new HttpsError('permission-denied', deniedMessage)
+    await requireEmployeeGrant(uid, collegeId, grant)
   }
 
   return {
@@ -978,13 +985,13 @@ export async function resolveSchedulingStaff(
  * only: it cannot write live timetable docs directly. Its auto-generate run
  * lands in the draft queue (see autoSchedule.ts), which HOD approves.
  */
-export const OPS_SCHEDULE_ROLES = [...SCHEDULING_ROLES, 'operations']
+export const OPS_SCHEDULE_ROLES = [...SCHEDULING_ROLES, 'operations', 'employee']
 
 export async function resolveOpsSchedulingStaff(
   uid: string,
   token: Record<string, unknown>
 ): Promise<SchedulingStaff> {
-  return resolveStaff(uid, token, OPS_SCHEDULE_ROLES, 'Scheduling administration access is required')
+  return resolveStaff(uid, token, OPS_SCHEDULE_ROLES, 'Scheduling administration access is required', 'schedule')
 }
 
 /**
