@@ -53,7 +53,7 @@ export function canTimetableAction(
   opts: { fallbackReason?: string } = {},
 ): ApprovalDecision {
   const status: ApprovalStatus = record?.status ?? 'draft'
-  const isOpsActor = actor.role === 'operations' || actor.role === 'superadmin'
+  const isOpsActor = actor.role === 'operations' || actor.role === 'superadmin' || actor.role === 'employee'
 
   switch (action) {
     case 'edit':

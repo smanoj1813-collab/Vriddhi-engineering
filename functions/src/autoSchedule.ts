@@ -1406,7 +1406,7 @@ export const autoGenerateWeeklySchedule = onCall(
     const payload = validateAutoSchedulePayload(request.data, staff.role, staff.collegeId)
     // Operations never writes live timetable docs: its run becomes a draft
     // for HOD review, and the course list must be verified first.
-    const opsDraft = staff.role === 'operations'
+    const opsDraft = staff.role === 'operations' || staff.role === 'employee'
 
     const db = getFirestore(admin.app(), 'default')
 

@@ -48,7 +48,11 @@ export default function PaperGeneratorPage() {
   if (!collegeId) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert severity="error">Please sign in with a college account to generate papers.</Alert>
+        <Alert severity="error">
+          {user?.role === 'employee'
+            ? 'No active college is selected. Choose a college on the Employee dashboard, then open this page again.'
+            : 'Please sign in with a college account to generate papers.'}
+        </Alert>
       </Box>
     );
   }

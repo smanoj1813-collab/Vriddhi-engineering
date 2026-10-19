@@ -211,6 +211,7 @@ export const setEmployeeActiveCollege = onCall(REGION, async (request) => {
     role: EMPLOYEE_ROLE,
     collegeId,
     employeeStatus: 'active',
+    grants: [...(employee?.grants ?? [])],
   })
   // Deliberately NO revokeRefreshTokens() here. This is the employee's own
   // switch between colleges they are already assigned, and the client

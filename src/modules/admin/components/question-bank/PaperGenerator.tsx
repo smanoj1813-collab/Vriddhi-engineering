@@ -51,6 +51,8 @@ import { downloadPaperPDF } from '../../../../shared/utils/pdfDownloader'
 import type { GenerationConfig, PaperSection } from '../../types/questionBank'
 import { DEFAULT_PROGRAMS } from '@/shared/constants/academicPrograms'
 import { getCollegeSchemePack } from '../../api/schemePackApi'
+import { useAuth } from '../../../auth/context/AuthContext'
+import { usesPlainExamSetup } from './paperGeneratorView'
 import QuestionPreview from './QuestionPreview'
 
 const STEPS = ['Configure Paper', 'Define Sections', 'Review & Generate']
@@ -149,6 +151,12 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
     mode: 'bank',
     numSets: 1,
   })
+
+  // Employees get the plain exam setup: no degree blueprint presets, no scheme
+  // pack line and no programme/course-type scheme fields. Everyone else keeps
+  // the existing generator unchanged.
+  const { user } = useAuth()
+  const isEmployeeView = usesPlainExamSetup(user?.role)
 
   const [resolvedScheme, setResolvedScheme] = useState<Awaited<ReturnType<typeof getCollegeSchemePack>> | null>(null)
   const availablePrograms = programs.length > 0 ? programs : DEFAULT_PROGRAMS
@@ -427,7 +435,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
       case 0:
         return (
           <Box sx={{ mt: 3 }}>
-            {/* Quick Blueprint Presets */}
+            {!isEmployeeView && (
             <Box sx={{ mb: 3, p: 2, borderRadius: 2.5, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
               <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', display: 'block', mb: 1 }}>
                 ⚡ Quick Exam Blueprint Presets
@@ -459,6 +467,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                 </Button>
               </Stack>
             </Box>
+            )}
 
             <Grid container spacing={3}>
               <Grid size={{ xs: 12 }}>
@@ -486,6 +495,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                 </FormControl>
               </Grid>
 
+              {!isEmployeeView && (
               <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Programme (scheme scope)</InputLabel>
@@ -501,6 +511,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                   </Select>
                 </FormControl>
               </Grid>
+              )}
 
               <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
@@ -569,7 +580,7 @@ const PaperGenerator: React.FC<PaperGeneratorProps> = ({
                 </FormControl>
               </Grid>
 
-              {resolvedScheme?.pack.engineering?.courseTypes && (
+              {!isEmployeeView && resolvedScheme?.pack.engineering?.courseTypes && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <FormControl fullWidth>
                     <InputLabel>Course type</InputLabel>

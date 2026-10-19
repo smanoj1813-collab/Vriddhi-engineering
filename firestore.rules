@@ -284,6 +284,13 @@ service cloud.firestore {
       return isSignedIn() && role() == 'operations' && sameCollege(data);
     }
 
+    // Platform employees write academic data only within the grants on their
+    // token (carried by employeeClaims). Every other role is unaffected.
+    function employeeGrant(grant) {
+      return role() != 'employee'
+        || ('grants' in request.auth.token && grant in request.auth.token.grants);
+    }
+
     // The faculty member a curriculum-related row names as owner. Used by
     // facultyTopics (the planner ledger) and curriculumFacultyMappings
     // (tenancy on a legacy row may be absent, so ownership proves access).
@@ -672,7 +679,7 @@ service cloud.firestore {
       match /assessments/{docId} {
         allow get: if isSignedIn() && (isSuperadmin() || isStaff());
         allow list: if isSignedIn() && (isSuperadmin() || isStaff());
-        allow write: if collegePathWrite(collegeId);
+        allow write: if collegePathWrite(collegeId) && employeeGrant('assessments');
       }
 
       match /scores/{docId} {
@@ -1181,9 +1188,9 @@ service cloud.firestore {
 
     match /questions/{id} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow create: if isCollegeStaff() && sameCollege(request.resource.data)
+      allow create: if isCollegeStaff() && employeeGrant('papers') && sameCollege(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isCollegeStaff() && sameCollege(resource.data)
+      allow update: if isCollegeStaff() && employeeGrant('papers') && sameCollege(resource.data)
         && request.resource.data.collegeId == resource.data.collegeId;
       allow delete: if isSuperadmin() || (role() == 'admin' && sameCollege(resource.data));
     }
@@ -1192,12 +1199,12 @@ service cloud.firestore {
       allow get: if isSignedIn() && (isSuperadmin()
         || (isStaff() && deptScoped(resource.data)));
       allow list: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow create: if isCollegeStaff()
+      allow create: if isCollegeStaff() && employeeGrant('papers')
         && sameCollege(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'draft'
         && request.resource.data.verificationStatus == 'draft';
-      allow update: if isCollegeStaff()
+      allow update: if isCollegeStaff() && employeeGrant('papers')
         && sameCollege(resource.data)
         && request.resource.data.collegeId == resource.data.collegeId
         && resource.data.status == 'draft'
@@ -1431,15 +1438,15 @@ service cloud.firestore {
       // private record — which is why the collegeId claim the identity repair
       // writes has to exist: sameCollege() reads the tenant off the token.
       allow list: if isSignedIn() && (isStaff() || sameCollege(resource.data));
-      allow create: if isCollegeStaff() && request.resource.data.collegeId == collegeId()
+      allow create: if isCollegeStaff() && employeeGrant('schedule') && request.resource.data.collegeId == collegeId()
         && request.resource.data.facultyId != null
         && request.resource.data.branch != null
         && request.resource.data.batch != null
         && request.resource.data.dayOfWeek != null
         && request.resource.data.startTime != null
         && request.resource.data.endTime != null;
-      allow update: if isCollegeStaff() && sameCollege(resource.data);
-      allow delete: if isCollegeStaff() && sameCollege(resource.data);
+      allow update: if isCollegeStaff() && employeeGrant('schedule') && sameCollege(resource.data);
+      allow delete: if isCollegeStaff() && employeeGrant('schedule') && sameCollege(resource.data);
     }
 
     // Timetable approval (see functions/src/timetableApproval.ts). Clients only
@@ -1520,6 +1527,8 @@ service cloud.firestore {
       // for non-superadmins (the UI soft-removes via status='removed').
       allow create, update: if isSuperadmin()
         || (role() in ['admin', 'hod', 'principal']
+          && sameCollege(request.resource.data))
+        || (role() == 'employee' && employeeGrant('curriculum')
           && sameCollege(request.resource.data));
       allow delete: if isSuperadmin()
         || (role() in ['admin', 'hod', 'principal'] && sameCollege(resource.data));
@@ -1527,9 +1536,9 @@ service cloud.firestore {
 
     match /assessments/{assessmentId} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow create: if isCollegeStaff() && sameCollege(request.resource.data)
+      allow create: if isCollegeStaff() && employeeGrant('assessments') && sameCollege(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isCollegeStaff() && sameCollege(resource.data)
+      allow update: if isCollegeStaff() && employeeGrant('assessments') && sameCollege(resource.data)
         && request.resource.data.collegeId == resource.data.collegeId;
       allow delete: if isSuperadmin()
         || (role() == 'admin' && sameCollege(resource.data));
@@ -1890,7 +1899,7 @@ service cloud.firestore {
     // with questionBank_meta/{docId} — read on preview/use only, never in lists.
     match /questionBank_content/{docId} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow write: if isSuperadmin() || isCollegeStaff();
+      allow write: if isSuperadmin() || (isCollegeStaff() && employeeGrant('papers'));
     }
 
     // One summary document per student, maintained by the attendanceSummary
@@ -1961,12 +1970,20 @@ service cloud.firestore {
 
     match /papers_universal/{docId} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow write: if isSuperadmin() || isCollegeStaff();
+      allow write: if isSuperadmin() || (isCollegeStaff() && employeeGrant('papers'));
     }
 
+    // Question paper templates. Platform templates (scope == 'platform') are
+    // made by the Vriddhi team only: superadmin and employee. Every college
+    // reads them and can duplicate them. College staff may bump usageCount
+    // when a college uses a template, and nothing else.
     match /paperTemplates/{docId} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow write: if isSuperadmin() || isCollegeStaff();
+      allow create, delete: if isSuperadmin() || (isStaff() && role() == 'employee');
+      allow update: if isSuperadmin()
+        || (isStaff() && role() == 'employee')
+        || (isCollegeStaff()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount', 'updatedAt']));
     }
 
     match /questionReviews/{docId} {
