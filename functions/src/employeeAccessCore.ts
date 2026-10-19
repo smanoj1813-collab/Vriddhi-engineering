@@ -83,7 +83,7 @@ export function nextActiveCollegeId(assignedCollegeIds: string[], current?: stri
 
 /** Claims for an employee. Non-identity claims (e.g. mustChangePassword) stay. */
 export function employeeClaims(
-  record: Pick<PlatformEmployeeRecord, 'status' | 'activeCollegeId'>,
+  record: Pick<PlatformEmployeeRecord, 'status' | 'activeCollegeId'> & { grants?: readonly string[] },
   existing: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const suspended = record.status === 'suspended'
@@ -95,6 +95,9 @@ export function employeeClaims(
     role: EMPLOYEE_ROLE,
     collegeId: suspended ? null : record.activeCollegeId || null,
     employeeStatus: suspended ? 'suspended' : 'active',
+    // Grants travel on the token so Firestore rules can check them without a
+    // read. A suspended employee carries none.
+    grants: suspended ? [] : [...(record.grants ?? [])],
   }
 }
 
