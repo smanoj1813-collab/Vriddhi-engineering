@@ -1964,9 +1964,17 @@ service cloud.firestore {
       allow write: if isSuperadmin() || isCollegeStaff();
     }
 
+    // Question paper templates. Platform templates (scope == 'platform') are
+    // made by the Vriddhi team only: superadmin and employee. Every college
+    // reads them and can duplicate them. College staff may bump usageCount
+    // when a college uses a template, and nothing else.
     match /paperTemplates/{docId} {
       allow read: if isSignedIn() && (isSuperadmin() || isStaff());
-      allow write: if isSuperadmin() || isCollegeStaff();
+      allow create, delete: if isSuperadmin() || (isStaff() && role() == 'employee');
+      allow update: if isSuperadmin()
+        || (isStaff() && role() == 'employee')
+        || (isCollegeStaff()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount', 'updatedAt']));
     }
 
     match /questionReviews/{docId} {
