@@ -522,13 +522,11 @@ export function aggregate(
     // Attendance aggregation: average per-student % in the roster.
     let presentSum = 0
     let markedSum = 0
-    let counted = 0
     for (const st of roster.slice(0, MAX_INSIGHTS_ATTENDANCE)) {
       const a = attendanceById.get(st.id)
       if (!a || a.total === 0) continue
       presentSum += a.present
       markedSum += a.total
-      counted += 1
     }
     s.attendancePresent = presentSum
     s.attendanceMarked = markedSum
@@ -820,7 +818,7 @@ export const getAcademicInsights = onCall(
       })
 
       // Class sessions in the window (server-side filtered by date range).
-      let sessionsQuery: admin.firestore.Query = db
+      const sessionsQuery: admin.firestore.Query = db
         .collection('classSessions')
         .where('collegeId', '==', input.collegeId)
         .where('date', '>=', input.from)
@@ -849,7 +847,7 @@ export const getAcademicInsights = onCall(
       let assessments: AssessmentDetail[] = []
       let attendanceTrend: AttendanceTrendPoint[] = []
       if (input.curriculumId) {
-        let subsQuery: admin.firestore.Query = db
+        const subsQuery: admin.firestore.Query = db
           .collection('submissions')
           .where('collegeId', '==', input.collegeId)
         const subsSnap = await subsQuery.limit(MAX_INSIGHTS_SUBMISSIONS).get()
@@ -866,7 +864,7 @@ export const getAcademicInsights = onCall(
         })
 
         // Assignments for the subject's assessment detail list.
-        let aQuery: admin.firestore.Query = db
+        const aQuery: admin.firestore.Query = db
           .collection('assignments')
           .where('collegeId', '==', input.collegeId)
         const aSnap = await aQuery.limit(50).get()
