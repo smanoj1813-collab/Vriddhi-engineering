@@ -48,9 +48,9 @@ export function writeAppearancePref(base: string, uid: string | null | undefined
   } catch { /* ignore */ }
 }
 
-type RGB = [number, number, number]
+export type RGB = [number, number, number]
 
-function hexToRgb(hex: string): RGB | null {
+export function hexToRgb(hex: string): RGB | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
   if (!m) return null
   const n = parseInt(m[1], 16)

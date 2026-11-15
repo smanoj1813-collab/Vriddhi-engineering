@@ -48,6 +48,7 @@ const CreateTestWizard = lazy(() => import('../admin/pages/CreateTestWizard'));
 const MyTestsPage = lazy(() => import('../admin/pages/MyTestsPage'));
 const PWAInstallPage = lazy(() => import('./pages/PWAInstallPage'));
 const FacultyJourneyPage = lazy(() => import('./pages/FacultyJourneyPage'));
+const AcademicInsights = lazy(() => import('../admin/pages/AcademicInsights'));
 
 function FacultyAttendanceMarkingWrapper() {
   const { user } = useAuth();
@@ -198,6 +199,7 @@ export const facultyRoutes: RouteObject[] = [
       { path: 'ai-questions', element: <LazyPage label="faculty/ai-questions"><FacultyAIQuestions /></LazyPage> },
       { path: 'view360', element: <LazyPage label="faculty/view360"><View360 /></LazyPage> },
       { path: 'journey', element: <LazyPage label="faculty/journey"><FacultyJourneyPage /></LazyPage> },
+      { path: 'insights', element: <LazyPage label="faculty/insights"><AcademicInsights /></LazyPage> },
       { path: 'my-salary', element: <LazyPage label="faculty/my-salary"><FacultyMySalary /></LazyPage> },
       { path: 'settings', element: <LazyPage label="faculty/settings"><FacultySettings /></LazyPage> },
       { path: 'install-app', element: <LazyPage label="faculty/install-app"><PWAInstallPage /></LazyPage> },

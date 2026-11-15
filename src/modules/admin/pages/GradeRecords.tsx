@@ -13,6 +13,7 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -26,11 +27,14 @@ import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/Firebase/config';
 import { useAuth } from '../../auth/context/AuthContext';
+import DrillDown, { type DrillLevelSpec, type DrillGroup } from '@/shared/components/DrillDown';
 
 interface StudentOption {
   id: string;
   name: string;
   regNo: string;
+  branch?: string;
+  programme?: string;
 }
 
 interface GradeRecord {
@@ -39,6 +43,8 @@ interface GradeRecord {
   studentId: string;
   studentName: string;
   studentRegNo: string;
+  /** Joined from the student doc so the drill shell can group by programme. */
+  studentBranch?: string;
   semester: number;
   subject: string;
   code: string;
@@ -81,6 +87,129 @@ function optionalNumber(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value);
 }
 
+/** Normalise a branch code (CSE, ECE, …) for grouping — empty string → "Unassigned". */
+function programmeLabel(branch?: string): string {
+  const b = (branch || '').trim();
+  if (!b) return 'Unassigned';
+  return b.toUpperCase();
+}
+
+/** Group a flat list of grade records into Programme → Semester → Subject buckets. */
+function buildDrillLevels(): Array<DrillLevelSpec<GradeRecord>> {
+  const byProgramme = (items: GradeRecord[]): Array<DrillGroup<GradeRecord>> => {
+    const map = new Map<string, GradeRecord[]>();
+    items.forEach((r) => {
+      const key = programmeLabel(r.studentBranch);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, groupItems]) => ({
+        label,
+        subLabel: `${new Set(groupItems.map((r) => r.studentId)).size} students · ${groupItems.length} records`,
+        chips: [...new Set(groupItems.map((r) => `Sem ${r.semester}`))].sort().slice(0, 4),
+        items: groupItems,
+      }));
+  };
+
+  const bySemester = (items: GradeRecord[]): Array<DrillGroup<GradeRecord>> => {
+    const map = new Map<number, GradeRecord[]>();
+    items.forEach((r) => {
+      if (!map.has(r.semester)) map.set(r.semester, []);
+      map.get(r.semester)!.push(r);
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([sem, groupItems]) => ({
+        label: `Semester ${sem}`,
+        subLabel: `${new Set(groupItems.map((r) => r.code)).size} subjects · ${groupItems.length} records`,
+        items: groupItems,
+      }));
+  };
+
+  const bySubject = (items: GradeRecord[]): Array<DrillGroup<GradeRecord>> => {
+    const map = new Map<string, GradeRecord[]>();
+    items.forEach((r) => {
+      const key = `${r.code} — ${r.subject}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    });
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, groupItems]) => {
+        const drafts = groupItems.filter((r) => r.status === 'draft').length;
+        return {
+          label,
+          subLabel: `${groupItems.length} record${groupItems.length === 1 ? '' : 's'}`,
+          chips: [
+            drafts > 0 ? `${drafts} draft${drafts === 1 ? '' : 's'}` : 'All published',
+          ],
+          items: groupItems,
+        };
+      });
+  };
+
+  return [
+    { title: 'Programme', group: byProgramme },
+    { title: 'Semester', group: bySemester },
+    { title: 'Subject', group: bySubject },
+  ];
+}
+
+function GradeRow({
+  record,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  record: GradeRecord
+  selected: boolean
+  disabled: boolean
+  onToggle: (id: string, checked: boolean) => void
+}) {
+  return (
+    <TableRow hover>
+      <TableCell padding="checkbox">
+        <Checkbox
+          disabled={disabled}
+          checked={selected}
+          onChange={(_event, checked) => onToggle(record.id, checked)}
+        />
+      </TableCell>
+      <TableCell>
+        {record.studentName}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {record.studentRegNo}
+        </Typography>
+      </TableCell>
+      <TableCell>{record.semester}</TableCell>
+      <TableCell>
+        {record.code}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+          {record.subject}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        {record.total ?? '—'}
+        {(record.internal !== undefined || record.external !== undefined) && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {record.internal ?? '—'} + {record.external ?? '—'}
+          </Typography>
+        )}
+      </TableCell>
+      <TableCell>{record.credits ?? '—'}</TableCell>
+      <TableCell>
+        {record.grade}
+        {record.gradePoint !== undefined ? ` (${record.gradePoint})` : ''}
+      </TableCell>
+      <TableCell>
+        <Chip size="small" label={record.status} color={record.status === 'published' ? 'success' : 'warning'} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function GradeRecords() {
   const { user } = useAuth();
   const collegeId = user?.collegeId || '';
@@ -111,17 +240,29 @@ export default function GradeRecords() {
           { records: GradeRecord[] }
         >(functions, 'listManagedGradeRecords')({ collegeId }),
       ]);
-      setStudents(studentSnapshot.docs.map((student) => {
-        const data = student.data();
+      const studentList = studentSnapshot.docs.map((student) => {
+        const data = student.data() as Record<string, unknown>;
         return {
           id: student.id,
           name: String(data.name || 'Unnamed student'),
           regNo: String(data.regNo || data.registrationNumber || ''),
-        };
-      }).sort((left, right) => left.name.localeCompare(right.name)));
-      setRecords(recordResponse.data.records);
+          branch: String(data.branch || data.programme || ''),
+          programme: String(data.programme || data.branch || ''),
+        } as StudentOption;
+      }).sort((left, right) => left.name.localeCompare(right.name));
+      setStudents(studentList);
+
+      // Join student branch onto each record so DrillDown can group by programme
+      // without issuing extra Firestore queries (C3: filter/group in client with
+      // data already in hand).
+      const studentById = new Map(studentList.map((s) => [s.id, s]));
+      const joined: GradeRecord[] = recordResponse.data.records.map((r) => ({
+        ...r,
+        studentBranch: studentById.get(r.studentId)?.branch || '',
+      }));
+      setRecords(joined);
       setSelectedDrafts((current) => new Set(
-        [...current].filter((id) => recordResponse.data.records.some((record) => record.id === id && record.status === 'draft'))
+        [...current].filter((id) => joined.some((record) => record.id === id && record.status === 'draft'))
       ));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Grade records could not be loaded.');
@@ -132,9 +273,20 @@ export default function GradeRecords() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Apply status filter — the drill shell receives a single flat array per load.
   const visibleRecords = useMemo(() => records.filter((record) =>
     status === 'all' || record.status === status
   ), [records, status]);
+
+  const drillLevels = useMemo(() => buildDrillLevels(), []);
+
+  const toggleDraft = useCallback((id: string, checked: boolean) => {
+    setSelectedDrafts((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
 
   const updateField = (field: keyof GradeForm, value: string) => {
     setForm((current) => {
@@ -214,16 +366,9 @@ export default function GradeRecords() {
     }
   };
 
-  return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1500, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ fontWeight: 700 }}>Official Grade Records</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Create registrar drafts and explicitly publish verified transcript rows to students.
-      </Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
-
-      <Card variant="outlined" sx={{ mb: 3 }}>
+  const toolbar = (
+    <Stack spacing={2}>
+      <Card variant="outlined">
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2 }}>New or replacement draft</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
@@ -252,13 +397,13 @@ export default function GradeRecords() {
       </Card>
 
       {!canPublish && (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info">
           You are grading as Vriddhi platform staff. Marks are saved as drafts and are published by the
           college HOD after approval.
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Status</InputLabel>
           <Select value={status} label="Status" onChange={(event) => setStatus(event.target.value as typeof status)}>
@@ -280,53 +425,59 @@ export default function GradeRecords() {
           Delete selected drafts
         </Button>
       </Box>
+    </Stack>
+  );
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>
-      ) : visibleRecords.length === 0 ? (
-        <Alert severity="info">No grade records match this filter.</Alert>
-      ) : (
-        <TableContainer component={Card} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell padding="checkbox" />
-                <TableCell>Student</TableCell>
-                <TableCell>Semester</TableCell>
-                <TableCell>Course</TableCell>
-                <TableCell>Marks</TableCell>
-                <TableCell>Credits</TableCell>
-                <TableCell>Grade</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {visibleRecords.map((record) => (
-                <TableRow key={record.id} hover>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      disabled={record.status !== 'draft'}
-                      checked={selectedDrafts.has(record.id)}
-                      onChange={(event) => setSelectedDrafts((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) next.add(record.id); else next.delete(record.id);
-                        return next;
-                      })}
-                    />
-                  </TableCell>
-                  <TableCell>{record.studentName}<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{record.studentRegNo}</Typography></TableCell>
-                  <TableCell>{record.semester}</TableCell>
-                  <TableCell>{record.code}<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{record.subject}</Typography></TableCell>
-                  <TableCell>{record.total ?? '—'}{record.internal !== undefined || record.external !== undefined ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{record.internal ?? '—'} + {record.external ?? '—'}</Typography> : null}</TableCell>
-                  <TableCell>{record.credits ?? '—'}</TableCell>
-                  <TableCell>{record.grade}{record.gradePoint !== undefined ? ` (${record.gradePoint})` : ''}</TableCell>
-                  <TableCell><Chip size="small" label={record.status} color={record.status === 'published' ? 'success' : 'warning'} /></TableCell>
+  return (
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1500, mx: 'auto' }}>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>Official Grade Records</Typography>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>
+        Create registrar drafts and explicitly publish verified transcript rows to students. Drill down by
+        programme → semester → subject to navigate the ledger.
+      </Typography>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
+
+      <DrillDown<GradeRecord>
+        items={visibleRecords}
+        levels={drillLevels}
+        itemKey={(r) => r.id}
+        searchText={(r) => `${r.studentName} ${r.studentRegNo} ${r.code} ${r.subject} ${r.grade}`}
+        searchPlaceholder="Search student, reg no, course code…"
+        itemUnit="record"
+        loading={loading}
+        toolbar={toolbar}
+        defaultDrill
+        emptyState={
+          <Alert severity="info">No grade records match the current filter.</Alert>
+        }
+        renderItem={(record) => (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" />
+                  <TableCell>Student</TableCell>
+                  <TableCell>Semester</TableCell>
+                  <TableCell>Course</TableCell>
+                  <TableCell>Marks</TableCell>
+                  <TableCell>Credits</TableCell>
+                  <TableCell>Grade</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+              </TableHead>
+              <TableBody>
+                <GradeRow
+                  record={record}
+                  selected={selectedDrafts.has(record.id)}
+                  disabled={record.status !== 'draft' || saving || !canPublish}
+                  onToggle={toggleDraft}
+                />
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      />
     </Box>
   );
 }

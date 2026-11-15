@@ -9,28 +9,28 @@
 //
 // Plan ↔ actual ↔ coverage: what the timetable promised, what was actually
 // delivered, and how much of the syllabus that covers.
+//
+// The per-faculty table is rendered through the shared DrillDown component
+// (Faculty → Course → modules) so callers get breadcrumbs and search
+// without reimplementing them. Grouping is done in-memory on the already-
+// fetched flat list — zero extra Firestore queries per drill step.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
   Box,
-  Typography,
+  Button,
   Card,
   CardContent,
-  Button,
-  TextField,
-  MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Chip,
+  Divider,
   LinearProgress,
-  Alert,
+  MenuItem,
   Snackbar,
   Stack,
-  Divider,
+  TextField,
   Tooltip,
+  Typography,
 } from '@mui/material'
 import { Refresh as RefreshIcon } from '@mui/icons-material'
 import { useAuth } from '../../auth/context/AuthContext'
@@ -39,7 +39,9 @@ import {
   defaultTermWindow,
   type CurriculumProgressResult,
   type FacultyProgress,
+  type ModuleProgress,
 } from '../api/classSessionApi'
+import DrillDown, { type DrillLevelSpec, type DrillGroup } from '@/shared/components/DrillDown'
 
 // ─── Presentation helpers ──────────────────────────────────────────────────
 
@@ -97,6 +99,129 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
   )
 }
 
+// A "course row" is what the second level drills into. We flatten each
+// faculty.courses[] entry into a drillable row that carries its parent
+// faculty id/name so grouping works.
+interface CourseDrillRow {
+  key: string
+  facultyId: string
+  facultyName: string
+  curriculumId: string
+  courseName: string
+  courseCode: string
+  branch: string
+  batch: string
+  semester: number
+  totalHours: number
+  credits: number
+  modules: ModuleProgress[]
+  hoursPlanned: number
+  hoursDelivered: number
+  hoursPct: number
+  classesNeeded: number
+  topics: { total: number; covered: number; pending: number; pct: number }
+  sessions: { total: number; completed: number; scheduled: number; cancelled: number }
+  pace: { slotsPerWeek: number; weeksElapsed: number; expected: number; completed: number; pct: number }
+  attendance: { present: number; marked: number; pct: number }
+}
+
+function buildDrillLevels(): Array<DrillLevelSpec<CourseDrillRow>> {
+  const byFaculty = (rows: CourseDrillRow[]): Array<DrillGroup<CourseDrillRow>> => {
+    const order = new Map<string, number>()
+    const groups = new Map<string, CourseDrillRow[]>()
+    rows.forEach((r, i) => {
+      const label = r.facultyName || r.facultyId
+      if (!order.has(label)) order.set(label, i)
+      if (!groups.has(label)) groups.set(label, [])
+      groups.get(label)!.push(r)
+    })
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, items]) => {
+        const topicsTotal = items.reduce((s, r) => s + r.topics.total, 0)
+        const topicsCovered = items.reduce((s, r) => s + r.topics.covered, 0)
+        const avgPct = topicsTotal ? Math.round((topicsCovered / topicsTotal) * 100) : 0
+        return {
+          label,
+          subLabel: `${items.length} course${items.length === 1 ? '' : 's'} · ${topicsCovered}/${topicsTotal} topics (${avgPct}%)`,
+          chips: [...new Set(items.map((r) => r.batch).filter(Boolean))].sort().slice(0, 3),
+          items,
+        }
+      })
+  }
+
+  const byCourse = (rows: CourseDrillRow[]): Array<DrillGroup<CourseDrillRow>> => {
+    // One group per course; the leaf renderer shows modules + bars.
+    return rows.map((r) => {
+      const chips: string[] = []
+      if (r.batch) chips.push(r.batch)
+      if (r.branch) chips.push(r.branch.toUpperCase())
+      chips.push(`Sem ${r.semester}`)
+      return {
+        label: `${r.courseName || r.courseCode}${r.courseCode ? ` (${r.courseCode})` : ''}`,
+        subLabel: `${r.credits} credits · ${r.hoursDelivered}/${r.totalHours}h delivered · ${r.topics.covered}/${r.topics.total} topics`,
+        chips,
+        items: [r],
+      }
+    })
+  }
+
+  return [
+    { title: 'Faculty', group: byFaculty },
+    { title: 'Course', group: byCourse },
+  ]
+}
+
+function CourseDetail({ row }: { row: CourseDrillRow }) {
+  return (
+    <Box sx={{ py: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 180px' }}>
+          <Typography variant="caption" color="text.secondary">Topics</Typography>
+          <Bar value={row.topics.pct} label={`${row.topics.covered}/${row.topics.total}`} />
+        </Box>
+        <Box sx={{ flex: '1 1 180px' }}>
+          <Typography variant="caption" color="text.secondary">Hours delivered</Typography>
+          <Bar value={row.hoursPct} label={`${row.hoursDelivered}h / ${row.totalHours}h`} />
+        </Box>
+        <Box sx={{ flex: '1 1 180px' }}>
+          <Typography variant="caption" color="text.secondary">Pace</Typography>
+          <Bar value={row.pace.pct} label={`${row.pace.completed}/${row.pace.expected} classes`} />
+        </Box>
+        <Box sx={{ flex: '1 1 180px' }}>
+          <Typography variant="caption" color="text.secondary">Attendance</Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            {row.attendance.marked ? `${row.attendance.pct}% (${row.attendance.present}/${row.attendance.marked})` : '—'}
+          </Typography>
+        </Box>
+      </Stack>
+
+      {row.modules.length > 0 && (
+        <>
+          <Divider sx={{ my: 1 }} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 1 }}>Modules</Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+            {row.modules.map((m) => (
+              <Box key={m.moduleNo || m.moduleName} sx={{ flex: '1 1 220px', minWidth: 200 }}>
+                <Bar value={m.pct} label={`${m.moduleName} (${m.covered}/${m.total}${m.classesNeeded > 0 ? ` · ${m.hours}h ≈ ${m.classesNeeded} classes` : ''})`} />
+              </Box>
+            ))}
+          </Box>
+        </>
+      )}
+
+      <Stack direction="row" spacing={0.5} useFlexGap sx={{ mt: 1.5, flexWrap: 'wrap' }}>
+        <Chip size="small" variant="outlined" label={`${row.sessions.total} sessions`} />
+        <Chip size="small" variant="outlined" label={`${row.sessions.completed} completed`} />
+        <Chip size="small" variant="outlined" label={`${row.sessions.cancelled} cancelled`} />
+        {row.classesNeeded > 0 && (
+          <Chip size="small" variant="outlined" label={`≈ ${row.classesNeeded} classes planned`} />
+        )}
+      </Stack>
+    </Box>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function CurriculumProgress() {
@@ -148,7 +273,137 @@ export default function CurriculumProgress() {
   }, [data])
 
   const totals = data?.totals
-  const rows: FacultyProgress[] = data?.faculty || []
+
+  // Flatten faculty × courses into one list for DrillDown. Each course becomes
+  // a "row" that carries its parent faculty; the drill shell groups them back
+  // up into Faculty → Course cards entirely in-memory.
+  const drillRows: CourseDrillRow[] = useMemo(() => {
+    if (!data) return []
+    const out: CourseDrillRow[] = []
+    data.faculty.forEach((f) => {
+      if (!f.courses || f.courses.length === 0) {
+        // Faculty with no assigned course: still surface them so the HOD can see.
+        out.push({
+          key: `${f.facultyId}__no-courses`,
+          facultyId: f.facultyId,
+          facultyName: f.facultyName,
+          curriculumId: '',
+          courseName: '(no courses mapped)',
+          courseCode: '',
+          branch: '',
+          batch: '',
+          semester: 0,
+          totalHours: f.hoursPlanned,
+          credits: 0,
+          modules: f.modules,
+          hoursPlanned: f.hoursPlanned,
+          hoursDelivered: f.hoursDelivered,
+          hoursPct: f.hoursPct,
+          classesNeeded: f.classesNeeded,
+          topics: f.topics,
+          sessions: f.sessions,
+          pace: f.pace,
+          attendance: f.attendance,
+        })
+        return
+      }
+      f.courses.forEach((c) => {
+        out.push({
+          key: `${f.facultyId}__${c.curriculumId}`,
+          facultyId: f.facultyId,
+          facultyName: f.facultyName,
+          curriculumId: c.curriculumId,
+          courseName: c.courseName,
+          courseCode: c.courseCode,
+          branch: c.branch,
+          batch: c.batch,
+          semester: c.semester,
+          totalHours: c.totalHours,
+          credits: c.credits,
+          // Per-faculty aggregates are the only aggregates returned by the
+          // callable; per-course values are derived below as simple shares so
+          // the drill card has something to show.
+          modules: f.modules.filter((m) =>
+            // The callable does not key modules to a specific course; keep
+            // this simple and show the faculty's modules on every course card
+            // for now (better than hiding them).
+            true
+          ),
+          hoursPlanned: c.totalHours,
+          hoursDelivered: Math.round(f.hoursDelivered * (c.totalHours / Math.max(1, f.hoursPlanned))),
+          hoursPct: c.totalHours ? Math.min(100, Math.round((Math.round(f.hoursDelivered * (c.totalHours / Math.max(1, f.hoursPlanned))) / c.totalHours) * 100)) : 0,
+          classesNeeded: 0,
+          topics: { total: f.topics.total, covered: f.topics.covered, pending: f.topics.pending, pct: f.topics.pct },
+          sessions: f.sessions,
+          pace: f.pace,
+          attendance: f.attendance,
+        })
+      })
+    })
+    return out
+  }, [data])
+
+  const drillLevels = useMemo(() => buildDrillLevels(), [])
+
+  const filterToolbar = (
+    <Card variant="outlined" sx={{ mb: 3 }}>
+      <CardContent>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
+          <TextField
+            label="From"
+            type="date"
+            value={window.from}
+            onChange={(event) => setWindow((prev) => ({ ...prev, from: event.target.value }))}
+            slotProps={{ inputLabel: { shrink: true } }}
+            size="small"
+          />
+          <TextField
+            label="To"
+            type="date"
+            value={window.to}
+            onChange={(event) => setWindow((prev) => ({ ...prev, to: event.target.value }))}
+            slotProps={{ inputLabel: { shrink: true } }}
+            size="small"
+          />
+          <TextField
+            select
+            label="Faculty"
+            value={facultyFilter}
+            onChange={(event) => setFacultyFilter(event.target.value)}
+            size="small"
+            sx={{ minWidth: 200 }}
+          >
+            <MenuItem value="">All faculty</MenuItem>
+            {facultyOptions.map((row) => (
+              <MenuItem key={row.facultyId} value={row.facultyId}>
+                {row.facultyName || row.facultyId}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Batch"
+            value={batchFilter}
+            onChange={(event) => setBatchFilter(event.target.value)}
+            size="small"
+            sx={{ minWidth: 140 }}
+          >
+            <MenuItem value="">All batches</MenuItem>
+            {batchOptions.map((batch) => (
+              <MenuItem key={batch} value={batch}>
+                {batch}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+        {isHod && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+            Showing your department. Narrow by faculty or batch to focus on one cohort.
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  )
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -168,64 +423,7 @@ export default function CurriculumProgress() {
         </Button>
       </Box>
 
-      {/* Filters */}
-      <Card variant="outlined" sx={{ mb: 3 }}>
-        <CardContent>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
-            <TextField
-              label="From"
-              type="date"
-              value={window.from}
-              onChange={(event) => setWindow((prev) => ({ ...prev, from: event.target.value }))}
-              slotProps={{ inputLabel: { shrink: true } }}
-              size="small"
-            />
-            <TextField
-              label="To"
-              type="date"
-              value={window.to}
-              onChange={(event) => setWindow((prev) => ({ ...prev, to: event.target.value }))}
-              slotProps={{ inputLabel: { shrink: true } }}
-              size="small"
-            />
-            <TextField
-              select
-              label="Faculty"
-              value={facultyFilter}
-              onChange={(event) => setFacultyFilter(event.target.value)}
-              size="small"
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="">All faculty</MenuItem>
-              {facultyOptions.map((row) => (
-                <MenuItem key={row.facultyId} value={row.facultyId}>
-                  {row.facultyName || row.facultyId}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              label="Batch"
-              value={batchFilter}
-              onChange={(event) => setBatchFilter(event.target.value)}
-              size="small"
-              sx={{ minWidth: 140 }}
-            >
-              <MenuItem value="">All batches</MenuItem>
-              {batchOptions.map((batch) => (
-                <MenuItem key={batch} value={batch}>
-                  {batch}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-          {isHod && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-              Showing your department. Narrow by faculty or batch to focus on one cohort.
-            </Typography>
-          )}
-        </CardContent>
-      </Card>
+      {filterToolbar}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -266,7 +464,6 @@ export default function CurriculumProgress() {
             />
           </Box>
 
-          {/* Per-module rollup */}
           {totals.modules.length > 0 && (
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
@@ -295,93 +492,24 @@ export default function CurriculumProgress() {
         </>
       )}
 
-      {/* Per-faculty table */}
-      <Card variant="outlined">
-        <CardContent sx={{ p: 0 }}>
-          <Box sx={{ p: 2 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              By faculty
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {rows.length} faculty member(s) with a curriculum mapping
-              {data?.facultyCount === 0 && ' — assign curriculum to faculty to see coverage here'}
-            </Typography>
-          </Box>
-          <Divider />
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Faculty</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Courses</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Topics covered</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Hours</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Pace</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Attendance</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {loading ? 'Loading…' : 'No curriculum progress data for this range yet.'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((row) => (
-                <TableRow key={row.facultyId} hover>
-                  <TableCell>
-                    <Typography sx={{ fontWeight: 500, fontSize: 14 }}>
-                      {row.facultyName || row.facultyId}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {row.courses.length === 0 && (
-                        <Typography variant="caption" color="text.secondary">—</Typography>
-                      )}
-                      {row.courses.map((course, index) => (
-                        <Chip
-                          key={`${course.curriculumId}-${index}`}
-                          label={`${course.courseName || course.courseCode || 'Course'}${course.batch ? ` · ${course.batch}` : ''}`}
-                          size="small"
-                          variant="outlined"
-                          sx={{ height: 22 }}
-                        />
-                      ))}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title={`${row.topics.pending} topic(s) still pending`}>
-                      <Box>
-                        <Bar value={row.topics.pct} label={`${row.topics.covered}/${row.topics.total}`} />
-                      </Box>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <Bar
-                      value={row.hoursPct}
-                      label={`${row.hoursDelivered}h of ${row.hoursPlanned}h`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Bar
-                      value={row.pace.pct}
-                      label={`${row.pace.completed}/${row.pace.expected} classes`}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography sx={{ fontSize: 14 }}>
-                      {row.attendance.marked ? `${row.attendance.pct}%` : '—'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Drill-down: Faculty → Course */}
+      <DrillDown<CourseDrillRow>
+        items={drillRows}
+        levels={drillLevels}
+        itemKey={(r) => r.key}
+        searchText={(r) => `${r.facultyName} ${r.courseName} ${r.courseCode} ${r.batch} ${r.branch}`}
+        searchPlaceholder="Search faculty, course, batch…"
+        itemUnit="course"
+        loading={loading}
+        defaultDrill
+        title="By faculty"
+        emptyState={
+          <Alert severity="info">
+            {loading ? 'Loading…' : 'No curriculum progress data for this range yet.'}
+          </Alert>
+        }
+        renderItem={(row) => <CourseDetail row={row} />}
+      />
 
       {data?.generatedAt && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>

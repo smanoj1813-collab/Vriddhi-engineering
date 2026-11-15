@@ -139,6 +139,7 @@ import {
 import { verifyCurriculumList, reviewCurriculumApproval } from './curriculumApproval'
 // ─── Assignment completion analytics (course/module/batch/division) ───
 import { getAssignmentAnalytics } from './assignmentAnalytics'
+import { getAcademicInsights } from './academicInsights'
 // ─── Announcements: server-authoritative targeting + per-recipient reads ───
 import {
   sendAnnouncement,
@@ -379,6 +380,7 @@ export {
   saveCalendarEvent,
   deleteCalendarEvent,
   getAssignmentAnalytics,
+  getAcademicInsights,
   sendAnnouncement,
   listCollegeAnnouncements,
   deleteAnnouncement,
