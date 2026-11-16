@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import AcademicInsightsDrillCard from '../components/AcademicInsightsDrillCard'
 import PortalHero from '../../../shared/components/portal/PortalHero';
 import { useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/context/AuthContext'
@@ -746,6 +747,8 @@ export default function AdminDashboard() {
               <StatCard icon={BookOpen} label="Students" value={dashboardData.totalStudents.toLocaleString()} color="amber" />
               <StatCard icon={Activity} label="Departments" value={dashboardData.departments.length.toString()} color="rose" />
             </div>
+
+            <AcademicInsightsDrillCard />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <FacultyAttendanceTodayCard collegeId={collegeId} />
