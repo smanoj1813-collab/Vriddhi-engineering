@@ -212,6 +212,7 @@ const navItems: NavItem[] = [
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
   // `admin` (= department HOD) dropped: assignment reporting is a principal lane.
   { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" />, roles: ["principal"], section: "Insights" },
+  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Insights" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
   { label: "Settings", path: "/admin/settings", icon: <Settings fontSize="small" />, roles: ["admin", "principal"], section: "Settings" },
 
@@ -232,6 +233,7 @@ const navItems: NavItem[] = [
   { label: "Timetable Approvals", path: "/admin/timetable-approvals", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["hod"], section: "Insights" },
+  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["hod"], section: "Insights" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["hod"], section: "Insights" },
 
   // ─── FACULTY ───
@@ -342,6 +344,7 @@ const facultyNav: SidebarEntry[] = [
     label: "Insights",
     icon: <TrendingUp fontSize="small" />,
     children: [
+      { label: "Curriculum Insights", path: "/faculty/insights", icon: <School fontSize="small" /> },
       { label: "Journey", path: "/faculty/journey", icon: <TrendingUp fontSize="small" /> },
     ],
   },
