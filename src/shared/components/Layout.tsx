@@ -465,6 +465,7 @@ const principalNav: SidebarEntry[] = [
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
       { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
       { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" /> },
     ],
@@ -557,6 +558,7 @@ const hodNav: SidebarEntry[] = [
     icon: <TrendingUp fontSize="small" />,
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       // HIDDEN for HOD/admin (plug back: re-add this line, the role string in
       // the flat navItems above, and drop the '/admin/assignment-analytics'
       // entry from ADMIN_ROUTE_PERMISSIONS in src/modules/auth/permissions.ts):
