@@ -40,6 +40,12 @@ export interface StudentNavItem {
   path: string
   icon: LucideIcon
   group: StudentNavGroup
+  /**
+   * Second-level drill-down inside the group on the desktop sidebar. Items with
+   * the same label sit under one collapsible sub-heading. Omit for items that
+   * sit directly under the group.
+   */
+  subgroup?: string
   /** English label used when the student hasn't picked another language. */
   translationKey?: TranslationKey
   /** Shows a count of unread notifications. */
@@ -61,31 +67,31 @@ export const STUDENT_NAV_ITEMS: StudentNavItem[] = [
   // Section hub: the phone's "Academics" tab. It owns the pages that belong to
   // the same heading on the sidebar and the dashboard quick tiles.
   { id: 'academics', label: 'Academics', path: '/student/academics', icon: School, group: 'academics', hub: true },
-  { id: 'attendance', label: 'Attendance', path: '/student/attendance', icon: Calendar, group: 'academics', translationKey: 'nav.attendance', hint: 'Present / absent record and attendance percentage' },
-  { id: 'assessments', label: 'Assessments', path: '/student/assessments', icon: BookOpen, group: 'academics', translationKey: 'nav.assessments', hint: 'Tests, results and detailed performance analysis' },
-  { id: 'assignments', label: 'Assignments', path: '/student/assignments', icon: FileText, group: 'academics', translationKey: 'nav.assignments', hint: 'Submit your work and track what is pending' },
-  { id: 'grades', label: 'Grades', path: '/student/grades', icon: TrendingUp, group: 'academics', translationKey: 'nav.grades', hint: 'Marks, credits and GPA' },
-  { id: 'curriculum', label: 'Curriculum', path: '/student/curriculum', icon: BookMarked, group: 'academics', translationKey: 'nav.curriculum', hint: 'Your syllabus and how far it has been taught' },
+  { id: 'attendance', label: 'Attendance', path: '/student/attendance', icon: Calendar, group: 'academics', subgroup: 'Classes', translationKey: 'nav.attendance', hint: 'Present / absent record and attendance percentage' },
+  { id: 'assessments', label: 'Assessments', path: '/student/assessments', icon: BookOpen, group: 'academics', subgroup: 'Assessments', translationKey: 'nav.assessments', hint: 'Tests, results and detailed performance analysis' },
+  { id: 'assignments', label: 'Assignments', path: '/student/assignments', icon: FileText, group: 'academics', subgroup: 'Assessments', translationKey: 'nav.assignments', hint: 'Submit your work and track what is pending' },
+  { id: 'grades', label: 'Grades', path: '/student/grades', icon: TrendingUp, group: 'academics', subgroup: 'Assessments', translationKey: 'nav.grades', hint: 'Marks, credits and GPA' },
+  { id: 'curriculum', label: 'Curriculum', path: '/student/curriculum', icon: BookMarked, group: 'academics', subgroup: 'Classes', translationKey: 'nav.curriculum', hint: 'Your syllabus and how far it has been taught' },
   // Indirect-assessment surveys (OBE Slice 5). Students rate the COs of the
   // courses they just finished; the results become the 20% indirect share of
   // the attainment run, so the entry lives with the academic pages.
-  { id: 'feedback', label: 'Feedback', path: '/student/surveys', icon: ClipboardList, group: 'academics', aliases: ['/student/feedback'], hint: 'Course-exit surveys — rate how far each course outcome was met' },
-  { id: 'timetable', label: 'Timetable', path: '/student/timetable', icon: Clock, group: 'academics', translationKey: 'nav.timetable', hint: 'Weekly class schedule with rooms and faculty' },
+  { id: 'feedback', label: 'Feedback', path: '/student/surveys', icon: ClipboardList, group: 'academics', subgroup: 'Assessments', aliases: ['/student/feedback'], hint: 'Course-exit surveys — rate how far each course outcome was met' },
+  { id: 'timetable', label: 'Timetable', path: '/student/timetable', icon: Clock, group: 'academics', subgroup: 'Classes', translationKey: 'nav.timetable', hint: 'Weekly class schedule with rooms and faculty' },
   // Section hub: the phone's "Learning" tab.
   { id: 'learning', label: 'Learning', path: '/student/learning', icon: Sparkles, group: 'practice', hub: true },
-  { id: 'materials', label: 'Materials', path: '/student/materials', icon: Library, group: 'practice', translationKey: 'nav.materials', hint: 'Notes, slides and study material shared by faculty' },
-  { id: 'courses', label: 'Courses', path: '/student/courses', icon: Award, group: 'practice', hint: 'Self-paced certificate programmes — lessons, labs, quizzes and projects' },
-  { id: 'coding-lab', label: 'Coding Lab', path: '/student/coding-lab', icon: Code2, group: 'practice', hint: 'Practice C, C++, Java and Python with an in-browser code runner' },
+  { id: 'materials', label: 'Materials', path: '/student/materials', icon: Library, group: 'practice', subgroup: 'Study', translationKey: 'nav.materials', hint: 'Notes, slides and study material shared by faculty' },
+  { id: 'courses', label: 'Courses', path: '/student/courses', icon: Award, group: 'practice', subgroup: 'Study', hint: 'Self-paced certificate programmes — lessons, labs, quizzes and projects' },
+  { id: 'coding-lab', label: 'Coding Lab', path: '/student/coding-lab', icon: Code2, group: 'practice', subgroup: 'Study', hint: 'Practice C, C++, Java and Python with an in-browser code runner' },
   // One Vriddhi Phase A: the company-prep pillar joins the unified nav.
   // Opens the existing /prep viewer — college-scoped automatically because
   // the prep endpoints resolve the signed-in student's college and apply its
   // visibility panel (master switch + hidden companies). The nav entry is
   // hidden only when that master switch is explicitly off.
-  { id: 'placement-prep', label: 'Placement Prep', path: '/prep', icon: Target, group: 'practice', hint: 'Company patterns, aptitude and mock practice' },
-  { id: 'library', label: 'Library', path: '/student/library', icon: GraduationCap, group: 'practice', translationKey: 'nav.library', hint: 'Books, journals and e-resources' },
-  { id: 'journey', label: 'My Journey', path: '/student/journey', icon: Milestone, group: 'practice', translationKey: 'nav.journey', hint: 'Your progress across the programme' },
-  { id: 'resume', label: 'Resume Builder', path: '/student/resume', icon: Briefcase, group: 'practice', hint: 'ATS-friendly resume templates, live preview and PDF download (Placement Pack)' },
-  { id: 'faculty-connect', label: 'Faculty Connect', path: '/student/faculty-connect', icon: UserCheck, group: 'practice', aliases: ['/student/mentorship'], hint: 'Ask a mentor or a faculty member' },
+  { id: 'placement-prep', label: 'Placement Prep', path: '/prep', icon: Target, group: 'practice', subgroup: 'Career', hint: 'Company patterns, aptitude and mock practice' },
+  { id: 'library', label: 'Library', path: '/student/library', icon: GraduationCap, group: 'practice', subgroup: 'Study', translationKey: 'nav.library', hint: 'Books, journals and e-resources' },
+  { id: 'journey', label: 'My Journey', path: '/student/journey', icon: Milestone, group: 'practice', subgroup: 'Study', translationKey: 'nav.journey', hint: 'Your progress across the programme' },
+  { id: 'resume', label: 'Resume Builder', path: '/student/resume', icon: Briefcase, group: 'practice', subgroup: 'Career', hint: 'ATS-friendly resume templates, live preview and PDF download (Placement Pack)' },
+  { id: 'faculty-connect', label: 'Faculty Connect', path: '/student/faculty-connect', icon: UserCheck, group: 'practice', subgroup: 'Career', aliases: ['/student/mentorship'], hint: 'Ask a mentor or a faculty member' },
   { id: 'fees', label: 'Fees', path: '/student/fees', icon: CreditCard, group: 'money', translationKey: 'nav.fees', aliases: ['/student/fee-portal'], hint: 'Dues, payments and receipts' },
   { id: 'challans', label: 'My Challans', path: '/student/challans', icon: Receipt, group: 'money', hint: 'Fee challans issued to you' },
   { id: 'halltickets', label: 'Hall Tickets', path: '/student/hall-tickets', icon: Download, group: 'money', hint: 'Download your exam hall tickets' },

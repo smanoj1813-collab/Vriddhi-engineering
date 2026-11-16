@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useStudentData } from '../hooks/useStudentData';
 import { useThemeMode } from '../../../shared/contexts/ThemeProvider';
 import { useTranslation } from '../../../shared/contexts/LanguageProvider';
@@ -7,14 +7,34 @@ import LanguageSwitcher from '../../../shared/components/LanguageSwitcher';
 import VriddhiLogo from '../../../shared/components/VriddhiLogo';
 import { isPwaStandalone, requestPwaInstall } from '../../../shared/pwa/install';
 import type { TranslationKey } from '../../../shared/i18n';
-import { studentNavItemsForProfile, STUDENT_NAV_GROUPS, type StudentNavItem } from '../studentNav';
+import { studentNavItemsForProfile, STUDENT_NAV_GROUPS, findNavItem, type StudentNavItem } from '../studentNav';
 import {
+  ChevronDown,
   ChevronRight,
   Sun,
   Moon,
   LogOut,
   Download,
 } from 'lucide-react';
+
+const NAV_OPEN_KEY = 'vriddhi-student-nav-open';
+type OpenMap = Record<string, boolean>;
+interface NavSub { label: string; items: StudentNavItem[] }
+interface NavSection { id: string; label: string; all: StudentNavItem[]; direct: StudentNavItem[]; subs: NavSub[] }
+
+/** Academics starts open on a first visit; everything else starts closed. */
+function readOpenMap(): OpenMap {
+  try {
+    const raw = localStorage.getItem(NAV_OPEN_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed as OpenMap;
+    }
+  } catch {
+    // Unreadable storage: fall back to the default below.
+  }
+  return { academics: true };
+}
 
 /**
  * Desktop sidebar only. On a phone the same destinations are served by the
@@ -64,10 +84,51 @@ export default function StudentSidebar({ onSignOut }: { onSignOut: () => void })
   // desktop the list is grouped under headings, matching the phone's sections.
   const navItems = studentNavItemsForProfile(profile, codingLabEnabled, assignmentsEnabled, placementPrepEnabled).filter((item) => item.id !== 'install-app' && !item.hub);
   const topItems = navItems.filter((item) => item.id === 'dashboard');
-  const groupedItems = STUDENT_NAV_GROUPS.map((g) => ({
-    ...g,
-    items: navItems.filter((item) => item.group === g.id && item.id !== 'dashboard'),
-  })).filter((g) => g.items.length > 0);
+  // Each section (Academics, Learning, Fees & exams, Account) is a dropdown;
+  // items with a subgroup drill down one level further. Items without a
+  // subgroup sit directly under their section.
+  const sections: NavSection[] = STUDENT_NAV_GROUPS.map((g) => {
+    const all = navItems.filter((item) => item.group === g.id && item.id !== 'dashboard');
+    const direct = all.filter((item) => !item.subgroup);
+    const subs: NavSub[] = [];
+    for (const item of all) {
+      if (!item.subgroup) continue;
+      let sub = subs.find((x) => x.label === item.subgroup);
+      if (!sub) {
+        sub = { label: item.subgroup, items: [] };
+        subs.push(sub);
+      }
+      sub.items.push(item);
+    }
+    return { id: g.id, label: g.label, all, direct, subs };
+  }).filter((section) => section.all.length > 0);
+
+  // Open/closed state survives reloads. The section that holds the current
+  // page opens on every navigation, so the student always sees where they are.
+  const { pathname } = useLocation();
+  const activeItem = findNavItem(pathname);
+  const activeGroup = activeItem?.group;
+  const activeSub = activeItem?.subgroup;
+  const [openMap, setOpenMap] = useState<OpenMap>(readOpenMap);
+
+  useEffect(() => {
+    if (!activeGroup) return;
+    setOpenMap((prev) => {
+      const next: OpenMap = { ...prev, [activeGroup]: true };
+      if (activeSub) next[`${activeGroup}/${activeSub}`] = true;
+      return next;
+    });
+  }, [pathname, activeGroup, activeSub]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(openMap));
+    } catch {
+      // Private mode or storage disabled: the menu still works, it just forgets.
+    }
+  }, [openMap]);
+
+  const toggleOpen = (key: string) => setOpenMap((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const renderItem = (item: StudentNavItem) => {
     const Icon = item.icon;
@@ -163,18 +224,56 @@ export default function StudentSidebar({ onSignOut }: { onSignOut: () => void })
       {/* Navigation */}
       <nav className="p-2 overflow-y-auto flex-1">
         {topItems.map(renderItem)}
-        {groupedItems.map((group) => (
-          <div key={group.id} className="pt-3">
-            {isCollapsed ? (
-              <div className="mx-3 mb-1 border-t border-slate-200 dark:border-slate-800" />
-            ) : (
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                {group.label}
-              </p>
-            )}
-            <div className="space-y-0.5">{group.items.map(renderItem)}</div>
-          </div>
-        ))}
+        {isCollapsed
+          ? sections.map((section) => (
+              <div key={section.id} className="pt-3">
+                <div className="mx-3 mb-1 border-t border-slate-200 dark:border-slate-800" />
+                <div className="space-y-0.5">{section.all.map(renderItem)}</div>
+              </div>
+            ))
+          : sections.map((section) => {
+              const sectionOpen = !!openMap[section.id];
+              return (
+                <div key={section.id} className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleOpen(section.id)}
+                    aria-expanded={sectionOpen}
+                    className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
+                  >
+                    <span>{section.label}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${sectionOpen ? '' : '-rotate-90'}`} />
+                  </button>
+                  {sectionOpen && (
+                    <div className="mt-0.5 space-y-0.5">
+                      {section.direct.map(renderItem)}
+                      {section.subs.map((sub) => {
+                        const subKey = `${section.id}/${sub.label}`;
+                        const subOpen = !!openMap[subKey];
+                        return (
+                          <div key={subKey} className="pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleOpen(subKey)}
+                              aria-expanded={subOpen}
+                              className="w-full flex items-center justify-between px-3 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
+                            >
+                              <span>{sub.label}</span>
+                              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${subOpen ? '' : '-rotate-90'}`} />
+                            </button>
+                            {subOpen && (
+                              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-slate-200 dark:border-slate-800 pl-2">
+                                {sub.items.map(renderItem)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
       </nav>
 
       {/* Bottom Controls */}
