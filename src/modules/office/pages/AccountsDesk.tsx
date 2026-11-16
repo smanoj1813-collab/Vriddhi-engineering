@@ -1,6 +1,7 @@
 // /admin/accounts — the accounts team's home: today's collections, fee
 // balances, bills to approve/pay, library fines and purchase approvals.
 
+import PortalHero from '../../../shared/components/portal/PortalHero'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ArrowRight, BookOpen, CreditCard, IndianRupee, Receipt, ShoppingCart, Wallet } from 'lucide-react'
@@ -49,6 +50,13 @@ export default function AccountsDesk() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <PortalHero
+          eyebrow="Accounts team"
+          title={`Good day${user?.name ? `, ${user.name.split(' ')[0]}` : ''}`}
+          description="Fees, vendor bills, payroll and finance reports — here's what needs attention."
+        />
+      </div>
       <PageHeader title="Accounts Desk" subtitle={`Good day${user?.name ? `, ${user.name.split(' ')[0]}` : ''} — here's what needs attention`} icon={<Wallet className="w-5 h-5" />} />
       <OfficeReadError
         desk="accounts desk"

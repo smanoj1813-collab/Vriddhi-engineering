@@ -465,6 +465,7 @@ const principalNav: SidebarEntry[] = [
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
       { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
       { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" /> },
     ],
@@ -557,6 +558,7 @@ const hodNav: SidebarEntry[] = [
     icon: <TrendingUp fontSize="small" />,
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       // HIDDEN for HOD/admin (plug back: re-add this line, the role string in
       // the flat navItems above, and drop the '/admin/assignment-analytics'
       // entry from ADMIN_ROUTE_PERMISSIONS in src/modules/auth/permissions.ts):
@@ -1149,6 +1151,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const currentRoleInfo = getRoleBadgeColor(effectiveRole);
+  // Active-pill colour follows the portal, matching the Academics sidebar:
+  // teal for the college-admin line (principal / HOD), indigo for every other
+  // portal. Visual only: no route, permission or data change.
+  const navAccent = ["principal", "admin", "hod"].includes(String(effectiveRole)) ? "#0d9488" : "#4f46e5";
 
   const drawerWidth = collapsed ? DRAWER_COLLAPSED_WIDTH : DRAWER_EXPANDED_WIDTH;
 
@@ -1209,7 +1215,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             mx: 1.5,
             my: 1.5,
             borderRadius: 2.5,
-            bgcolor: resolvedMode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(13, 148, 136, 0.04)',
+            bgcolor: resolvedMode === 'dark' ? 'rgba(255,255,255,0.03)' : '#ffffff',
             border: '1px solid',
             borderColor: resolvedMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(13, 148, 136, 0.12)',
             display: 'flex',
@@ -1274,10 +1280,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           minHeight: 44,
                           transition: "all 0.15s ease",
                           "&.Mui-selected": {
-                            bgcolor: "primary.main",
+                            bgcolor: navAccent,
                             color: "#ffffff",
-                            boxShadow: "0 2px 8px rgba(13, 148, 136, 0.25)",
-                            "&:hover": { bgcolor: "primary.dark" },
+                            boxShadow: `0 2px 8px ${navAccent}40`,
+                            "&:hover": { bgcolor: navAccent, filter: "brightness(0.95)" },
                             "& .MuiListItemIcon-root": { color: "#ffffff" },
                             "& .MuiTypography-root": { fontWeight: 600 },
                           },
@@ -1407,10 +1413,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                   minHeight: 40,
                                   transition: "all 0.15s ease",
                                   "&.Mui-selected": {
-                                    bgcolor: "primary.main",
+                                    bgcolor: navAccent,
                                     color: "#ffffff",
-                                    boxShadow: "0 2px 8px rgba(13, 148, 136, 0.25)",
-                                    "&:hover": { bgcolor: "primary.dark" },
+                                    boxShadow: `0 2px 8px ${navAccent}40`,
+                                    "&:hover": { bgcolor: navAccent, filter: "brightness(0.95)" },
                                     "& .MuiListItemIcon-root": { color: "#ffffff" },
                                     "& .MuiTypography-root": { fontWeight: 600 },
                                   },
@@ -1473,10 +1479,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     minHeight: 44,
                     transition: 'all 0.15s ease',
                     "&.Mui-selected": {
-                      bgcolor: "primary.main",
+                      bgcolor: navAccent,
                       color: "#ffffff",
-                      boxShadow: "0 2px 8px rgba(13, 148, 136, 0.25)",
-                      "&:hover": { bgcolor: "primary.dark" },
+                      boxShadow: `0 2px 8px ${navAccent}40`,
+                      "&:hover": { bgcolor: navAccent, filter: "brightness(0.95)" },
                       "& .MuiListItemIcon-root": { color: "#ffffff" },
                       "& .MuiTypography-root": { fontWeight: 600 },
                     },

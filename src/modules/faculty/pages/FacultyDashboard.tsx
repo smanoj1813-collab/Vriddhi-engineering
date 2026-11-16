@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PortalHero from '../../../shared/components/portal/PortalHero';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/modules/auth/context/AuthContext';
 import { db } from '@/Firebase/config';
@@ -236,22 +237,18 @@ export default function FacultyDashboard() {
 
   return (
     <Box sx={{ p: { xs: 0, md: 2 } }}>
-      {/* Header */}
-      <Paper sx={{ p: { xs: 2.5, md: 3 }, mb: 3, bgcolor: 'primary.main', color: 'white', borderRadius: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
-              Welcome back, {user?.name?.split(' ')[0] || 'Faculty'}
-            </Typography>
-            <Typography variant="body1" sx={{ opacity: 0.9 }}>
-              {user?.department || 'Department'} · {stats.totalClasses} classes today
-            </Typography>
-          </Box>
-          <Avatar sx={{ width: 56, height: 56, bgcolor: 'rgba(255,255,255,0.2)', fontSize: 24, fontWeight: 700, display: { xs: 'none', sm: 'flex' } }}>
+      {/* Header — shared portal hero (mint tone, matches the Academics faculty dashboard). */}
+      <Box sx={{ mb: 3 }}>
+        <PortalHero
+          eyebrow="Faculty workspace"
+          title={`Welcome back, ${user?.name?.split(' ')[0] || 'Faculty'}`}
+          description={`${user?.department || 'Department'} · ${stats.totalClasses} classes today`}
+        >
+          <Avatar sx={{ width: 48, height: 48, bgcolor: 'teal.600', color: 'white', fontSize: 20, fontWeight: 700, display: { xs: 'none', sm: 'flex' } }}>
             {user?.name?.charAt(0) || 'F'}
           </Avatar>
-        </Box>
-      </Paper>
+        </PortalHero>
+      </Box>
 
       {/* Quick Actions */}
       <Grid container spacing={2} sx={{ mb: 3 }}>

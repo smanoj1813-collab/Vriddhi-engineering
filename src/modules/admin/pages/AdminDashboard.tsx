@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import AcademicInsightsDrillCard from '../components/AcademicInsightsDrillCard'
+import PortalHero from '../../../shared/components/portal/PortalHero';
 import { useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/context/AuthContext'
 import { shouldScopeToDepartment, docInDepartment } from '@/shared/utils/departmentScope'
@@ -91,19 +93,20 @@ function StatCard({ icon: Icon, label, value, trend, trendUp, color = 'teal' }: 
   trendUp?: boolean
   color?: 'teal' | 'sky' | 'amber' | 'violet' | 'rose' | 'emerald'
 }) {
+  // Academics principal tiles: white card, uppercase label, tinted icon square.
   const colorMap = {
-    teal: 'bg-teal-500/10 text-teal-400',
-    sky: 'bg-sky-500/10 text-sky-400',
-    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-    violet: 'bg-violet-500/10 text-violet-400',
-    rose: 'bg-rose-500/10 text-rose-400',
-    emerald: 'bg-emerald-500/10 text-emerald-400',
+    teal: 'bg-teal-50 text-teal-600 dark:bg-teal-500/10 dark:text-teal-400',
+    sky: 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400',
+    amber: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    violet: 'bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400',
+    rose: 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400',
   }
   return (
-    <div className="glass-card p-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#131b2e]">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{label}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
           <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
           {trend && (
             <p className={`text-xs mt-2 flex items-center gap-1 ${trendUp ? 'text-teal-400' : 'text-rose-400'}`}>
@@ -733,19 +736,11 @@ export default function AdminDashboard() {
       case 'overview':
         return (
           <div className="animate-fade-in space-y-6">
-            <div className="glass-card p-6 bg-teal-500/5 border border-teal-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Welcome back, {user?.name?.split(' ')[0] || 'Principal'}</h2>
-                  <p className="text-slate-500 dark:text-slate-400">
-                    College-wide administration and oversight · {dashboardData.departments.length} Departments · {dashboardData.totalStudents} Students
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                  <School size={28} />
-                </div>
-              </div>
-            </div>
+            <PortalHero
+              eyebrow="Principal workspace"
+              title={`Welcome back, ${user?.name?.split(' ')[0] || 'Principal'}`}
+              description={`College-wide administration and oversight · ${dashboardData.departments.length} Departments · ${dashboardData.totalStudents} Students`}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard icon={Users} label="Total Users" value={dashboardData.totalUsers.toLocaleString()} color="teal" />
@@ -753,6 +748,8 @@ export default function AdminDashboard() {
               <StatCard icon={BookOpen} label="Students" value={dashboardData.totalStudents.toLocaleString()} color="amber" />
               <StatCard icon={Activity} label="Departments" value={dashboardData.departments.length.toString()} color="rose" />
             </div>
+
+            <AcademicInsightsDrillCard />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <FacultyAttendanceTodayCard collegeId={collegeId} />

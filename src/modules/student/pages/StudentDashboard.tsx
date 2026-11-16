@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStudentData } from '../hooks/useStudentData';
+import PortalHero from '../../../shared/components/portal/PortalHero';
 import StudentAcademicSummary from '../components/StudentAcademicSummary';
 import TodayStrip from '../components/TodayStrip';
 import {
@@ -323,38 +324,22 @@ export default function StudentDashboard() {
         </div>
       ))}
 
-      {/* Welcome Banner */}
-      <div className="rounded-3xl bg-gradient-to-r from-teal-600 via-teal-700 to-teal-800 text-white p-5 md:p-8 shadow-lg shadow-teal-600/15 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-2xl md:text-3xl text-white shadow-inner shrink-0">
-              {profile?.name?.charAt(0) || 'S'}
-            </div>
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-[11px] font-bold uppercase tracking-wider text-teal-100 mb-1">
-                <GraduationCap size={13} />
-                {t('student.studentPortal')}
-              </div>
-              <h1 className="text-xl md:text-3xl font-extrabold tracking-tight">
-                {t('student.welcomeBack', { name: profile?.name?.split(' ')[0] || t('role.student') })}
-              </h1>
-              <p className="text-xs md:text-sm text-teal-100 font-medium mt-0.5">
-                {profile?.regNo || 'Reg. ID'} &bull; {profile?.course || 'Undergraduate'} &bull; {profile?.batch || '2026'}
-              </p>
-              {profile && <AccessBadge profile={profile} />}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/student/assessments"
-              className="w-full sm:w-auto justify-center px-4 py-3 sm:py-2.5 rounded-xl bg-white text-teal-800 hover:bg-teal-50 font-bold text-xs md:text-sm shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
-            >
-              <BookOpen size={16} />
-              {t('student.takeTests')}
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* Welcome Banner — shared portal hero (indigo tone, same as the Academics student portal). */}
+      <PortalHero
+        tone="indigo"
+        eyebrow={t('student.studentPortal')}
+        title={t('student.welcomeBack', { name: profile?.name?.split(' ')[0] || t('role.student') })}
+        description={`${profile?.regNo || 'Reg. ID'} • ${profile?.course || 'Undergraduate'} • ${profile?.batch || '2026'}`}
+      >
+        {profile && <AccessBadge profile={profile} />}
+        <Link
+          to="/student/assessments"
+          className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-indigo-800 shadow-sm transition-all hover:bg-indigo-50 active:scale-95"
+        >
+          <BookOpen size={16} />
+          {t('student.takeTests')}
+        </Link>
+      </PortalHero>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
