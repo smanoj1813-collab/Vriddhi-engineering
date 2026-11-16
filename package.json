@@ -22,6 +22,7 @@
     "check:dead-code": "node scripts/check-dead-code.cjs",
     "deploy:all": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions,hosting --project vriddhi-engineering",
     "deploy:functions": "firebase deploy --only functions --project vriddhi-engineering",
+    "deploy:functions:batched": "node scripts/deploy-functions-batched.mjs",
     "deploy:hosting": "firebase deploy --only hosting --project vriddhi-engineering",
     "deploy:indexes": "firebase deploy --only firestore:indexes --project vriddhi-engineering",
     "deploy:rules": "firebase deploy --only firestore:rules,storage --project vriddhi-engineering",
