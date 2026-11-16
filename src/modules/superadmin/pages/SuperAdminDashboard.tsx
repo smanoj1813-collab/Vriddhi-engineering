@@ -1,4 +1,5 @@
 import React from "react";
+import PortalHero from '../../../shared/components/portal/PortalHero'
 import { useNavigate, Link } from "react-router-dom";
 import { useDashboardStats, useSystemHealth } from '../hooks/useSuperAdmin';
 import { describeFreshness } from '../utils/freshness';
@@ -97,6 +98,11 @@ const SuperAdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <PortalHero
+        eyebrow="Superadmin workspace"
+        title="Your campus network, connected"
+        description="Institutional onboarding, academic access and platform health — one place to keep the bigger picture in view."
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

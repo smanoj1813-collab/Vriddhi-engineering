@@ -1,6 +1,7 @@
 // /admin/operations — the operations team's home: library circulation,
 // reservations, stores alerts, assets and purchasing.
 
+import PortalHero from '../../../shared/components/portal/PortalHero'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, Boxes, ClipboardList, LayoutDashboard, Library, PackageCheck, ShieldCheck, ShoppingCart, ArrowLeftRight, BedDouble, Bus, Wrench } from 'lucide-react'
@@ -60,6 +61,13 @@ export default function OperationsDesk() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <PortalHero
+          eyebrow="Operations team"
+          title={`Welcome back${user?.name ? `, ${user.name.split(' ')[0]}` : ''}`}
+          description="Library circulation, stores, assets and purchasing — counts below refresh from your desk."
+        />
+      </div>
       <PageHeader title="Operations Desk" subtitle={`Library, stores and purchasing${user?.name ? ` — ${user.name.split(' ')[0]}` : ''}`} icon={<LayoutDashboard className="w-5 h-5" />} />
       <OfficeReadError
         desk="operations desk"

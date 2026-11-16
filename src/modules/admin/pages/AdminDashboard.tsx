@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import PortalHero from '../../../shared/components/portal/PortalHero';
 import { useSearchParams, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/context/AuthContext'
 import { shouldScopeToDepartment, docInDepartment } from '@/shared/utils/departmentScope'
@@ -733,19 +734,11 @@ export default function AdminDashboard() {
       case 'overview':
         return (
           <div className="animate-fade-in space-y-6">
-            <div className="glass-card p-6 bg-teal-500/5 border border-teal-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Welcome back, {user?.name?.split(' ')[0] || 'Principal'}</h2>
-                  <p className="text-slate-500 dark:text-slate-400">
-                    College-wide administration and oversight · {dashboardData.departments.length} Departments · {dashboardData.totalStudents} Students
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                  <School size={28} />
-                </div>
-              </div>
-            </div>
+            <PortalHero
+              eyebrow="Principal workspace"
+              title={`Welcome back, ${user?.name?.split(' ')[0] || 'Principal'}`}
+              description={`College-wide administration and oversight · ${dashboardData.departments.length} Departments · ${dashboardData.totalStudents} Students`}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard icon={Users} label="Total Users" value={dashboardData.totalUsers.toLocaleString()} color="teal" />
