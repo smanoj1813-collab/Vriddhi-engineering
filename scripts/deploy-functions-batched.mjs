@@ -30,7 +30,8 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FUNCTIONS_DIR = path.join(ROOT, 'functions')
-const SUCCESS_RE = /functions\[([A-Za-z0-9_]+)\([^)]*\)\] Successful (?:update|create) operation/g
+const SUCCESS_RE = /functions\[([A-Za-z0-9_]+)\([^)]*\)\]\s+Successful\s+(?:update|create)\s+operation/g
+const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g
 const NAMES_MARKER = '__VRIDDHI_FUNCTION_NAMES__'
 const AUTH_ERROR_RE = /not logged in|Failed to authenticate|Please run firebase login|Error: HTTP Error: 401|HTTP Error: 403/i
 
@@ -111,6 +112,21 @@ function discoverFunctionNames() {
   return JSON.parse(line.slice(NAMES_MARKER.length))
 }
 
+// Works out which of `names` deployed, from one firebase deploy run.
+// - Output is stripped of terminal colour codes and CRLF line endings first,
+//   so the per-function success lines match whatever the terminal produced.
+// - A clean exit that prints "Deploy complete!" means every function in the
+//   --only list was deployed, so all of them count as successful.
+// - Otherwise only the functions with a "Successful create/update" line count.
+export function parseDeployOutput(rawOutput, exitCode, names) {
+  const clean = rawOutput.replace(ANSI_RE, '').replace(/\r/g, '')
+  const succeeded = new Set([...clean.matchAll(SUCCESS_RE)].map((m) => m[1]))
+  if (exitCode === 0 && /Deploy complete!/.test(clean)) {
+    for (const name of names) succeeded.add(name)
+  }
+  return { succeeded, clean }
+}
+
 // Runs one `firebase deploy --only functions:a,functions:b` call. Streams the
 // output to the console and returns the names that reported success.
 // Firebase prompts are not expected for --only deploys, since nothing is
@@ -125,12 +141,18 @@ function deployBatch(names, opts) {
       output += text
       process.stdout.write(text)
     }
-    const child = spawn(cmd, { cwd: ROOT, shell: true, stdio: ['inherit', 'pipe', 'pipe'] })
+    const child = spawn(cmd, {
+      cwd: ROOT,
+      shell: true,
+      stdio: ['inherit', 'pipe', 'pipe'],
+      // Ask the CLI for plain output so the piped text is easy to parse.
+      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+    })
     child.stdout.on('data', onData)
     child.stderr.on('data', onData)
     child.on('close', (exitCode) => {
-      const succeeded = new Set([...output.matchAll(SUCCESS_RE)].map((m) => m[1]))
-      resolve({ exitCode, succeeded, output })
+      const { succeeded, clean } = parseDeployOutput(output, exitCode, names)
+      resolve({ exitCode, succeeded, output: clean })
     })
   })
 }
@@ -201,7 +223,10 @@ async function main() {
   process.exitCode = 1
 }
 
-main().catch((err) => {
-  console.error(`\n${err.message || err}`)
-  process.exitCode = 1
-})
+// Only run when executed directly, so tests can import parseDeployOutput.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(`\n${err.message || err}`)
+    process.exitCode = 1
+  })
+}
