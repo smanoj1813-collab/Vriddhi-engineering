@@ -412,9 +412,9 @@ export const useDashboardStats = (queryOptions?: Omit<UseQueryOptions<DashboardP
     queryKey: superAdminKeys.dashboard(),
     queryFn: getDashboardStats,
     staleTime: 1000 * 60 * 5,
-    // Item 2.4: the numbers now come from a 15-minute snapshot doc, so polling
-    // more often than the snapshot changes only burns reads.
-    refetchInterval: 1000 * 60 * 10,
+    // Item 2.4: the numbers come from a 15-minute snapshot doc. No timer: the
+    // data refreshes on tab focus only when older than staleTime.
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -499,7 +499,7 @@ export const useRenewalAlerts = (queryOptions?: Omit<UseQueryOptions<RenewalAler
     queryKey: superAdminKeys.renewals(),
     queryFn: getRenewalAlerts,
     staleTime: 1000 * 60 * 5,
-    refetchInterval: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -546,7 +546,7 @@ export const useSystemHealth = (queryOptions?: Omit<UseQueryOptions<SystemHealth
     queryKey: superAdminKeys.health(),
     queryFn: getSystemHealth,
     staleTime: 1000 * 60 * 2,
-    refetchInterval: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -556,7 +556,7 @@ export const useHealthHistory = (hours: number = 24, queryOptions?: Omit<UseQuer
     queryKey: superAdminKeys.healthHistory(hours),
     queryFn: () => getHealthHistory(hours),
     staleTime: 1000 * 60,
-    refetchInterval: 1000 * 60 * 2,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -566,7 +566,7 @@ export const useSlowQueries = (limit: number = 20, queryOptions?: Omit<UseQueryO
     queryKey: superAdminKeys.slowQueries(limit),
     queryFn: () => getSlowQueries(limit),
     staleTime: 1000 * 60,
-    refetchInterval: 1000 * 60 * 2,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -576,7 +576,7 @@ export const useErrorLogs = (options?: { severity?: string; resolved?: boolean; 
     queryKey: superAdminKeys.errors(options),
     queryFn: () => getErrorLogs(options),
     staleTime: 1000 * 60 * 2,
-    refetchInterval: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };
@@ -586,7 +586,7 @@ export const usePerformanceMetrics = (hours: number = 24, queryOptions?: Omit<Us
     queryKey: superAdminKeys.performance(hours),
     queryFn: () => getPerformanceMetrics(hours),
     staleTime: 1000 * 60,
-    refetchInterval: 1000 * 60 * 2,
+    refetchOnWindowFocus: true,
     ...queryOptions,
   });
 };

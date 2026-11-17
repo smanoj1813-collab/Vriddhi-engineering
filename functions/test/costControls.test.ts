@@ -164,6 +164,38 @@ describe('academic insights ceilings (pre-Phase 3 contract)', () => {
     assert.ok(CEILINGS.academicInsightsLive.reads <= 40)
     assert.equal(CEILINGS.academicInsightsLive.writes, 0)
   })
+  it('real query caps add up to the stated worst case for one overview call', () => {
+    const worst = MAX_INSIGHTS_MAPPINGS + MAX_INSIGHTS_STUDENTS + MAX_INSIGHTS_SESSIONS
+    assert.ok(worst <= OVERVIEW_WORST_CASE_READS, `worst case ${worst} exceeds ${OVERVIEW_WORST_CASE_READS}`)
+  })
+  it('subject drill caps stay bounded', () => {
+    assert.ok(MAX_INSIGHTS_SUBMISSIONS <= 200)
+    assert.ok(MAX_INSIGHTS_ASSIGNMENTS <= 50)
+  })
+})
+
+describe('academic insights truncation flag', () => {
+  it('flags a collection only when its read hit the limit', () => {
+    assert.deepEqual(
+      cappedCollections([{ name: 'sessions', size: MAX_INSIGHTS_SESSIONS, limit: MAX_INSIGHTS_SESSIONS }]),
+      ['sessions'],
+    )
+    assert.deepEqual(
+      cappedCollections([{ name: 'sessions', size: MAX_INSIGHTS_SESSIONS - 1, limit: MAX_INSIGHTS_SESSIONS }]),
+      [],
+    )
+  })
+
+  it('reports each capped collection separately', () => {
+    assert.deepEqual(
+      cappedCollections([
+        { name: 'mappings', size: 200, limit: 200 },
+        { name: 'students', size: 10, limit: 500 },
+        { name: 'sessions', size: 1000, limit: 1000 },
+      ]),
+      ['mappings', 'sessions'],
+    )
+  })
 })
 
 // ─── Academic insights (aggregate primitive) ─────────────────────────────
@@ -175,7 +207,20 @@ describe('academic insights ceilings (pre-Phase 3 contract)', () => {
 // (≤ 10 overview, ≤ 5 subject drill) are the contract the callable must
 // satisfy, enforced by the explicit .limit() caps in the source.
 
-import { aggregate } from '../src/academicInsights'
+import {
+  aggregate,
+  cappedCollections,
+  MAX_INSIGHTS_MAPPINGS,
+  MAX_INSIGHTS_SESSIONS,
+  MAX_INSIGHTS_STUDENTS,
+  MAX_INSIGHTS_SUBMISSIONS,
+  MAX_INSIGHTS_ASSIGNMENTS,
+} from '../src/academicInsights'
+
+// Worst-case reads for one uncached overview call: mappings + students + sessions.
+// Measured from the real query caps, not the design target above. If a cap grows,
+// this ceiling must be raised deliberately, with a review of the budget.
+const OVERVIEW_WORST_CASE_READS = 1700
 
 describe('academic insights aggregate primitive', () => {
   it('produces overview rollups from bounded inputs without error', () => {

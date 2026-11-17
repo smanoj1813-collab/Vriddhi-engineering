@@ -1,17 +1,22 @@
 // src/modules/admin/pages/AcademicInsights.tsx
 //
-// Academic Insights — four-level drill: Semesters → Subjects → Subject detail → Students.
+// Curriculum Insights — one drill for every academic role:
+//   Branch → Batch → Semester → Subject → Subject detail.
 //
-// All aggregation is server-side in functions/src/academicInsights.ts (see
-// docs/firestore-cost-controls.md for the per-invocation read ceiling). The
-// page loads once on mount, once on explicit Refresh, and again after a
-// successful drill-in (C7 — no interval/focus/reconnect polling).
+// Branch, batch and semester are dropdowns. Each dropdown is the same selection
+// as its drill level, so the page always shows which curriculum is open.
 //
-// Scope rules: faculty/mentor see only their own subjects; HOD sees the
-// department (same branch/batch filters apply); admin/principal/superadmin
-// see college-wide. The scopeLine copy reflects this.
+// Cost rules (docs/firestore-cost-controls.md):
+//  - The overview is fetched ONCE per date window (mount, Refresh, Apply dates).
+//    Grouping and filtering by branch, batch and semester happen in memory.
+//  - One extra call happens when a single subject is opened: its students,
+//    assessments and attendance trend. Moving between levels never refetches.
+//  - No polling, focus or reconnect refetches (C7).
+//
+// Scope rules are enforced server-side: faculty see their own subjects, HOD the
+// department, principal/admin the college.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -23,228 +28,310 @@ import {
   Chip,
   CircularProgress,
   Divider,
-  IconButton,
+  Link,
   LinearProgress,
   MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material'
 import {
-  ArrowBack as ArrowBackIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material'
-import { Link } from 'react-router-dom'
 
 import { useAuth } from '../../auth/context/AuthContext'
 import {
   getAcademicInsights,
   type AcademicInsightsResult,
-  type SemesterInsight,
   type SubjectInsight,
   type StudentInsight,
   type AssessmentDetail,
   type AttendanceTrendPoint,
 } from '../api/academicInsightsApi'
-import { defaultTermWindow } from '../api/classSessionApi'
 import AcademicInsightsCard, { progressTone } from '../components/AcademicInsightsCard'
+import {
+  NO_BATCH_LABEL,
+  NO_BRANCH_KEY,
+  batchOf,
+  branchKeyOf,
+  displayLabel,
+  groupBy,
+  rollup,
+  sortByLabel,
+  academicYearToDate,
+  subjectKeyOf,
+  type Group,
+} from '../utils/curriculumDrill'
 
 type SubjectTab = 'attendance' | 'completion' | 'assignments' | 'scores'
+type SubjectDetail = NonNullable<AcademicInsightsResult['subject']>
+type DateWindow = { from: string; to: string }
+type ViewLevel = 'branches' | 'batches' | 'semesters' | 'subjects' | 'detail'
+
+/** The drill selection. Each level is set only when every level above it is set. */
+interface Drill {
+  branch: string | null      // branchKey, or NO_BRANCH_KEY
+  batch: string | null       // batch label, or NO_BATCH_LABEL
+  semester: number | null
+  subjectKey: string | null  // `${semester}__${curriculumId}`
+}
+const EMPTY_DRILL: Drill = { branch: null, batch: null, semester: null, subjectKey: null }
 
 export default function AcademicInsights() {
   const { user } = useAuth()
   const role = String(user?.role || '')
   const collegeId = String((user as { collegeId?: string } | null)?.collegeId || '')
   const isSuperadmin = role === 'superadmin'
+  const scopeCollegeId = isSuperadmin ? (collegeId || undefined) : undefined
 
-  const [window, setWindow] = useState(() => defaultTermWindow())
-  const [semesterFilter, setSemesterFilter] = useState<number | ''>('')
-  const [branchFilter, setBranchFilter] = useState('')
-  const [batchFilter, setBatchFilter] = useState('')
-  const [facultyFilter, setFacultyFilter] = useState('')
+  // Date window. The draft is what the inputs show; the applied window is what
+  // the server was last asked for.
+  const [draftDates, setDraftDates] = useState<DateWindow>(() => academicYearToDate())
+  const [appliedDates, setAppliedDates] = useState<DateWindow>(() => academicYearToDate())
 
-  const [data, setData] = useState<AcademicInsightsResult | null>(null)
+  const [overview, setOverview] = useState<AcademicInsightsResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Drill state: 'overview' | 'semester' | 'subject'
-  const [view, setView] = useState<'overview' | 'semester' | 'subject'>('overview')
-  const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
-  const [selectedCurriculumId, setSelectedCurriculumId] = useState<string | null>(null)
+  const [drill, setDrill] = useState<Drill>(EMPTY_DRILL)
   const [subjectTab, setSubjectTab] = useState<SubjectTab>('attendance')
-  const [subjectLoading, setSubjectLoading] = useState(false)
 
-  const load = useCallback(
-    async (drill?: { semester?: number; curriculumId?: string }) => {
-      setError(null)
-      if (drill) setSubjectLoading(true)
-      else setLoading(true)
-      try {
-        const result = await getAcademicInsights({
-          collegeId: isSuperadmin ? (collegeId || undefined) : undefined,
-          from: window.from,
-          to: window.to,
-          semester: drill?.semester ?? (semesterFilter || undefined),
-          branch: branchFilter || undefined,
-          batch: batchFilter || undefined,
-          facultyId: facultyFilter || undefined,
-          curriculumId: drill?.curriculumId,
-        })
-        setData(result)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Academic insights could not be loaded.')
-      } finally {
-        setLoading(false)
-        setSubjectLoading(false)
-      }
-    },
-    [isSuperadmin, collegeId, window.from, window.to, semesterFilter, branchFilter, batchFilter, facultyFilter]
-  )
+  const [detail, setDetail] = useState<SubjectDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
-  // Initial load.
+  // One overview fetch per date window. Mount, Refresh and Apply dates only.
+  const loadOverview = useCallback(async (dates: DateWindow) => {
+    setError(null)
+    setLoading(true)
+    try {
+      const result = await getAcademicInsights({ collegeId: scopeCollegeId, from: dates.from, to: dates.to })
+      setOverview(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Academic insights could not be loaded.')
+    } finally {
+      setLoading(false)
+    }
+  }, [scopeCollegeId])
+
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const result = await getAcademicInsights({
-          collegeId: isSuperadmin ? (collegeId || undefined) : undefined,
-          from: window.from,
-          to: window.to,
-        })
-        if (!cancelled) setData(result)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Academic insights could not be loaded.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-    // Only run on mount — manual Refresh calls load().
+    void loadOverview(appliedDates)
+    // Runs once on mount; later loads are explicit (Refresh / Apply dates).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Second effect: subject drill-in loads with curriculumId.
+  const subjects = useMemo<SubjectInsight[]>(
+    () => (overview?.semesters ?? []).flatMap((sem) => sem.subjects),
+    [overview],
+  )
+
+  // ── Grouping, in memory ──────────────────────────────────────────────────
+  const branchGroups = useMemo(
+    () => sortByLabel(groupBy(subjects, branchKeyOf, (list) => displayLabel(list.map((s) => s.branch), 'No branch'))),
+    [subjects],
+  )
+
+  const inBranch = useMemo(() => {
+    if (drill.branch === null) return subjects
+    return branchGroups.find((g) => g.key === drill.branch)?.subjects ?? []
+  }, [subjects, branchGroups, drill.branch])
+
+  const batchGroups = useMemo(
+    () => sortByLabel(groupBy(inBranch, batchOf, (list) => displayLabel(list.map(batchOf), NO_BATCH_LABEL))),
+    [inBranch],
+  )
+
+  const inBatch = useMemo(() => {
+    if (drill.batch === null) return inBranch
+    return inBranch.filter((s) => batchOf(s) === drill.batch)
+  }, [inBranch, drill.batch])
+
+  const semesterGroups = useMemo(() => {
+    const groups = groupBy(inBatch, (s) => String(s.semester), () => '')
+    return groups
+      .map((g) => ({ ...g, label: `Semester ${g.key}`, semester: Number(g.key) }))
+      .sort((a, b) => a.semester - b.semester)
+  }, [inBatch])
+
+  const inSemester = useMemo(() => {
+    if (drill.semester === null) return inBatch
+    return inBatch.filter((s) => s.semester === drill.semester)
+  }, [inBatch, drill.semester])
+
+  const activeSubject = useMemo<SubjectInsight | null>(() => {
+    if (drill.subjectKey === null) return null
+    return subjects.find((s) => subjectKeyOf(s) === drill.subjectKey) ?? null
+  }, [subjects, drill.subjectKey])
+
+  const view: ViewLevel =
+    drill.subjectKey !== null ? 'detail'
+      : drill.semester !== null ? 'subjects'
+        : drill.batch !== null ? 'semesters'
+          : drill.branch !== null ? 'batches'
+            : 'branches'
+
+  // If a refresh removes the selected branch, batch or subject, fall back to the level above.
   useEffect(() => {
-    if (view !== 'subject' || !selectedCurriculumId || !selectedSemester) return
+    if (!overview) return
+    if (drill.branch !== null && !branchGroups.some((g) => g.key === drill.branch)) {
+      setDrill(EMPTY_DRILL)
+    } else if (drill.subjectKey !== null && !activeSubject) {
+      setDrill((d) => ({ ...d, subjectKey: null }))
+    }
+  }, [overview, branchGroups, drill.branch, drill.subjectKey, activeSubject])
+
+  // ── Subject detail: one call when a single subject is opened ─────────────
+  useEffect(() => {
+    if (!activeSubject) {
+      setDetail(null)
+      return
+    }
     let cancelled = false
+    setDetail(null)
+    setDetailLoading(true)
+    setError(null)
     void (async () => {
-      setSubjectLoading(true)
-      setError(null)
       try {
         const result = await getAcademicInsights({
-          collegeId: isSuperadmin ? (collegeId || undefined) : undefined,
-          from: window.from,
-          to: window.to,
-          semester: selectedSemester,
-          branch: branchFilter || undefined,
-          batch: batchFilter || undefined,
-          facultyId: facultyFilter || undefined,
-          curriculumId: selectedCurriculumId,
+          collegeId: scopeCollegeId,
+          from: appliedDates.from,
+          to: appliedDates.to,
+          semester: activeSubject.semester,
+          curriculumId: activeSubject.curriculumId,
         })
-        if (!cancelled) setData(result)
+        if (!cancelled) setDetail(result.subject ?? null)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Subject detail could not be loaded.')
       } finally {
-        if (!cancelled) setSubjectLoading(false)
+        if (!cancelled) setDetailLoading(false)
       }
     })()
     return () => { cancelled = true }
+    // Keyed on the subject identity only; the window and college are fixed per drill.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedCurriculumId])
+  }, [activeSubject?.curriculumId, activeSubject?.semester])
 
-  const semesters = data?.semesters || []
-  const semOptions = useMemo(() => semesters.map((s) => s.semester).sort((a, b) => a - b), [semesters])
-
-  const activeSemester: SemesterInsight | null = useMemo(() => {
-    if (selectedSemester === null || !data) return null
-    return data.semesters.find((s) => s.semester === selectedSemester) || null
-  }, [data, selectedSemester])
-
-  const activeSubject: SubjectInsight | null = useMemo(() => {
-    if (!activeSemester || !selectedCurriculumId) return null
-    return activeSemester.subjects.find((s) => s.curriculumId === selectedCurriculumId) || null
-  }, [activeSemester, selectedCurriculumId])
-
-  const handleDrillSemester = (semester: number) => {
-    setSelectedSemester(semester)
-    setView('semester')
+  // ── Drill transitions. Choosing a level clears everything below it. ──────
+  const pickBranch = (key: string) => setDrill({ ...EMPTY_DRILL, branch: key })
+  const pickBatch = (batch: string) => setDrill({ ...EMPTY_DRILL, branch: drill.branch, batch })
+  const pickSemester = (semester: number) => setDrill({ ...EMPTY_DRILL, branch: drill.branch, batch: drill.batch, semester })
+  const pickSubject = (s: SubjectInsight) => {
+    setSubjectTab('attendance')
+    setDrill({ branch: drill.branch, batch: drill.batch, semester: s.semester, subjectKey: subjectKeyOf(s) })
   }
-  const handleDrillSubject = (subject: SubjectInsight) => {
-    setSelectedCurriculumId(subject.curriculumId)
-    setView('subject')
-  }
-  const handleBack = () => {
-    if (view === 'subject') { setView('semester'); setSelectedCurriculumId(null) }
-    else if (view === 'semester') { setView('overview'); setSelectedSemester(null) }
+  const goTo = (level: 'root' | 'branch' | 'batch' | 'semester') => {
+    if (level === 'root') setDrill(EMPTY_DRILL)
+    else if (level === 'branch') setDrill({ ...EMPTY_DRILL, branch: drill.branch })
+    else if (level === 'batch') setDrill({ ...EMPTY_DRILL, branch: drill.branch, batch: drill.batch })
+    else setDrill({ ...EMPTY_DRILL, branch: drill.branch, batch: drill.batch, semester: drill.semester })
   }
 
-  const filterCard = (
+  const branchLabel = branchGroups.find((g) => g.key === drill.branch)?.label ?? ''
+  const subjectLabel = activeSubject ? `${activeSubject.courseName} (${activeSubject.courseCode})` : ''
+
+  const scopedRollup = useMemo(() => rollup(inSemester), [inSemester])
+  const scopedTotals = useMemo(() => {
+    const semesterCount = new Set(inSemester.map((s) => s.semester)).size
+    return { semesters: semesterCount }
+  }, [inSemester])
+
+  // ── Filter bar ───────────────────────────────────────────────────────────
+  const batchOptions = batchGroups
+  const semesterOptions = semesterGroups
+
+  const dateCard = (
     <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ flexWrap: 'wrap', alignItems: { md: 'center' } }}>
           <TextField
             label="From"
             type="date"
-            value={window.from}
-            onChange={(e) => setWindow((p) => ({ ...p, from: e.target.value }))}
+            value={draftDates.from}
+            onChange={(e) => setDraftDates((p) => ({ ...p, from: e.target.value }))}
             slotProps={{ inputLabel: { shrink: true } }}
             size="small"
           />
           <TextField
             label="To"
             type="date"
-            value={window.to}
-            onChange={(e) => setWindow((p) => ({ ...p, to: e.target.value }))}
+            value={draftDates.to}
+            onChange={(e) => setDraftDates((p) => ({ ...p, to: e.target.value }))}
             slotProps={{ inputLabel: { shrink: true } }}
             size="small"
           />
+          <Button
+            variant="outlined"
+            onClick={() => { setAppliedDates(draftDates); setDrill(EMPTY_DRILL); void loadOverview(draftDates) }}
+            disabled={loading}
+          >
+            Apply dates
+          </Button>
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+
+  const curriculumFilterCard = (
+    <Card variant="outlined" sx={{ mb: 3 }}>
+      <CardContent>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
+          Choose the curriculum
+        </Typography>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }}>
           <TextField
             select
-            label="Semester"
-            value={semesterFilter}
-            onChange={(e) => setSemesterFilter(e.target.value === '' ? '' : Number(e.target.value))}
+            label="Branch"
+            value={drill.branch ?? ''}
+            onChange={(e) => (e.target.value === '' ? setDrill(EMPTY_DRILL) : pickBranch(e.target.value))}
             size="small"
-            sx={{ minWidth: 140 }}
+            sx={{ minWidth: 220 }}
           >
-            <MenuItem value="">All semesters</MenuItem>
-            {semOptions.map((s) => (
-              <MenuItem key={s} value={s}>Semester {s}</MenuItem>
+            <MenuItem value="">All branches</MenuItem>
+            {branchGroups.map((g) => (
+              <MenuItem key={g.key} value={g.key}>{g.label}</MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Branch"
-            value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: 140 }}
-          />
-          <TextField
+            select
             label="Batch"
-            value={batchFilter}
-            onChange={(e) => setBatchFilter(e.target.value)}
+            value={drill.batch ?? ''}
+            onChange={(e) => (e.target.value === '' ? setDrill({ ...EMPTY_DRILL, branch: drill.branch }) : pickBatch(e.target.value))}
             size="small"
-            sx={{ minWidth: 140 }}
-          />
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void load()} disabled={loading}>
-            {loading ? 'Loading…' : 'Apply filters'}
-          </Button>
+            disabled={drill.branch === null}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">All batches</MenuItem>
+            {batchOptions.map((g) => (
+              <MenuItem key={g.key} value={g.key}>{g.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Semester"
+            value={drill.semester ?? ''}
+            onChange={(e) => (e.target.value === '' ? goTo('batch') : pickSemester(Number(e.target.value)))}
+            size="small"
+            disabled={drill.batch === null}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">All semesters</MenuItem>
+            {semesterOptions.map((g) => (
+              <MenuItem key={g.key} value={g.semester}>{g.label}</MenuItem>
+            ))}
+          </TextField>
         </Stack>
-        {data?.scopeLine && (
+        {overview?.scopeLine && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-            {data.scopeLine}
+            {overview.scopeLine}
           </Typography>
         )}
       </CardContent>
     </Card>
   )
 
-  if (loading && !data) {
+  if (loading && !overview) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <CircularProgress />
@@ -260,227 +347,252 @@ export default function AcademicInsights() {
             Curriculum Insights
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Semester → subject → student analytics: coverage, attendance, completion and scores —
-            aggregated server-side, never typed in.
+            Branch → batch → semester → subject → students. Coverage, attendance, completion and scores,
+            aggregated on the server.
           </Typography>
         </Box>
-        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void load()} disabled={loading}>
+        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void loadOverview(appliedDates)} disabled={loading}>
           {loading ? 'Refreshing…' : 'Refresh'}
         </Button>
       </Box>
 
-      {filterCard}
+      {dateCard}
+      {curriculumFilterCard}
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Breadcrumbs */}
-      {view !== 'overview' && (
+      {overview && overview.truncated.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Some figures may be incomplete: the data for this date range is larger than one load can cover
+          ({overview.truncated.join(', ')}). Choose a shorter date range for complete numbers.
+        </Alert>
+      )}
+
+      {/* Breadcrumbs: every crumb is a real level, so the path is always visible. */}
+      {view !== 'branches' && (
         <Card variant="outlined" sx={{ mb: 2 }}>
-          <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton size="small" onClick={handleBack} aria-label="Go back">
-              <ArrowBackIcon fontSize="small" />
-            </IconButton>
-            <Breadcrumbs separator={<ChevronRightIcon fontSize="small" />}>
-              <Link to="#" style={{ color: 'inherit', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setView('overview'); setSelectedSemester(null); setSelectedCurriculumId(null) }}>
-                <Typography variant="body2" sx={{ cursor: 'pointer' }}>Semesters</Typography>
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Breadcrumbs separator={<ChevronRightIcon fontSize="small" />} aria-label="Drill path">
+              <Link component="button" variant="body2" underline="hover" color="inherit" onClick={() => goTo('root')}>
+                All branches
               </Link>
-              {selectedSemester !== null && (() => {
-                const showingSemester = view === 'semester'
-                return showingSemester ? (
-                  <Typography key="sem-current" variant="body2" sx={{ fontWeight: 600 }}>Semester {selectedSemester}</Typography>
-                ) : (
-                  <Link key="sem-link" to="#" style={{ color: 'inherit', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setView('semester'); setSelectedCurriculumId(null) }}>
-                    <Typography variant="body2" sx={{ cursor: 'pointer' }}>Semester {selectedSemester}</Typography>
-                  </Link>
-                )
-              })()}
-              {view === 'subject' && activeSubject && (
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {activeSubject.courseName} ({activeSubject.courseCode})
-                </Typography>
+              {drill.branch !== null && (
+                view === 'batches'
+                  ? <Typography variant="body2" sx={{ fontWeight: 600 }}>{branchLabel}</Typography>
+                  : <Link component="button" variant="body2" underline="hover" color="inherit" onClick={() => goTo('branch')}>{branchLabel}</Link>
               )}
+              {drill.batch !== null && (
+                view === 'semesters'
+                  ? <Typography variant="body2" sx={{ fontWeight: 600 }}>{drill.batch}</Typography>
+                  : <Link component="button" variant="body2" underline="hover" color="inherit" onClick={() => goTo('batch')}>{drill.batch}</Link>
+              )}
+              {drill.semester !== null && (
+                view === 'subjects'
+                  ? <Typography variant="body2" sx={{ fontWeight: 600 }}>Semester {drill.semester}</Typography>
+                  : <Link component="button" variant="body2" underline="hover" color="inherit" onClick={() => goTo('semester')}>Semester {drill.semester}</Link>
+              )}
+              {view === 'detail' && <Typography variant="body2" sx={{ fontWeight: 600 }}>{subjectLabel}</Typography>}
             </Breadcrumbs>
           </Box>
         </Card>
       )}
 
-      {/* Overview stats */}
-      {data && view === 'overview' && (
-        <>
-          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', mb: 3 }}>
-            <AcademicInsightsCard label="Semesters" value={data.totals.semesters} hint={`${data.totals.subjects} subjects`} />
-            <AcademicInsightsCard label="Faculty" value={data.totals.faculty} hint={`${data.totals.students} students`} />
-            <AcademicInsightsCard
-              label="Classes delivered"
-              value={`${data.totals.completedSessions} / ${data.totals.sessions}`}
-              progress={data.totals.sessions > 0 ? (data.totals.completedSessions / data.totals.sessions) * 100 : 0}
-              tone={progressTone(data.totals.sessions > 0 ? (data.totals.completedSessions / data.totals.sessions) * 100 : 0)}
-            />
-            <AcademicInsightsCard
-              label="Avg attendance"
-              value={data.totals.avgAttendance !== null ? `${data.totals.avgAttendance}%` : '—'}
-              progress={data.totals.avgAttendance ?? 0}
-              tone={progressTone(data.totals.avgAttendance)}
-            />
-            <AcademicInsightsCard
-              label="Assignments completion"
-              value={data.totals.avgCompletion !== null ? `${data.totals.avgCompletion}%` : '—'}
-              progress={data.totals.avgCompletion ?? 0}
-              tone={progressTone(data.totals.avgCompletion)}
-            />
-            <AcademicInsightsCard
-              label="Avg score"
-              value={data.totals.avgScore !== null ? `${data.totals.avgScore}%` : '—'}
-              progress={data.totals.avgScore ?? 0}
-              tone={progressTone(data.totals.avgScore)}
-            />
-          </Stack>
+      {/* Summary for the current scope, computed from the one overview fetch. */}
+      {view !== 'detail' && overview && (
+        <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', mb: 3 }}>
+          <AcademicInsightsCard label="Semesters" value={scopedTotals.semesters} hint={`${scopedRollup.subjects} subjects`} />
+          <AcademicInsightsCard label="Faculty" value={scopedRollup.faculty} />
+          <AcademicInsightsCard
+            label="Classes delivered"
+            value={`${scopedRollup.sessionsCompleted} / ${scopedRollup.sessionsTotal}`}
+            progress={scopedRollup.sessionsTotal > 0 ? (scopedRollup.sessionsCompleted / scopedRollup.sessionsTotal) * 100 : 0}
+            tone={progressTone(scopedRollup.sessionsTotal > 0 ? (scopedRollup.sessionsCompleted / scopedRollup.sessionsTotal) * 100 : 0)}
+          />
+          <AcademicInsightsCard
+            label="Avg attendance"
+            value={scopedRollup.attendancePct !== null ? `${scopedRollup.attendancePct}%` : '—'}
+            progress={scopedRollup.attendancePct ?? 0}
+            tone={progressTone(scopedRollup.attendancePct)}
+          />
+          <AcademicInsightsCard
+            label="Assignments completion"
+            value={scopedRollup.completionPct !== null ? `${scopedRollup.completionPct}%` : '—'}
+            progress={scopedRollup.completionPct ?? 0}
+            tone={progressTone(scopedRollup.completionPct)}
+          />
+          <AcademicInsightsCard
+            label="Avg score"
+            value={scopedRollup.avgScore !== null ? `${scopedRollup.avgScore}%` : '—'}
+            progress={scopedRollup.avgScore ?? 0}
+            tone={progressTone(scopedRollup.avgScore)}
+          />
+        </Stack>
+      )}
 
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Semesters</Typography>
-          <Box
-            sx={{
-              display: 'grid', gap: 2,
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-            }}
-          >
-            {semesters.map((sem) => (
-              <Card key={sem.semester} variant="outlined">
-                <CardActionArea onClick={() => handleDrillSemester(sem.semester)} sx={{ p: 2 }}>
-                  <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Semester {sem.semester}</Typography>
-                      <Chip size="small" color="primary" variant="outlined" label={`${sem.subjectCount} subjects`} />
-                    </Box>
-                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
-                      <MetricRow label="Faculty" value={`${sem.facultyCount}`} />
-                      <MetricRow label="Students" value={`${sem.studentCount}`} />
-                      <MetricRow
-                        label="Attendance"
-                        value={`${sem.avgAttendancePct}%`}
-                        tone={progressTone(sem.avgAttendancePct)}
-                      />
-                      <MetricRow
-                        label="Completion"
-                        value={`${sem.completionPct}%`}
-                        tone={progressTone(sem.completionPct)}
-                      />
-                      <MetricRow
-                        label="Avg score"
-                        value={sem.avgScore !== null ? `${sem.avgScore}%` : '—'}
-                        tone={progressTone(sem.avgScore)}
-                      />
-                    </Stack>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                      <Button size="small" endIcon={<ChevronRightIcon />} sx={{ textTransform: 'none' }} tabIndex={-1}>Open</Button>
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            ))}
-          </Box>
+      {/* Branch cards */}
+      {overview && view === 'branches' && (
+        <>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Branches</Typography>
+          {branchGroups.length === 0 ? (
+            <Alert severity="info">No curriculum mapped yet. Map subjects to branches and batches to see insights.</Alert>
+          ) : (
+            <GroupGrid
+              groups={branchGroups}
+              onOpen={(g) => pickBranch(g.key)}
+              subtitleOf={(g) => `${new Set(g.subjects.map(batchOf)).size} batches`}
+            />
+          )}
         </>
       )}
 
-      {/* Semester view */}
-      {data && view === 'semester' && activeSemester && (
+      {/* Batch cards within the branch */}
+      {overview && view === 'batches' && (
         <>
-          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', mb: 3 }}>
-            <AcademicInsightsCard label="Subjects" value={activeSemester.subjectCount} />
-            <AcademicInsightsCard label="Faculty" value={activeSemester.facultyCount} />
-            <AcademicInsightsCard label="Students" value={activeSemester.studentCount} />
-            <AcademicInsightsCard
-              label="Avg attendance"
-              value={`${activeSemester.avgAttendancePct}%`}
-              progress={activeSemester.avgAttendancePct}
-              tone={progressTone(activeSemester.avgAttendancePct)}
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Batches — {branchLabel}</Typography>
+          {batchGroups.length === 0 ? (
+            <Alert severity="info">No batches in this branch yet.</Alert>
+          ) : (
+            <GroupGrid
+              groups={batchGroups}
+              onOpen={(g) => pickBatch(g.key)}
+              subtitleOf={(g) => `${new Set(g.subjects.map((s) => s.semester)).size} semesters`}
             />
-            <AcademicInsightsCard
-              label="Completion"
-              value={`${activeSemester.completionPct}%`}
-              progress={activeSemester.completionPct}
-              tone={progressTone(activeSemester.completionPct)}
-            />
-          </Stack>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Subjects — Semester {activeSemester.semester}</Typography>
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' } }}>
-            {activeSemester.subjects.map((sub) => (
-              <Card key={sub.curriculumId} variant="outlined">
-                <CardActionArea onClick={() => handleDrillSubject(sub)} sx={{ p: 2 }}>
-                  <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                      {sub.courseName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {sub.courseCode} · {sub.facultyName || 'Unassigned'}
-                      {sub.batch && ` · ${sub.batch}`}
-                    </Typography>
-                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
-                      <MetricRow label="Classes" value={`${sub.sessionsCompleted}/${sub.sessionsTotal}`} />
-                      <MetricRow label="Attendance" value={`${sub.attendancePct}%`} tone={progressTone(sub.attendancePct)} />
-                      <MetricRow label="Completion" value={`${sub.completionPct}%`} tone={progressTone(sub.completionPct)} />
-                      <MetricRow label="Avg score" value={sub.avgScore !== null ? `${sub.avgScore}%` : '—'} tone={progressTone(sub.avgScore)} />
-                    </Stack>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                      <Button size="small" endIcon={<ChevronRightIcon />} sx={{ textTransform: 'none' }} tabIndex={-1}>Open</Button>
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            ))}
-          </Box>
+          )}
         </>
       )}
 
-      {/* Subject view */}
-      {data && view === 'subject' && (subjectLoading || activeSubject) && (
+      {/* Semester cards within the batch */}
+      {overview && view === 'semesters' && (
         <>
-          {subjectLoading && <LinearProgress sx={{ mb: 2 }} />}
-          {activeSubject && data.subject && (
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Semesters — {branchLabel} · {drill.batch}</Typography>
+          {semesterGroups.length === 0 ? (
+            <Alert severity="info">No semesters in this batch yet.</Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' } }}>
+              {semesterGroups.map((g) => {
+                const r = rollup(g.subjects)
+                return (
+                  <Card key={g.key} variant="outlined">
+                    <CardActionArea onClick={() => pickSemester(g.semester)} sx={{ p: 2 }}>
+                      <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{g.label}</Typography>
+                          <Chip size="small" color="primary" variant="outlined" label={`${r.subjects} subjects`} />
+                        </Box>
+                        <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                          <MetricRow label="Faculty" value={`${r.faculty}`} />
+                          <MetricRow label="Classes" value={`${r.sessionsCompleted}/${r.sessionsTotal}`} />
+                          <MetricRow label="Attendance" value={r.attendancePct !== null ? `${r.attendancePct}%` : '—'} tone={progressTone(r.attendancePct)} />
+                          <MetricRow label="Completion" value={r.completionPct !== null ? `${r.completionPct}%` : '—'} tone={progressTone(r.completionPct)} />
+                          <MetricRow label="Avg score" value={r.avgScore !== null ? `${r.avgScore}%` : '—'} tone={progressTone(r.avgScore)} />
+                        </Stack>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                          <Button size="small" endIcon={<ChevronRightIcon />} sx={{ textTransform: 'none' }} tabIndex={-1}>Open</Button>
+                        </Box>
+                      </CardContent>
+                    </CardActionArea>
+                  </Card>
+                )
+              })}
+            </Box>
+          )}
+        </>
+      )}
+
+      {/* Subject cards: name, code, branch, batch, semester and faculty are all shown. */}
+      {overview && view === 'subjects' && (
+        <>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Subjects — {branchLabel} · {drill.batch} · Semester {drill.semester}
+          </Typography>
+          {inSemester.length === 0 ? (
+            <Alert severity="info">No subjects in this semester.</Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' } }}>
+              {inSemester.map((sub) => (
+                <Card key={subjectKeyOf(sub)} variant="outlined">
+                  <CardActionArea onClick={() => pickSubject(sub)} sx={{ p: 2 }}>
+                    <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{sub.courseName}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {sub.courseCode} · {sub.facultyName || 'Unassigned faculty'}
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                        <Chip size="small" label={branchLabelOf(sub, branchGroups)} />
+                        <Chip size="small" variant="outlined" label={batchOf(sub)} />
+                        <Chip size="small" variant="outlined" label={`Sem ${sub.semester}`} />
+                      </Stack>
+                      <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                        <MetricRow label="Classes" value={`${sub.sessionsCompleted}/${sub.sessionsTotal}`} />
+                        <MetricRow label="Attendance" value={`${sub.attendancePct}%`} tone={progressTone(sub.attendancePct)} />
+                        <MetricRow label="Completion" value={`${sub.completionPct}%`} tone={progressTone(sub.completionPct)} />
+                        <MetricRow label="Avg score" value={sub.avgScore !== null ? `${sub.avgScore}%` : '—'} tone={progressTone(sub.avgScore)} />
+                      </Stack>
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                        <Button size="small" endIcon={<ChevronRightIcon />} sx={{ textTransform: 'none' }} tabIndex={-1}>Open</Button>
+                      </Box>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </>
+      )}
+
+      {/* Subject detail */}
+      {view === 'detail' && (
+        <>
+          {detailLoading && <LinearProgress sx={{ mb: 2 }} />}
+          {activeSubject && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {activeSubject.courseName}{' '}
+                <Typography component="span" variant="body1" color="text.secondary">({activeSubject.courseCode})</Typography>
+              </Typography>
+              <Stack direction="row" spacing={0.75} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                <Chip size="small" label={branchLabelOf(activeSubject, branchGroups)} />
+                <Chip size="small" variant="outlined" label={batchOf(activeSubject)} />
+                <Chip size="small" variant="outlined" label={`Semester ${activeSubject.semester}`} />
+                <Chip size="small" variant="outlined" label={activeSubject.facultyName || 'Unassigned faculty'} />
+              </Stack>
+            </Box>
+          )}
+
+          {detail && activeSubject && (
             <>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {activeSubject.courseName}{' '}
-                  <Typography component="span" variant="body1" color="text.secondary">({activeSubject.courseCode})</Typography>
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {activeSubject.facultyName || 'Unassigned faculty'} · Semester {activeSubject.semester}
-                  {activeSubject.batch && ` · ${activeSubject.batch}`}
-                  {activeSubject.branch && ` · ${activeSubject.branch.toUpperCase()}`}
-                </Typography>
-              </Box>
-
               <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', mb: 3 }}>
                 <AcademicInsightsCard
                   label="Classes delivered"
-                  value={`${activeSubject.sessionsCompleted} / ${activeSubject.sessionsTotal}`}
-                  hint={`${activeSubject.hoursDelivered.toFixed(1)}h delivered`}
-                  progress={activeSubject.sessionsTotal > 0 ? (activeSubject.sessionsCompleted / activeSubject.sessionsTotal) * 100 : 0}
+                  value={`${detail.sessionsCompleted} / ${detail.sessionsTotal}`}
+                  hint={`${detail.hoursDelivered.toFixed(1)}h delivered`}
+                  progress={detail.sessionsTotal > 0 ? (detail.sessionsCompleted / detail.sessionsTotal) * 100 : 0}
                 />
                 <AcademicInsightsCard
                   label="Attendance"
-                  value={`${activeSubject.attendancePct}%`}
-                  hint={`${activeSubject.attendancePresent} of ${activeSubject.attendanceMarked} present`}
-                  progress={activeSubject.attendancePct}
-                  tone={progressTone(activeSubject.attendancePct)}
+                  value={`${detail.attendancePct}%`}
+                  hint={`${detail.attendancePresent} of ${detail.attendanceMarked} present`}
+                  progress={detail.attendancePct}
+                  tone={progressTone(detail.attendancePct)}
                 />
                 <AcademicInsightsCard
                   label="Completion"
-                  value={`${activeSubject.completionPct}%`}
-                  hint={`${activeSubject.submissionsSubmitted}/${activeSubject.submissionsExpected} submitted`}
-                  progress={activeSubject.completionPct}
-                  tone={progressTone(activeSubject.completionPct)}
+                  value={`${detail.completionPct}%`}
+                  hint={`${detail.submissionsSubmitted}/${detail.submissionsExpected} submitted`}
+                  progress={detail.completionPct}
+                  tone={progressTone(detail.completionPct)}
                 />
                 <AcademicInsightsCard
                   label="Late submissions"
-                  value={`${activeSubject.submissionsLate}`}
-                  hint={`${activeSubject.submissionsMissing} missing`}
+                  value={`${detail.submissionsLate}`}
+                  hint={`${detail.submissionsMissing} missing`}
                 />
                 <AcademicInsightsCard
                   label="Avg score"
-                  value={activeSubject.avgScore !== null ? `${activeSubject.avgScore}%` : '—'}
-                  hint={`${activeSubject.scoredCount} graded`}
-                  progress={activeSubject.avgScore ?? 0}
-                  tone={progressTone(activeSubject.avgScore)}
+                  value={detail.avgScore !== null ? `${detail.avgScore}%` : '—'}
+                  hint={`${detail.scoredCount} graded`}
+                  progress={detail.avgScore ?? 0}
+                  tone={progressTone(detail.avgScore)}
                 />
               </Stack>
 
@@ -493,29 +605,68 @@ export default function AcademicInsights() {
                 </Tabs>
               </Box>
 
-              {subjectTab === 'attendance' && (
-                <AttendanceTab trend={data.subject.attendanceTrend} />
-              )}
-              {subjectTab === 'completion' && (
-                <StudentListTab students={data.subject.students} mode="completion" />
-              )}
-              {subjectTab === 'assignments' && (
-                <AssignmentsTab assessments={data.subject.assessmentDetail} />
-              )}
-              {subjectTab === 'scores' && (
-                <StudentListTab students={data.subject.students} mode="scores" />
-              )}
+              {subjectTab === 'attendance' && <AttendanceTab trend={detail.attendanceTrend} />}
+              {subjectTab === 'completion' && <StudentListTab students={detail.students} mode="completion" />}
+              {subjectTab === 'assignments' && <AssignmentsTab assessments={detail.assessmentDetail} />}
+              {subjectTab === 'scores' && <StudentListTab students={detail.students} mode="scores" />}
             </>
           )}
         </>
       )}
 
-      {data?.generatedAt && view === 'overview' && (
+      {overview?.generatedAt && view !== 'detail' && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-          Computed {new Date(data.generatedAt).toLocaleString()}
-          {data.collegeId ? ` · college ${data.collegeId}` : ''}
+          Computed {new Date(overview.generatedAt).toLocaleString()}
+          {overview.collegeId ? ` · college ${overview.collegeId}` : ''}
         </Typography>
       )}
+    </Box>
+  )
+}
+
+/** Branch label for one subject, using the same grouping as the branch cards. */
+function branchLabelOf(sub: SubjectInsight, groups: Group[]): string {
+  const key = branchKeyOf(sub)
+  return groups.find((g) => g.key === key)?.label ?? (sub.branch || 'No branch')
+}
+
+function GroupGrid({
+  groups,
+  onOpen,
+  subtitleOf,
+}: {
+  groups: Group[]
+  onOpen: (g: Group) => void
+  subtitleOf: (g: Group) => string
+}) {
+  return (
+    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' } }}>
+      {groups.map((g) => {
+        const r = rollup(g.subjects)
+        return (
+          <Card key={g.key} variant="outlined">
+            <CardActionArea onClick={() => onOpen(g)} sx={{ p: 2 }}>
+              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{g.label}</Typography>
+                  <Chip size="small" color="primary" variant="outlined" label={`${r.subjects} subjects`} />
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{subtitleOf(g)}</Typography>
+                <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                  <MetricRow label="Faculty" value={`${r.faculty}`} />
+                  <MetricRow label="Classes" value={`${r.sessionsCompleted}/${r.sessionsTotal}`} />
+                  <MetricRow label="Attendance" value={r.attendancePct !== null ? `${r.attendancePct}%` : '—'} tone={progressTone(r.attendancePct)} />
+                  <MetricRow label="Completion" value={r.completionPct !== null ? `${r.completionPct}%` : '—'} tone={progressTone(r.completionPct)} />
+                  <MetricRow label="Avg score" value={r.avgScore !== null ? `${r.avgScore}%` : '—'} tone={progressTone(r.avgScore)} />
+                </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                  <Button size="small" endIcon={<ChevronRightIcon />} sx={{ textTransform: 'none' }} tabIndex={-1}>Open</Button>
+                </Box>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        )
+      })}
     </Box>
   )
 }

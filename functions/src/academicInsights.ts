@@ -59,17 +59,33 @@ async function loadFacultyAliases(uid: string): Promise<string[]> {
 // ─── Caps (C2: bounded server-owned work only) ────────────────────────────
 
 /** Maximum curriculum-faculty mappings scanned in one call. */
-const MAX_INSIGHTS_MAPPINGS = 200
-/** Maximum class sessions scanned for a single college/window. */
-const MAX_INSIGHTS_SESSIONS = 500
+export const MAX_INSIGHTS_MAPPINGS = 200
+/**
+ * Maximum class sessions scanned for a single college/window. Raised from 500
+ * (a 1-term college exceeded it). Worst case per uncached overview call is
+ * MAX_MAPPINGS + MAX_STUDENTS + MAX_SESSIONS reads; see costControls.test.ts.
+ */
+export const MAX_INSIGHTS_SESSIONS = 1000
 /** Maximum roster students per college (covers a typical dept cohort). */
-const MAX_INSIGHTS_STUDENTS = 500
+export const MAX_INSIGHTS_STUDENTS = 500
 /** Maximum submissions scanned for a subject drill. */
-const MAX_INSIGHTS_SUBMISSIONS = 200
+export const MAX_INSIGHTS_SUBMISSIONS = 200
 /** Maximum attendance-summary getAll() refs per subject drill. */
-const MAX_INSIGHTS_ATTENDANCE = 50
+export const MAX_INSIGHTS_ATTENDANCE = 50
 /** Maximum semesters surfaced at level 1. */
-const MAX_INSIGHTS_SEMESTERS = 12
+export const MAX_INSIGHTS_SEMESTERS = 12
+/** Assignments read for a subject drill. */
+export const MAX_INSIGHTS_ASSIGNMENTS = 50
+
+/**
+ * Names of the capped collections whose query returned exactly the limit, so the
+ * numbers may be incomplete. The page shows a warning instead of silently low totals.
+ */
+export function cappedCollections(
+  sizes: Array<{ name: string; size: number; limit: number }>,
+): string[] {
+  return sizes.filter((c) => c.size >= c.limit).map((c) => c.name)
+}
 
 // ─── Input validation ────────────────────────────────────────────────────
 
@@ -186,6 +202,8 @@ export interface AcademicInsightsResult {
   }
   /** Level 1: one entry per semester (overview view). */
   semesters: SemesterInsight[]
+  /** Capped collections that hit their read limit; empty when the numbers are complete. */
+  truncated: string[]
   /** Level 3+ (populated only when curriculumId is given): single-subject detail. */
   subject?: SubjectInsight & {
     assessmentDetail: AssessmentDetail[]
@@ -609,6 +627,7 @@ export function aggregate(
     generatedAt: new Date().toISOString(),
     from: input.from as string,
     to: input.to as string,
+    truncated: [],
     totals: {
       semesters: semesters.length,
       subjects: totalSubjects,
@@ -753,6 +772,7 @@ export const getAcademicInsights = onCall(
       if (input.batch) mappingsQuery = mappingsQuery.where('batch', '==', input.batch)
       if (input.semester !== undefined) mappingsQuery = mappingsQuery.where('semester', '==', input.semester)
       const mappingsSnap = await mappingsQuery.limit(MAX_INSIGHTS_MAPPINGS).get()
+      const capped = cappedCollections([{ name: 'mappings', size: mappingsSnap.size, limit: MAX_INSIGHTS_MAPPINGS }])
 
       // Resolve faculty names via a single getAll() on user docs.
       const rawMappings: LiteMapping[] = []
@@ -805,6 +825,7 @@ export const getAcademicInsights = onCall(
       if (input.batch) studentsQuery = studentsQuery.where('batch', '==', input.batch)
       if (input.semester !== undefined) studentsQuery = studentsQuery.where('semester', '==', input.semester)
       const studentsSnap = await studentsQuery.limit(MAX_INSIGHTS_STUDENTS).get()
+      capped.push(...cappedCollections([{ name: 'students', size: studentsSnap.size, limit: MAX_INSIGHTS_STUDENTS }]))
       const students: LiteStudent[] = studentsSnap.docs.map((doc) => {
         const d = doc.data() || {}
         return {
@@ -824,6 +845,7 @@ export const getAcademicInsights = onCall(
         .where('date', '>=', input.from)
         .where('date', '<=', input.to)
       const sessionsSnap = await sessionsQuery.limit(MAX_INSIGHTS_SESSIONS).get()
+      capped.push(...cappedCollections([{ name: 'sessions', size: sessionsSnap.size, limit: MAX_INSIGHTS_SESSIONS }]))
       const sessions: LiteSession[] = sessionsSnap.docs
         .map((doc) => {
           const d = doc.data() || {}
@@ -851,6 +873,7 @@ export const getAcademicInsights = onCall(
           .collection('submissions')
           .where('collegeId', '==', input.collegeId)
         const subsSnap = await subsQuery.limit(MAX_INSIGHTS_SUBMISSIONS).get()
+        capped.push(...cappedCollections([{ name: 'submissions', size: subsSnap.size, limit: MAX_INSIGHTS_SUBMISSIONS }]))
         submissions = subsSnap.docs.map((doc) => {
           const d = doc.data() || {}
           return {
@@ -867,7 +890,8 @@ export const getAcademicInsights = onCall(
         const aQuery: admin.firestore.Query = db
           .collection('assignments')
           .where('collegeId', '==', input.collegeId)
-        const aSnap = await aQuery.limit(50).get()
+        const aSnap = await aQuery.limit(MAX_INSIGHTS_ASSIGNMENTS).get()
+        capped.push(...cappedCollections([{ name: 'assignments', size: aSnap.size, limit: MAX_INSIGHTS_ASSIGNMENTS }]))
         const assignmentDocs = aSnap.docs
           .map((doc) => ({ id: doc.id, ...(doc.data() || {}) } as Record<string, unknown> & { id: string }))
           .filter((d) => {
@@ -943,6 +967,7 @@ export const getAcademicInsights = onCall(
         mappings, sessions, students, submissions, attendance,
         attendanceTrend, assessments,
       )
+      result.truncated = capped
 
       writeCache(key, result)
       return result
