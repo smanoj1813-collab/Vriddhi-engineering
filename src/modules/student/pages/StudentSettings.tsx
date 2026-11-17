@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/context/AuthContext';
 import { useThemeMode } from '../../../shared/contexts/ThemeProvider';
 import LanguageSettingsBlock from '../../../shared/components/LanguageSettingsBlock';
 import { useTranslation } from '../../../shared/contexts/LanguageProvider';
+import { getStoredAccent, setAccent } from '@/shared/theme/accent';
 
 type TabId = 'profile' | 'notifications' | 'privacy' | 'appearance';
 
@@ -34,6 +35,18 @@ function loadPrefs(): Prefs {
   }
 }
 
+// Same palette as the admin and faculty Settings screens.
+const STUDENT_ACCENT_COLORS = [
+  { color: '#14b8a6', name: 'Teal' },
+  { color: '#6366f1', name: 'Indigo' },
+  { color: '#f59e0b', name: 'Amber' },
+  { color: '#ef4444', name: 'Red' },
+  { color: '#8b5cf6', name: 'Violet' },
+  { color: '#06b6d4', name: 'Cyan' },
+  { color: '#ec4899', name: 'Pink' },
+  { color: '#84cc16', name: 'Lime' },
+];
+
 export default function StudentSettings() {
   const { user } = useAuth();
   const { profile, loading, error, refresh } = useStudentProfile(user?.uid);
@@ -41,6 +54,9 @@ export default function StudentSettings() {
   const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<TabId>('profile');
+  // Accent colour: per account, stored on this device only (no server call).
+  const [accentColor, setAccentColor] = useState(() => getStoredAccent(user?.uid));
+  useEffect(() => { setAccent(accentColor, true, user?.uid); }, [accentColor, user?.uid]);
   const [name, setName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -373,6 +389,31 @@ export default function StudentSettings() {
                   </button>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3 text-center">
                     Currently active: <span className="font-bold uppercase text-teal-600">{resolvedMode} mode</span>
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 md:col-span-2">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Accent Colour</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">Changes the highlight colour across the portal on this device.</p>
+                  <div className="flex flex-wrap gap-3">
+                    {STUDENT_ACCENT_COLORS.map((item) => (
+                      <button
+                        key={item.color}
+                        type="button"
+                        onClick={() => setAccentColor(item.color)}
+                        aria-pressed={accentColor === item.color}
+                        title={item.name}
+                        className={`relative w-11 h-11 rounded-xl transition-all duration-200 ${accentColor === item.color ? 'ring-2 ring-offset-2 ring-teal-500 ring-offset-white dark:ring-offset-slate-900 scale-110' : 'hover:scale-105'}`}
+                        style={{ backgroundColor: item.color }}
+                      >
+                        {accentColor === item.color && (
+                          <Check className="w-5 h-5 text-white absolute inset-0 m-auto drop-shadow-md" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    Selected: {STUDENT_ACCENT_COLORS.find((c) => c.color === accentColor)?.name ?? 'Custom'} ({accentColor})
                   </p>
                 </div>
 
