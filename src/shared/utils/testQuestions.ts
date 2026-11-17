@@ -80,6 +80,21 @@ export function sectionHasQuestion(section: Pick<TestSection, 'questions'>, ques
   return (section.questions ?? []).some((q) => q.questionId === questionId);
 }
 
+/**
+ * Marks and penalty are section settings. Every question in a section carries
+ * the section's marks (MCQ: 1 by default) and penalty, whatever the bank says,
+ * so changing the section updates its questions automatically.
+ */
+export function syncSectionQuestionMarks<T extends TestSection>(section: T): T {
+  if (!section.questions?.length) return section;
+  const marks = section.defaultCorrectMarks;
+  const negativeMarks = section.defaultPenalty;
+  return {
+    ...section,
+    questions: section.questions.map((q) => ({ ...q, marks, negativeMarks })),
+  };
+}
+
 /** Snapshot of a bank question as stored on the section. */
 export function snapshotFromBankQuestion(
   section: Pick<TestSection, 'type' | 'defaultCorrectMarks' | 'defaultPenalty'>,
@@ -91,8 +106,8 @@ export function snapshotFromBankQuestion(
   return {
     questionId: q.id,
     order,
-    marks: Number.isFinite(q.marks) && (q.marks as number) > 0 ? (q.marks as number) : section.defaultCorrectMarks,
-    negativeMarks: Number.isFinite(q.negativeMarks) ? (q.negativeMarks as number) : section.defaultPenalty,
+    marks: section.defaultCorrectMarks,
+    negativeMarks: section.defaultPenalty,
     text: q.text,
     type,
     ...(q.difficulty ? { difficulty: q.difficulty } : {}),
@@ -116,8 +131,6 @@ export interface WrittenQuestionDraft {
   options: Array<{ text: string; isCorrect: boolean }>;
   /** Numerical answer, as typed. */
   numericalAnswer: string;
-  marks: number | '';
-  negativeMarks: number | '';
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
 }
@@ -132,8 +145,6 @@ export function emptyWrittenDraft(section: Pick<TestSection, 'defaultCorrectMark
       { text: '', isCorrect: false },
     ],
     numericalAnswer: '',
-    marks: section.defaultCorrectMarks || '',
-    negativeMarks: section.defaultPenalty || 0,
     topic: '',
     difficulty: 'medium',
   };
@@ -147,8 +158,6 @@ export function validateWrittenQuestion(section: Pick<TestSection, 'type'>, draf
     return errors;
   }
   if (!draft.text.trim()) errors.push('Question text is required.');
-  if (draft.marks === '' || !(Number(draft.marks) > 0)) errors.push('Marks must be greater than zero.');
-  if (draft.negativeMarks !== '' && Number(draft.negativeMarks) < 0) errors.push('Negative marks cannot be negative.');
   if (section.type === 'mcq') {
     const filled = draft.options.filter((o) => o.text.trim());
     if (filled.length < 2) errors.push('An MCQ needs at least two options.');
@@ -170,8 +179,8 @@ export function writtenQuestionPayload(
   section: Pick<TestSection, 'type' | 'defaultCorrectMarks' | 'defaultPenalty'>,
   draft: WrittenQuestionDraft,
 ): Omit<BankQuestionLike, 'id'> {
-  const marks = Number(draft.marks);
-  const negativeMarks = draft.negativeMarks === '' ? section.defaultPenalty : Number(draft.negativeMarks);
+  const marks = section.defaultCorrectMarks;
+  const negativeMarks = section.defaultPenalty;
   if (section.type === 'numerical') {
     return {
       text: draft.text.trim(),
