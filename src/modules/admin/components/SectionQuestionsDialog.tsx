@@ -249,8 +249,8 @@ export default function SectionQuestionsDialog({
                 <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={q.text}>
                   {q.text || 'Untitled question'}
                 </Typography>
-                <Chip size="small" variant="outlined" label={`${q.marks} marks`} />
-                {q.negativeMarks > 0 && <Chip size="small" variant="outlined" label={`−${q.negativeMarks}`} />}
+                <Chip size="small" variant="outlined" label={`${section.defaultCorrectMarks} marks`} />
+                {section.defaultPenalty > 0 && <Chip size="small" variant="outlined" label={`−${section.defaultPenalty}`} />}
                 <Tooltip title="Remove from this section">
                   <span>
                     <IconButton size="small" color="error" disabled={busy} onClick={() => removeOne(q.questionId)}>
@@ -313,7 +313,7 @@ export default function SectionQuestionsDialog({
                     <Box>
                       <Typography variant="body2">{q.text}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {[q.subject, q.topic, q.difficulty, `${q.marks ?? section.defaultCorrectMarks} marks`].filter(Boolean).join(' · ')}
+                        {[q.subject, q.topic, q.difficulty, `${section.defaultCorrectMarks} marks`].filter(Boolean).join(' · ')}
                       </Typography>
                     </Box>
                   }
@@ -382,23 +382,11 @@ export default function SectionQuestionsDialog({
               />
             )}
 
+            <Typography variant="caption" color="text.secondary">
+              Each question carries {section.defaultCorrectMarks} mark{section.defaultCorrectMarks === 1 ? '' : 's'}
+              {section.defaultPenalty > 0 ? ` with −${section.defaultPenalty} for a wrong answer` : ''}, as set on the section.
+            </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="Marks"
-                type="number"
-                value={draft.marks}
-                onChange={(e) => setDraft({ ...draft, marks: e.target.value === '' ? '' : Number(e.target.value) })}
-                slotProps={{ htmlInput: { min: 0, step: 0.5 } }}
-                size="small"
-              />
-              <TextField
-                label="Negative marks"
-                type="number"
-                value={draft.negativeMarks}
-                onChange={(e) => setDraft({ ...draft, negativeMarks: e.target.value === '' ? '' : Number(e.target.value) })}
-                slotProps={{ htmlInput: { min: 0, step: 0.25 } }}
-                size="small"
-              />
               <TextField
                 label="Topic (optional)"
                 value={draft.topic}

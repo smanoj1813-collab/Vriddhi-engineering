@@ -38,6 +38,7 @@ import {
 } from '@/shared/types/testTemplate'
 import {
   sectionSupportsQuestions,
+  syncSectionQuestionMarks,
 } from '@/shared/utils/testQuestions'
 import SectionQuestionsDialog from '../components/SectionQuestionsDialog'
 import {
@@ -142,7 +143,7 @@ export default function CreateTestWizard() {
     instructions,
     cohorts,
     delivery,
-    sections: secs,
+    sections: secs.map(syncSectionQuestionMarks),
     testStatus: 'draft',
     collegeId: author.collegeId,
     createdBy: author.uid,
@@ -177,7 +178,8 @@ export default function CreateTestWizard() {
   const totals = useMemo(() => testTotals(sections), [sections])
 
   const updateSection = (index: number, patch: Partial<TestSection>) => {
-    setSections((prev) => prev.map((section, i) => (i === index ? { ...section, ...patch } : section)))
+    // Marks and penalty are section settings: the section's questions follow them.
+    setSections((prev) => prev.map((section, i) => (i === index ? syncSectionQuestionMarks({ ...section, ...patch }) : section)))
   }
 
   const handleNextFromDetails = () => {

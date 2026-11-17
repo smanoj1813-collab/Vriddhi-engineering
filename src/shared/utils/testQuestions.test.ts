@@ -7,6 +7,7 @@ import {
   emptyWrittenDraft,
   removeSectionQuestion,
   sectionSupportsQuestions,
+  syncSectionQuestionMarks,
   sectionSupportsWrittenQuestions,
   snapshotFromBankQuestion,
   validateWrittenQuestion,
@@ -84,6 +85,26 @@ test('snapshot keeps options with the answer key and the section defaults', () =
   assert.equal(snap.marks, 2)
   assert.equal(snap.negativeMarks, 0.5)
   assert.deepEqual(snap.options?.map((o) => o.isCorrect), [false, true])
+})
+
+test('marks and penalty follow the section, not the bank or the draft', () => {
+  const s = section({ defaultCorrectMarks: 4, defaultPenalty: 1 })
+  const snap = snapshotFromBankQuestion(s, { ...mcq, marks: 2, negativeMarks: 0.5 }, 1)
+  assert.equal(snap.marks, 4)
+  assert.equal(snap.negativeMarks, 1)
+  const payload = writtenQuestionPayload(s, { ...emptyWrittenDraft(s), text: 'x', options: [{ text: 'a', isCorrect: true }, { text: 'b', isCorrect: false }] })
+  assert.equal(payload.marks, 4)
+  assert.equal(payload.negativeMarks, 1)
+})
+
+test('changing the section marks updates every question in it', () => {
+  const s = section({ defaultCorrectMarks: 1 })
+  let t = appendSectionQuestion(s, snapshotFromBankQuestion(s, mcq, 1))
+  t = appendSectionQuestion(t, snapshotFromBankQuestion(s, { ...mcq, id: 'q2' }, 2))
+  const changed = syncSectionQuestionMarks({ ...t, defaultCorrectMarks: 2, defaultPenalty: 0.5 })
+  assert.deepEqual(changed.questions.map((q) => [q.marks, q.negativeMarks]), [[2, 0.5], [2, 0.5]])
+  const total = changed.questions.reduce((sum, q) => sum + q.marks, 0)
+  assert.equal(total, 4)
 })
 
 test('written MCQ: needs exactly one correct option', () => {
