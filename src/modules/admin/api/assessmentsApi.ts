@@ -3,6 +3,7 @@
 // ASSESSMENTS API — Complete Firebase Operations
 // ============================================
 
+import { branchConstraint } from '@/shared/utils/branchQuery';
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy,
   addDoc, updateDoc, deleteDoc, Timestamp,
@@ -60,7 +61,7 @@ export async function listAssessments(options: AssessmentFilterOptions = {}): Pr
   if (options.type) constraints.push(where('type', '==', options.type));
   if (options.facultyId) constraints.push(where('createdBy', '==', options.facultyId));
   if (options.curriculumId) constraints.push(where('curriculumId', '==', options.curriculumId));
-  if (options.branch) constraints.push(where('branch', '==', options.branch));
+  if (options.branch) constraints.push(branchConstraint(options.branch));
   if (options.semester !== undefined) constraints.push(where('semester', '==', options.semester));
   if (options.batch) constraints.push(where('batch', '==', options.batch));
   if (options.division) constraints.push(where('division', '==', options.division));

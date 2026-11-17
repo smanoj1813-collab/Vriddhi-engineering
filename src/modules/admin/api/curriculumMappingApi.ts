@@ -2,6 +2,7 @@
 // api/curriculumMappingApi.ts — Curriculum Faculty Mapping & Scheduling
 // ═══════════════════════════════════════════════════════════════════════
 
+import { sameBranch } from '@/shared/utils/branchKey';
 import { db } from '@/Firebase/config';
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
@@ -196,7 +197,7 @@ export async function listMappings(options: MappingFilterOptions = {}): Promise<
       items = items.filter((m) => mappingBelongsToFaculty(m, aliases));
     }
     if (options.curriculumId) items = items.filter((m) => m.curriculumId === options.curriculumId);
-    if (options.branch) items = items.filter((m) => m.branch === options.branch);
+    if (options.branch) items = items.filter((m) => sameBranch(m.branch, options.branch));
     if (options.semester) items = items.filter((m) => m.semester === options.semester);
     if (options.batch) items = items.filter((m) => m.batch === options.batch);
     if (options.status && options.status !== 'all') items = items.filter((m) => m.status === options.status);

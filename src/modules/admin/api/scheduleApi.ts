@@ -1,6 +1,7 @@
 // src/api/scheduleApi.ts
 // ─── Firestore CRUD for Class Schedules (Weekly Recurring + Daily Sessions) ─────────────────
 
+import { sameBranch } from '@/shared/utils/branchKey';
 import { db } from '@/Firebase/config'
 import {
   collection, query, where, getDocs, addDoc, updateDoc, doc,
@@ -218,7 +219,7 @@ export async function fetchSchedules(
       schedules = schedules.filter(s => s.date <= filters.dateTo)
     }
     if (filters.branch && filters.branch !== 'all') {
-      schedules = schedules.filter(s => s.branch === filters.branch)
+      schedules = schedules.filter(s => sameBranch(s.branch, filters.branch))
     }
     if (filters.batch && filters.batch !== 'all') {
       schedules = schedules.filter(s => s.batch === filters.batch)
