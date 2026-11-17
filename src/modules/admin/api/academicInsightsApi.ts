@@ -118,6 +118,8 @@ export interface AcademicInsightsResult {
     avgScore: number | null
   }
   semesters: SemesterInsight[]
+  /** Capped collections that hit their read limit; numbers may be incomplete when non-empty. */
+  truncated: string[]
   subject?: SubjectInsight & {
     assessmentDetail: AssessmentDetail[]
     attendanceTrend: AttendanceTrendPoint[]

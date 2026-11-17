@@ -113,3 +113,19 @@ export function groupBy(
 export function sortByLabel(groups: Group[]): Group[] {
   return [...groups].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 }
+
+function dateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/**
+ * Academic year to date: from 1 June (the start of the Indian academic year) to
+ * today. Before June, the year started the previous June.
+ */
+export function academicYearToDate(today: Date = new Date()): { from: string; to: string } {
+  const startYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1
+  return { from: `${startYear}-06-01`, to: dateKey(today) }
+}

@@ -51,7 +51,6 @@ import {
   type AssessmentDetail,
   type AttendanceTrendPoint,
 } from '../api/academicInsightsApi'
-import { defaultTermWindow } from '../api/classSessionApi'
 import AcademicInsightsCard, { progressTone } from '../components/AcademicInsightsCard'
 import {
   NO_BATCH_LABEL,
@@ -62,6 +61,7 @@ import {
   groupBy,
   rollup,
   sortByLabel,
+  academicYearToDate,
   subjectKeyOf,
   type Group,
 } from '../utils/curriculumDrill'
@@ -89,8 +89,8 @@ export default function AcademicInsights() {
 
   // Date window. The draft is what the inputs show; the applied window is what
   // the server was last asked for.
-  const [draftDates, setDraftDates] = useState<DateWindow>(() => defaultTermWindow())
-  const [appliedDates, setAppliedDates] = useState<DateWindow>(() => defaultTermWindow())
+  const [draftDates, setDraftDates] = useState<DateWindow>(() => academicYearToDate())
+  const [appliedDates, setAppliedDates] = useState<DateWindow>(() => academicYearToDate())
 
   const [overview, setOverview] = useState<AcademicInsightsResult | null>(null)
   const [loading, setLoading] = useState(true)
@@ -360,6 +360,13 @@ export default function AcademicInsights() {
       {curriculumFilterCard}
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      {overview && overview.truncated.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Some figures may be incomplete: the data for this date range is larger than one load can cover
+          ({overview.truncated.join(', ')}). Choose a shorter date range for complete numbers.
+        </Alert>
+      )}
 
       {/* Breadcrumbs: every crumb is a real level, so the path is always visible. */}
       {view !== 'branches' && (

@@ -11,6 +11,7 @@ import {
   rollup,
   sortByLabel,
   subjectKeyOf,
+  academicYearToDate,
 } from './curriculumDrill'
 
 function subject(over: Partial<SubjectInsight>): SubjectInsight {
@@ -121,5 +122,17 @@ describe('grouping', () => {
       { key: 'b', label: 'Semester 2', subjects: [] },
     ])
     assert.deepEqual(groups.map((g) => g.label), ['Semester 2', 'Semester 10'])
+  })
+})
+
+describe('academic year to date window', () => {
+  it('starts on 1 June of the current year from June onwards', () => {
+    assert.deepEqual(academicYearToDate(new Date(2026, 10, 17)), { from: '2026-06-01', to: '2026-11-17' })
+    assert.deepEqual(academicYearToDate(new Date(2026, 5, 1)), { from: '2026-06-01', to: '2026-06-01' })
+  })
+
+  it('starts on the previous 1 June before June', () => {
+    assert.deepEqual(academicYearToDate(new Date(2027, 1, 7)), { from: '2026-06-01', to: '2027-02-07' })
+    assert.deepEqual(academicYearToDate(new Date(2027, 4, 31)), { from: '2026-06-01', to: '2027-05-31' })
   })
 })
