@@ -96,6 +96,9 @@ export const PERMISSION_MATRIX: Readonly<Record<string, readonly UserRole[]>> = 
   // Class Schedule Manager: operations drafts the timetable (HOD approves).
   // Admin keeps direct live edit (superadmin bypasses the matrix).
   'schedule.manage': ['operations', 'admin', 'employee'],
+  // Read-only college timetable. Principal sees all branches; HOD sees their
+  // own department (scoped on the page). Cannot create, edit or delete.
+  'schedule.view': ['operations', 'admin', 'employee', 'principal', 'hod'],
   // Curriculum course lists: operations (or admin) verifies, the principal reviews, HOD reads.
   'curriculum.approval': ['operations', 'admin', 'hod', 'principal'],
   'transport.manage': ['operations', 'principal'],
@@ -203,7 +206,7 @@ export const ADMIN_ROUTE_PERMISSIONS: ReadonlyArray<{ path: string; permission: 
   { path: '/admin/library', permission: 'library.manage' },
   { path: '/admin/hostel', permission: 'hostel.manage' },
   { path: '/admin/timetable-approvals', permission: 'timetable.approval' },
-  { path: '/admin/class-schedule', permission: 'schedule.manage' },
+  { path: '/admin/class-schedule', permission: 'schedule.view' },
   { path: '/admin/curriculum-approvals', permission: 'curriculum.approval' },
   { path: '/admin/transport', permission: 'transport.manage' },
   { path: '/admin/inventory', permission: 'inventory.manage' },

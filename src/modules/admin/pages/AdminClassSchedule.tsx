@@ -74,6 +74,7 @@ import {
 } from '../api/classSessionApi'
 import { downloadTimetablePDF, downloadTimetableJPG, cohortLabel } from '@/shared/utils/timetableExport'
 import { divisionOptions as buildDivisionOptions, divisionSelection, divisionSelectionValue } from '@/shared/utils/divisionGroups'
+import { docInDepartment } from '@/shared/utils/departmentScope'
 import type { WeeklyScheduleFormData, DayOfWeek, ClassType } from '../types/schedule'
 import type { SubjectInfo } from '../api/scheduleApi'
 import {
@@ -163,8 +164,11 @@ const AdminClassSchedule: React.FC = () => {
 
   // Operations edits the timetable as drafts; the HOD approves before it is live.
   const draftMode = user?.role === 'operations'
+  // Principal and HOD get a read-only view: no create, edit, cancel, delete or
+  // generate. Their permission is schedule.view, not schedule.manage.
+  const readOnly = user?.role === 'principal' || user?.role === 'hod'
   const {
-    weeklySchedule,
+    weeklySchedule: rawWeeklySchedule,
     facultyList,
     subjects,
     batches,
@@ -177,6 +181,18 @@ const AdminClassSchedule: React.FC = () => {
     isCreating,
     isUpdating,
   } = useAdminSchedule(collegeId, { draftMode })
+
+  // HOD sees only their own department's classes. Principal sees everything.
+  // Untagged rows stay visible (docInDepartment is tolerant).
+  const weeklySchedule = useMemo(() => {
+    const dept = user?.role === 'hod' ? String(user?.department ?? '').trim() : ''
+    if (!dept) return rawWeeklySchedule
+    const scoped = { ...rawWeeklySchedule }
+    for (const day of Object.keys(scoped) as DayOfWeek[]) {
+      scoped[day] = (scoped[day] || []).filter((slot: any) => docInDepartment(slot, dept))
+    }
+    return scoped
+  }, [rawWeeklySchedule, user?.role, user?.department])
 
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('monday')
   // ─── Timetable export (PDF / JPG) ───
@@ -698,7 +714,7 @@ const AdminClassSchedule: React.FC = () => {
           >
             Download
           </Button>
-{!draftMode && (
+{!readOnly && !draftMode && (
           <Tooltip title="Creates dated class sessions from this weekly timetable for a term — needed for faculty attendance, rescheduling and the student timetable.">
           <Button
             variant="outlined"
@@ -709,15 +725,15 @@ const AdminClassSchedule: React.FC = () => {
           </Button>
           </Tooltip>
 
-)}<Button
+)}{!readOnly && (<Button
             variant="outlined"
             startIcon={<AutoIcon />}
             onClick={() => setAutoMapPickerOpen(true)}
             disabled={curriculumMapping.curriculumList.length === 0}
           >
             Auto-Map Faculty
-          </Button>
-        {(
+          </Button>)}
+        {!readOnly && (
           <Button
             variant="outlined"
             startIcon={<AutoIcon />}
@@ -726,7 +742,7 @@ const AdminClassSchedule: React.FC = () => {
             Auto Generate
           </Button>
 
-)}{!draftMode && (
+)}{!readOnly && !draftMode && (
           <Button
             variant="outlined"
             startIcon={<UploadIcon />}
@@ -735,14 +751,14 @@ const AdminClassSchedule: React.FC = () => {
             Bulk Upload
           </Button>
 
-)}          <Button
+)}          {!readOnly && (<Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => handleOpen()}
             disabled={isCreating}
           >
             Add Class
-          </Button>
+          </Button>)}
         </Box>
       </Box>
 
@@ -874,6 +890,7 @@ const AdminClassSchedule: React.FC = () => {
                   <Typography color="text.secondary">
                     No classes scheduled for {selectedDay}
                   </Typography>
+                  {!readOnly && (
                   <Button
                     size="small"
                     startIcon={<AddIcon />}
@@ -882,6 +899,7 @@ const AdminClassSchedule: React.FC = () => {
                   >
                     Add first class
                   </Button>
+                  )}
                 </TableCell>
               </TableRow>
             )}
@@ -960,6 +978,7 @@ const AdminClassSchedule: React.FC = () => {
                 </TableCell>
                 <TableCell align="right">
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                    {readOnly ? null : (<>
                     <Tooltip title="Duplicate">
                       <IconButton size="small" onClick={() => handleDuplicate(schedule)}>
                         <CopyIcon fontSize="small" />
@@ -989,6 +1008,7 @@ const AdminClassSchedule: React.FC = () => {
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    </>)}
                   </Box>
                 </TableCell>
               </TableRow>

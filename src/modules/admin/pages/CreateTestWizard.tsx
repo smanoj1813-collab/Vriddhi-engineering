@@ -37,6 +37,10 @@ import {
   type TestTemplate,
 } from '@/shared/types/testTemplate'
 import {
+  sectionSupportsQuestions,
+} from '@/shared/utils/testQuestions'
+import SectionQuestionsDialog from '../components/SectionQuestionsDialog'
+import {
   MARKS_PRESETS,
   PENALTY_PRESETS,
   cohortLabel,
@@ -126,7 +130,7 @@ export default function CreateTestWizard() {
     return () => { cancelled = true }
   }, [routeId])
 
-  const draftTemplate: Omit<TestTemplate, 'id' | 'scope'> = useMemo(() => ({
+  const buildTemplate = (secs: TestSection[]): Omit<TestTemplate, 'id' | 'scope'> => ({
     title,
     testCode: normalizeTestCode(testCode),
     kind,
@@ -138,12 +142,33 @@ export default function CreateTestWizard() {
     instructions,
     cohorts,
     delivery,
-    sections,
+    sections: secs,
     testStatus: 'draft',
     collegeId: author.collegeId,
     createdBy: author.uid,
     createdByName: author.name,
-  }), [title, testCode, kind, subject, program, branch, semester, description, instructions, cohorts, delivery, sections, author.collegeId, author.uid, author.name])
+  })
+
+  const draftTemplate: Omit<TestTemplate, 'id' | 'scope'> = useMemo(
+    () => buildTemplate(sections),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [title, testCode, kind, subject, program, branch, semester, description, instructions, cohorts, delivery, sections, author.collegeId, author.uid, author.name],
+  )
+
+  // Question changes from the confirmation table are saved straight away, so a
+  // reload keeps them. A failed save restores the previous sections.
+  const [questionEditIndex, setQuestionEditIndex] = useState<number | null>(null)
+  const persistSections = async (next: TestSection[]) => {
+    const previous = sections
+    setSections(next)
+    if (!savedId) return
+    try {
+      await updateCollegeTest(savedId, buildTemplate(next), author)
+    } catch (err) {
+      setSections(previous)
+      throw err
+    }
+  }
 
   const readiness = useMemo(
     () => testReadiness({ title, testCode, sections }),
@@ -255,9 +280,16 @@ export default function CreateTestWizard() {
                     <TableCell align="right">{t.durationMinutes} min</TableCell>
                     <TableCell><Chip size="small" label={TEST_SECTION_TYPE_LABELS[section.type]} variant="outlined" /></TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Question attachment ships in the next round (library picker + custom editor). The section structure is saved.">
+                      <Tooltip title={sectionSupportsQuestions(section.type) ? '' : 'Coding and descriptive sections cannot take questions here yet.'}>
                         <span>
-                          <Button size="small" startIcon={<AddIcon />} disabled>Add questions</Button>
+                          <Button
+                            size="small"
+                            startIcon={<AddIcon />}
+                            disabled={!sectionSupportsQuestions(section.type) || !savedId}
+                            onClick={() => setQuestionEditIndex(index)}
+                          >
+                            {section.questions?.length ? 'Edit questions' : 'Add questions'}
+                          </Button>
                         </span>
                       </Tooltip>
                     </TableCell>
@@ -272,6 +304,18 @@ export default function CreateTestWizard() {
           <Alert severity="info" sx={{ mb: 2 }}>
             Before this test can be scheduled: {readiness.blockers.join(' ')}
           </Alert>
+        )}
+
+        {questionEditIndex !== null && sections[questionEditIndex] && (
+          <SectionQuestionsDialog
+            open
+            section={sections[questionEditIndex]}
+            collegeId={author.collegeId}
+            author={{ uid: author.uid, name: author.name }}
+            testSubject={subject}
+            onClose={() => setQuestionEditIndex(null)}
+            onChange={(updated) => persistSections(sections.map((sec, i) => (i === questionEditIndex ? updated : sec)))}
+          />
         )}
 
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
