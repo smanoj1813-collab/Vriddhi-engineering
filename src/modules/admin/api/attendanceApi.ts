@@ -3,6 +3,8 @@
 // ATTENDANCE API — Real Firestore Operations
 // ============================================
 
+import { branchConstraint } from '@/shared/utils/branchQuery';
+import { sameBranch } from '@/shared/utils/branchKey';
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy,
   updateDoc, deleteDoc, Timestamp, writeBatch,
@@ -93,7 +95,7 @@ export interface ListSessionsFilters {
 export async function listClassSessions(filters: ListSessionsFilters = {}): Promise<ClassSession[]> {
   const constraints: QueryConstraint[] = [orderBy('date', 'desc'), orderBy('startTime', 'desc')];
   if (filters.collegeId) constraints.push(where('collegeId', '==', filters.collegeId));
-  if (filters.branch) constraints.push(where('branch', '==', filters.branch));
+  if (filters.branch) constraints.push(branchConstraint(filters.branch));
   if (filters.batch) constraints.push(where('batch', '==', filters.batch));
   if (filters.facultyId) constraints.push(where('facultyId', '==', filters.facultyId));
   if (filters.date) constraints.push(where('date', '==', filters.date));
@@ -214,7 +216,7 @@ export async function listAttendanceRecordsInRange(filters: {
   // Branch/batch are not indexed together with date, so they are applied here
   // rather than adding a composite index for a report-only filter.
   return records.filter((r: AttendanceRecord & { branch?: string; batch?: string }) =>
-    (!filters.branch || r.branch === filters.branch) &&
+    (!filters.branch || sameBranch(r.branch, filters.branch)) &&
     (!filters.batch || r.batch === filters.batch));
 }
 
@@ -309,7 +311,7 @@ export async function getAllStudentsAttendanceSummary(filters: {
   // Step 1: get relevant sessions
   const sessionConstraints: QueryConstraint[] = [];
   if (filters.collegeId) sessionConstraints.push(where('collegeId', '==', filters.collegeId));
-  if (filters.branch) sessionConstraints.push(where('branch', '==', filters.branch));
+  if (filters.branch) sessionConstraints.push(branchConstraint(filters.branch));
   if (filters.batch) sessionConstraints.push(where('batch', '==', filters.batch));
 
   const sessionQ = query(collection(db, 'classSessions'), ...sessionConstraints);
@@ -422,7 +424,7 @@ export function subscribeToSessions(
 ): Unsubscribe {
   const constraints: QueryConstraint[] = [orderBy('date', 'desc'), orderBy('startTime', 'desc')];
   if (filters.collegeId) constraints.push(where('collegeId', '==', filters.collegeId));
-  if (filters.branch) constraints.push(where('branch', '==', filters.branch));
+  if (filters.branch) constraints.push(branchConstraint(filters.branch));
   if (filters.batch) constraints.push(where('batch', '==', filters.batch));
   if (filters.facultyId) constraints.push(where('facultyId', '==', filters.facultyId));
   if (filters.date) constraints.push(where('date', '==', filters.date));

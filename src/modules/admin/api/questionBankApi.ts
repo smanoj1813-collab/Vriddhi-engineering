@@ -16,6 +16,8 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+import { branchConstraint } from '@/shared/utils/branchQuery';
+import { sameBranch } from '@/shared/utils/branchKey';
 import { db } from '@/Firebase/config';
 import {
   DEFAULT_BATCHES,
@@ -165,7 +167,7 @@ export const getQuestions = async (
     constraints.push(where('batch', '==', filters.batch.trim()));
   }
   if (filters.branch?.trim()) {
-    constraints.push(where('branch', '==', filters.branch.trim()));
+    constraints.push(branchConstraint(filters.branch.trim()));
   }
   if (filters.status?.trim()) {
     constraints.push(where('status', '==', filters.status.trim()));
@@ -214,7 +216,7 @@ export const getQuestions = async (
         if (filters.difficulty && data.difficulty !== filters.difficulty) return false;
         if (filters.type && data.type !== filters.type) return false;
         if (filters.batch?.trim() && data.batch !== filters.batch.trim()) return false;
-        if (filters.branch?.trim() && data.branch !== filters.branch.trim()) return false;
+        if (filters.branch?.trim() && !sameBranch(data.branch, filters.branch)) return false;
         if (filters.status?.trim() && data.status !== filters.status.trim()) return false;
         if (filters.createdBy?.trim() && data.createdBy !== filters.createdBy.trim()) return false;
         if (filters.isPYQ !== undefined && data.isPYQ !== filters.isPYQ) return false;

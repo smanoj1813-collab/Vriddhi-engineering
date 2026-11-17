@@ -2,6 +2,7 @@
 // Analytics dashboard — uses useDashboardData hook
 // NO direct Firestore calls. NO onSnapshot.
 
+import { sameBranch } from '@/shared/utils/branchKey';
 import React, { useState, useMemo } from 'react'
 import {
   BarChart3, TrendingUp, Users, BookOpen, Calendar,
@@ -129,7 +130,7 @@ export default function Analytics() {
   const computedData = useMemo(() => {
     let filteredStudents = students.filter(s => s.status === 'active')
     if (filters.studentBranch !== 'all') {
-      filteredStudents = filteredStudents.filter(s => s.course === filters.studentBranch)
+      filteredStudents = filteredStudents.filter(s => sameBranch(s.course, filters.studentBranch))
     }
     if (filters.studentBatch !== 'all') {
       filteredStudents = filteredStudents.filter(s => s.batch === filters.studentBatch)

@@ -212,7 +212,7 @@ const navItems: NavItem[] = [
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
   // `admin` (= department HOD) dropped: assignment reporting is a principal lane.
   { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" />, roles: ["principal"], section: "Insights" },
-  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Insights" },
+  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["admin", "principal", "hod"], section: "Operations" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["admin", "principal"], section: "Insights" },
   { label: "Settings", path: "/admin/settings", icon: <Settings fontSize="small" />, roles: ["admin", "principal"], section: "Settings" },
 
@@ -233,7 +233,7 @@ const navItems: NavItem[] = [
   { label: "Timetable Approvals", path: "/admin/timetable-approvals", icon: <CalendarToday fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" />, roles: ["hod"], section: "Insights" },
-  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["hod"], section: "Insights" },
+  { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" />, roles: ["hod"], section: "Operations" },
   { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" />, roles: ["hod"], section: "Insights" },
 
   // ─── FACULTY ───
@@ -301,6 +301,7 @@ const facultyNav: SidebarEntry[] = [
     icon: <School fontSize="small" />,
     children: [
       { label: "My Curriculum", path: "/faculty/curriculum", icon: <School fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/faculty/insights", icon: <School fontSize="small" /> },
       { label: "Topics", path: "/faculty/topics", icon: <School fontSize="small" /> },
       { label: "Assignments", path: "/faculty/assignments", icon: <Assignment fontSize="small" /> },
       { label: "Upload Materials", path: "/faculty/upload-material", icon: <UploadFile fontSize="small" /> },
@@ -344,7 +345,6 @@ const facultyNav: SidebarEntry[] = [
     label: "Insights",
     icon: <TrendingUp fontSize="small" />,
     children: [
-      { label: "Curriculum Insights", path: "/faculty/insights", icon: <School fontSize="small" /> },
       { label: "Journey", path: "/faculty/journey", icon: <TrendingUp fontSize="small" /> },
     ],
   },
@@ -398,6 +398,7 @@ const principalNav: SidebarEntry[] = [
     icon: <School fontSize="small" />,
     children: [
       { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
     ],
@@ -465,7 +466,6 @@ const principalNav: SidebarEntry[] = [
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
       { label: "Assignment Analytics", path: "/admin/assignment-analytics", icon: <Assignment fontSize="small" /> },
-      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
       { label: "Journey", path: "/admin/journey", icon: <TrendingUp fontSize="small" /> },
     ],
@@ -513,6 +513,7 @@ const hodNav: SidebarEntry[] = [
     icon: <School fontSize="small" />,
     children: [
       { label: "Curriculum", path: "/admin/curriculum", icon: <School fontSize="small" /> },
+      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
       { label: "Scheme Packs", path: "/admin/scheme-packs", icon: <AccountBalance fontSize="small" /> },
@@ -558,7 +559,6 @@ const hodNav: SidebarEntry[] = [
     icon: <TrendingUp fontSize="small" />,
     children: [
       { label: "Analytics", path: "/admin/analytics", icon: <BarChartIcon fontSize="small" /> },
-      { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       // HIDDEN for HOD/admin (plug back: re-add this line, the role string in
       // the flat navItems above, and drop the '/admin/assignment-analytics'
       // entry from ADMIN_ROUTE_PERMISSIONS in src/modules/auth/permissions.ts):

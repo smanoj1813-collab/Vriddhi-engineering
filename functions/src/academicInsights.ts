@@ -17,6 +17,7 @@
 // polling on the client (C7): the page loads once on entry and again on
 // explicit Refresh.
 
+import { sameBranch, branchVariants } from './branchKey'
 import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
@@ -398,8 +399,7 @@ export function aggregate(
   // Apply caller-scoped faculty filter (self-service sees only own rows).
   let filteredMappings = mappings
   if (input.branch) {
-    const b = input.branch.toLowerCase()
-    filteredMappings = filteredMappings.filter((m) => m.branch.toLowerCase() === b)
+    filteredMappings = filteredMappings.filter((m) => sameBranch(m.branch, input.branch))
   }
   if (input.batch) {
     const b = input.batch.toLowerCase()
@@ -488,7 +488,7 @@ export function aggregate(
   for (const s of subjectsByKey.values()) {
     const roster = students.filter(
       (st) =>
-        (!s.branch || st.branch.toLowerCase() === s.branch.toLowerCase()) &&
+        (!s.branch || sameBranch(st.branch, s.branch)) &&
         (!s.batch || st.batch === s.batch) &&
         st.semester === s.semester
     )
@@ -749,7 +749,7 @@ export const getAcademicInsights = onCall(
       let mappingsQuery: admin.firestore.Query = db
         .collection('curriculumFacultyMappings')
         .where('collegeId', '==', input.collegeId)
-      if (input.branch) mappingsQuery = mappingsQuery.where('branch', '==', input.branch)
+      if (input.branch) mappingsQuery = mappingsQuery.where('branch', 'in', branchVariants(input.branch))
       if (input.batch) mappingsQuery = mappingsQuery.where('batch', '==', input.batch)
       if (input.semester !== undefined) mappingsQuery = mappingsQuery.where('semester', '==', input.semester)
       const mappingsSnap = await mappingsQuery.limit(MAX_INSIGHTS_MAPPINGS).get()
@@ -801,7 +801,7 @@ export const getAcademicInsights = onCall(
       let studentsQuery: admin.firestore.Query = db
         .collection('students')
         .where('collegeId', '==', input.collegeId)
-      if (input.branch) studentsQuery = studentsQuery.where('branch', '==', input.branch)
+      if (input.branch) studentsQuery = studentsQuery.where('branch', 'in', branchVariants(input.branch))
       if (input.batch) studentsQuery = studentsQuery.where('batch', '==', input.batch)
       if (input.semester !== undefined) studentsQuery = studentsQuery.where('semester', '==', input.semester)
       const studentsSnap = await studentsQuery.limit(MAX_INSIGHTS_STUDENTS).get()
