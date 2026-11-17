@@ -372,6 +372,9 @@ interface LiteSession {
   facultyId: string
   curriculumId?: string
   courseCode?: string
+  /** Subject name as written on the session (generated sessions carry it). */
+  subject?: string
+  semester?: number
   date: string
   status: string
   durationMinutes?: number
@@ -684,11 +687,20 @@ function subjectKeyById(s: { semester: number; curriculumId: string }): string {
   return `${s.semester}__${s.curriculumId}`
 }
 
-function findSubjectForSession(
+/**
+ * Finds the subject a class session belongs to.
+ *
+ * Order: exact curriculumId (preferring the same faculty), then course code
+ * (`courseCode` or the generated `subjectCode`), then subject name. The name
+ * fallback needs the same faculty and, when both sides state it, the same
+ * semester, so one subject name in two semesters is not merged. Without the
+ * code/name fallbacks every generated class stayed unmatched and each
+ * semester showed 0 classes.
+ */
+export function findSubjectForSession(
   subjects: Map<string, SubjectInsight>,
   session: LiteSession,
 ): SubjectInsight | null {
-  // Prefer an exact curriculumId match, then courseCode match, then facultyId match.
   if (session.curriculumId) {
     for (const s of subjects.values()) {
       if (s.curriculumId === session.curriculumId && s.facultyId === session.facultyId) return s
@@ -698,8 +710,18 @@ function findSubjectForSession(
     }
   }
   if (session.courseCode) {
+    const code = session.courseCode.toLowerCase()
     for (const s of subjects.values()) {
-      if (s.courseCode.toLowerCase() === session.courseCode.toLowerCase()) return s
+      if (s.courseCode && s.courseCode.toLowerCase() === code) return s
+    }
+  }
+  const name = (session.subject || '').trim().toLowerCase()
+  if (name) {
+    for (const s of subjects.values()) {
+      if ((s.courseName || '').trim().toLowerCase() !== name) continue
+      if (session.facultyId && s.facultyId && s.facultyId !== session.facultyId) continue
+      if (session.semester && s.semester && s.semester !== session.semester) continue
+      return s
     }
   }
   return null
@@ -853,7 +875,11 @@ export const getAcademicInsights = onCall(
             id: doc.id,
             facultyId: cleanText(d.facultyId),
             curriculumId: str(d.curriculumId),
-            courseCode: str(d.courseCode),
+            // Generated sessions (classSchedule.buildSessionDoc) carry
+            // `subjectCode` and `subject`, not `courseCode`/`curriculumId`.
+            courseCode: str(d.courseCode || d.subjectCode),
+            subject: str(d.subject),
+            semester: num(d.semester),
             date: str(d.date),
             status: str(d.status),
             durationMinutes: num(d.durationMinutes, 50),
