@@ -62,15 +62,13 @@ const btn = (primary: boolean): React.CSSProperties => ({
 
 export const PwaPrompts: React.FC = () => {
   // Update flow: a new SW is waiting; user reloads when convenient.
+  // No timed update checks: the browser already re-checks the service worker on
+  // every page load and navigation. A timer here only raised the banner mid-session,
+  // on whatever page the user was on, and added background requests.
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW({
-    onRegisteredSW(_url, registration) {
-      // Check for a new build every hour while the tab stays open.
-      if (registration) setInterval(() => registration.update(), 60 * 60 * 1000)
-    },
-  })
+  } = useRegisterSW()
 
   // Install flow (Chrome/Edge/Android). iOS has no event; Safari users use
   // Share → Add to Home Screen.
