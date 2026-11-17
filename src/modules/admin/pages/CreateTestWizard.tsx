@@ -56,6 +56,7 @@ import {
   testTotals,
   validateSections,
   validateTestDetails,
+  CODING_QUESTION_MARKS,
 } from '@/shared/utils/testTemplate'
 import {
   createCollegeTest,
@@ -282,7 +283,7 @@ export default function CreateTestWizard() {
                     <TableCell align="right">{t.durationMinutes} min</TableCell>
                     <TableCell><Chip size="small" label={TEST_SECTION_TYPE_LABELS[section.type]} variant="outlined" /></TableCell>
                     <TableCell align="right">
-                      <Tooltip title={sectionSupportsQuestions(section.type) ? '' : 'Coding and descriptive sections cannot take questions here yet.'}>
+                      <Tooltip title={sectionSupportsQuestions(section.type) ? '' : 'Descriptive sections cannot take questions here yet.'}>
                         <span>
                           <Button
                             size="small"
@@ -549,6 +550,11 @@ export default function CreateTestWizard() {
                 multiline minRows={2} fullWidth
               />
 
+              {section.type === 'coding' ? (
+                <Typography variant="body2" color="text.secondary">
+                  Each coding question carries {CODING_QUESTION_MARKS} marks. Its hidden tests share them equally.
+                </Typography>
+              ) : (<>
               <Box>
                 <Typography variant="overline" color="text.secondary">Default correct marks</Typography>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1, mt: 0.5 }}>
@@ -567,7 +573,7 @@ export default function CreateTestWizard() {
                   />
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  You can set custom marks per question when you add questions.
+                  Every question in this section carries these marks.
                 </Typography>
               </Box>
 
@@ -597,6 +603,7 @@ export default function CreateTestWizard() {
                   />
                 </Stack>
               </Box>
+              </>)}
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'center' }}>
                 <TextField

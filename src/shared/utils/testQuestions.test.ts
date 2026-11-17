@@ -15,6 +15,7 @@ import {
   type BankQuestionLike,
 } from './testQuestions'
 import type { TestSection } from '../types/testTemplate'
+import { marksPerQuestion, sectionTotals, CODING_QUESTION_MARKS } from './testTemplate'
 
 const section = (over: Partial<TestSection> = {}): TestSection => ({
   id: 's1',
@@ -46,7 +47,7 @@ test('section types: which ones take questions', () => {
   assert.equal(sectionSupportsQuestions('msq'), true)
   assert.equal(sectionSupportsQuestions('numerical'), true)
   assert.equal(sectionSupportsQuestions('descriptive'), false)
-  assert.equal(sectionSupportsQuestions('coding'), false)
+  assert.equal(sectionSupportsQuestions('coding'), true)
   assert.equal(sectionSupportsWrittenQuestions('mcq'), true)
   assert.equal(sectionSupportsWrittenQuestions('msq'), false)
 })
@@ -153,4 +154,45 @@ test('append and remove keep order and refuse duplicates', () => {
   assert.deepEqual(s.questions.map((q) => [q.questionId, q.order]), [['a', 1], ['b', 2]])
   s = removeSectionQuestion(s, 'a')
   assert.deepEqual(s.questions.map((q) => [q.questionId, q.order]), [['b', 1]])
+})
+
+const codingBank: BankQuestionLike = {
+  id: 'c1',
+  text: 'Sum two numbers',
+  type: 'coding',
+  marks: 5,
+  coding: { languages: ['python'], sampleCases: [{ stdin: '1 2', expectedOutput: '3' }], testCases: [{ stdin: '2 2', expectedOutput: '4' }] },
+}
+
+test('coding: a coding section takes only bank coding questions that carry a config', () => {
+  const s = section({ type: 'coding' })
+  assert.equal(sectionSupportsQuestions('coding'), true)
+  assert.equal(bankQuestionFits(s, codingBank), true)
+  assert.equal(bankQuestionFits(s, { ...codingBank, coding: undefined }), false)
+  assert.equal(bankQuestionFits(s, mcq), false)
+  assert.equal(bankQuestionFits(section({ type: 'mcq' }), codingBank), false)
+})
+
+test('coding: the snapshot is worth 100 marks, no penalty, and carries the config', () => {
+  const snap = snapshotFromBankQuestion(section({ type: 'coding', defaultCorrectMarks: 1, defaultPenalty: 0.5 }), codingBank, 1)
+  assert.equal(snap.type, 'coding')
+  assert.equal(snap.marks, CODING_QUESTION_MARKS)
+  assert.equal(snap.negativeMarks, 0)
+  assert.deepEqual(snap.coding, codingBank.coding)
+})
+
+test('coding: changing the section marks does not change a coding question', () => {
+  const s = section({ type: 'coding', defaultCorrectMarks: 1 })
+  const t = appendSectionQuestion(s, snapshotFromBankQuestion(s, codingBank, 1))
+  const changed = syncSectionQuestionMarks({ ...t, defaultCorrectMarks: 7 })
+  assert.equal(changed.questions[0].marks, CODING_QUESTION_MARKS)
+})
+
+test('coding: totals use 100 per question, and the planned fallback uses 100 too', () => {
+  assert.equal(marksPerQuestion(section({ type: 'coding', defaultCorrectMarks: 3 })), 100)
+  assert.equal(marksPerQuestion(section({ type: 'mcq', defaultCorrectMarks: 3 })), 3)
+  assert.equal(sectionTotals(section({ type: 'coding', plannedQuestions: 2 })).marks, 200)
+  const s = section({ type: 'coding' })
+  const t = appendSectionQuestion(s, snapshotFromBankQuestion(s, codingBank, 1))
+  assert.equal(sectionTotals(t).marks, 100)
 })

@@ -69,7 +69,8 @@ test('penalty fractions follow the 1/4-of-correct pattern', () => {
 test('section totals count real questions, falling back to the plan', () => {
   assert.deepEqual(sectionTotals(sectionWithQuestions), { questions: 2, marks: 5, durationMinutes: 30 })
   // No questions yet → planned × default marks, so the wizard shows a total.
-  assert.deepEqual(sectionTotals(emptyCoding), { questions: 0, marks: 30, durationMinutes: 60 })
+  // Coding: each planned question is worth 100 marks, whatever the section's default.
+  assert.deepEqual(sectionTotals(emptyCoding), { questions: 0, marks: 300, durationMinutes: 60 })
 })
 
 test('test totals and the summary bar aggregate every section', () => {
@@ -77,9 +78,9 @@ test('test totals and the summary bar aggregate every section', () => {
   assert.equal(totals.sections, 2)
   assert.equal(totals.questions, 2)
   assert.equal(totals.plannedQuestions, 23)
-  assert.equal(totals.marks, 35)
+  assert.equal(totals.marks, 305)
   assert.equal(totals.durationMinutes, 90)
-  assert.equal(summaryLine([sectionWithQuestions, emptyCoding]), '2 sections · 2 questions · 35 marks · 90 min')
+  assert.equal(summaryLine([sectionWithQuestions, emptyCoding]), '2 sections · 2 questions · 305 marks · 90 min')
 })
 
 test('createSections clamps the count and numbers sections from 1', () => {

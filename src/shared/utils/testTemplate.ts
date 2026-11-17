@@ -105,11 +105,20 @@ export interface SectionTotals {
  * its plan (`plannedQuestions × defaultCorrectMarks`) so the wizard can show a
  * believable total before any question exists.
  */
+/** Every coding question carries this many marks, split across its scored tests. */
+export const CODING_QUESTION_MARKS = 100
+
+/** Marks each question in this section carries: fixed for coding, else the section's setting. */
+export function marksPerQuestion(section: Pick<TestSection, 'type' | 'defaultCorrectMarks'>): number {
+  return section.type === 'coding' ? CODING_QUESTION_MARKS : (Number(section.defaultCorrectMarks) || 0)
+}
+
 export function sectionTotals(section: TestSection): SectionTotals {
   const questions = section.questions?.length ?? 0
+  const perQuestion = marksPerQuestion(section)
   const marks = questions > 0
     ? section.questions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
-    : (Number(section.plannedQuestions) || 0) * (Number(section.defaultCorrectMarks) || 0)
+    : (Number(section.plannedQuestions) || 0) * perQuestion
   return {
     questions,
     marks: Math.round(marks * 100) / 100,
