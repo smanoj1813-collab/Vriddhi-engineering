@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as XLSX from '@e965/xlsx';
 import {
@@ -29,6 +29,7 @@ import {
   CheckCircle,
   Delete,
   FileDownload,
+  Refresh,
   GppMaybeOutlined,
   HourglassTop,
   Public,
@@ -67,6 +68,9 @@ import type {
  */
 
 /* ─── helpers ── */
+
+/** A live report reloads on tab focus at most this often (one callable read each). */
+const LIVE_RELOAD_MIN_GAP_MS = 2 * 60 * 1000;
 
 const toMs = (value: string | Date | { toDate?: () => Date } | undefined | null): number => {
   if (!value) return NaN;
@@ -231,12 +235,14 @@ function TestReport({ testId, onBack }: { testId: string; onBack: () => void }) 
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const lastLoadedRef = useRef(0);
   const load = useCallback(async () => {
     try {
       setError(null);
       const fn = httpsCallable<{ testId: string }, AssessmentTestReport>(functions, 'getAssessmentTestReport');
       const res = await fn({ testId });
       setReport(res.data);
+      lastLoadedRef.current = Date.now();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The test report could not be loaded.');
     } finally {
@@ -261,7 +267,9 @@ function TestReport({ testId, onBack }: { testId: string; onBack: () => void }) 
     return () => { active = false; };
   }, []);
 
-  // While the test window is open, keep the report live.
+  // While the test window is open, the report reloads when the tab comes back to
+  // the foreground (at most once per LIVE_RELOAD_MIN_GAP_MS). No timer; the
+  // Refresh button covers the rest.
   useEffect(() => {
     if (!report) return;
     const now = Date.now();
@@ -269,8 +277,11 @@ function TestReport({ testId, onBack }: { testId: string; onBack: () => void }) 
     const end = toMs(report.test.endDateTime);
     const live = !Number.isNaN(start) && !Number.isNaN(end) && now >= start && now <= end;
     if (!live) return;
-    const id = setInterval(() => { void load(); }, 30_000);
-    return () => clearInterval(id);
+    const onVisible = () => {
+      if (!document.hidden && Date.now() - lastLoadedRef.current > LIVE_RELOAD_MIN_GAP_MS) void load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [report, load]);
 
   if (loading && !report) {
@@ -443,6 +454,9 @@ function TestReport({ testId, onBack }: { testId: string; onBack: () => void }) 
           onClick={exportExcel}
         >
           {exporting ? 'Preparing…' : 'Download Excel report'}
+        </Button>
+        <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={() => void load()}>
+          Refresh
         </Button>
         {canEditCategories && (
           <Button variant="outlined" size="small" startIcon={<Tune />} onClick={() => setCategoryDialogOpen(true)}>

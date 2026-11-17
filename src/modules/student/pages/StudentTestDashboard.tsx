@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PlayArrow, Schedule, CheckCircle, Cancel,
@@ -42,24 +42,30 @@ const StudentTestDashboard: React.FC = () => {
   const { tests, loading, error, warnings, refresh } = useStudentData();
   const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
 
-  // While a future test is on screen, poll so the card flips from
-  // "Yet to start" to "Start Test" at the window open without a manual
-  // refresh. Pauses while the browser tab is hidden (no reads for a tab
-  // nobody is looking at).
-  const hasUpcoming = tests.some((t) => t.status === "upcoming");
+  // The card flips from "Yet to start" to "Start Test" when the window opens.
+  // No polling: ONE refresh is scheduled for the earliest upcoming start. Starts
+  // more than 24 hours away are picked up on the next visit.
+  const refreshRef = useRef(refresh);
+  useEffect(() => { refreshRef.current = refresh; });
+  const nextStartMs = useMemo(() => {
+    let next: number | null = null;
+    for (const t of tests) {
+      if (t.status !== "upcoming" || !t.startDateTime) continue;
+      const ms = new Date(t.startDateTime).getTime();
+      if (Number.isNaN(ms)) continue;
+      if (next === null || ms < next) next = ms;
+    }
+    return next;
+  }, [tests]);
   useEffect(() => {
-    if (!hasUpcoming) return;
-    let id: ReturnType<typeof setInterval> | null = null;
-    const start = () => { if (id === null) id = setInterval(() => refresh(), 30_000); };
-    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
-    const onVisibility = () => (document.hidden ? stop() : start());
-    start();
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [hasUpcoming, refresh]);
+    if (nextStartMs === null) return;
+    const delay = nextStartMs - Date.now() + 1000;
+    // Start time already passed but still shown as upcoming: refresh once.
+    if (delay <= 0) { refreshRef.current(); return; }
+    if (delay > 24 * 60 * 60 * 1000) return;
+    const id = setTimeout(() => refreshRef.current(), delay);
+    return () => clearTimeout(id);
+  }, [nextStartMs]);
 
   const results = useMemo(
     () => tests.filter((t) => t.status === "completed" || t.status === "graded"),
