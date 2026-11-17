@@ -46,6 +46,10 @@ import {
 } from '../api/attendanceApi';
 import { useAuth } from '../../auth/context/AuthContext';
 import { shouldScopeToDepartment, docInDepartment } from '@/shared/utils/departmentScope';
+import { branchKey } from '@/shared/utils/branchKey';
+import AttendanceDrill from '../components/AttendanceDrill';
+import { getAcademicInsights, type AcademicInsightsResult } from '../api/academicInsightsApi';
+import { academicYearToDate } from '../utils/curriculumDrill';
 import type { AttendanceSummary, ClassSession } from '../types/attendance';
 import {
   buildStudentAttendanceReport,
@@ -179,6 +183,23 @@ export default function Attendance() {
     }
   }, [collegeId, downloadRange, branch, batch]);
 
+  // Drill-down data: one bounded academic-insights call for the academic year to
+  // date. It also supplies the Branch/Batch options, so the filters do not depend
+  // on which date has sessions.
+  const insightsWindow = useMemo(() => academicYearToDate(), []);
+  const [insights, setInsights] = useState<AcademicInsightsResult | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setInsightsLoading(true);
+    getAcademicInsights({ from: insightsWindow.from, to: insightsWindow.to })
+      .then((result) => { if (!cancelled) { setInsights(result); setInsightsError(null); } })
+      .catch((err) => { if (!cancelled) setInsightsError(err instanceof Error ? err.message : 'Could not load the drill-down.'); })
+      .finally(() => { if (!cancelled) setInsightsLoading(false); });
+    return () => { cancelled = true; };
+  }, [insightsWindow]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -228,15 +249,29 @@ export default function Attendance() {
   // Unique branches & batches from sessions for filter dropdowns
   // Batches are restricted to 2026 and above (older data stays visible, but
   // is no longer selectable as a filter).
+  // One option per branch: "CSE", "B.E (CSE)" and "B.Tech (CSE)" are the same
+  // branch, and the filter matches every spelling, so the first spelling wins.
   const { branches, batches } = useMemo(() => {
-    const bSet = new Set<string>();
+    const bKeys = new Map<string, string>();
     const baSet = new Set<string>();
+    const addBranch = (value: string | undefined | null) => {
+      if (!value) return;
+      const key = branchKey(value) || value;
+      if (!bKeys.has(key)) bKeys.set(key, value);
+    };
     sessions.forEach((s) => {
-      if (s.branch) bSet.add(s.branch);
+      addBranch(s.branch);
       if (s.batch && isAllowedAttendanceBatch(s.batch)) baSet.add(s.batch);
     });
-    return { branches: Array.from(bSet), batches: Array.from(baSet) };
-  }, [sessions]);
+    insights?.semesters.forEach((sem) => sem.subjects.forEach((subj) => {
+      addBranch(subj.branch);
+      if (subj.batch && isAllowedAttendanceBatch(subj.batch)) baSet.add(subj.batch);
+    }));
+    return {
+      branches: Array.from(bKeys.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+      batches: Array.from(baSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    };
+  }, [sessions, insights]);
 
   const statCards = [
     { label: 'Avg Attendance', value: `${stats.avgPercentage.toFixed(1)}%`, color: '#34d399' },
@@ -399,9 +434,10 @@ export default function Attendance() {
             <Tab label="Class Sessions" sx={{ color: 'text.secondary', textTransform: 'none' }} />
             <Tab label="Student Summary" sx={{ color: 'text.secondary', textTransform: 'none' }} />
             <Tab label="Daily Report" sx={{ color: 'text.secondary', textTransform: 'none' }} />
+            <Tab label="Drill-down" sx={{ color: 'text.secondary', textTransform: 'none' }} />
           </Tabs>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+          {tab !== 3 && (<Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
             <TextField
               type="date"
               label="Date"
@@ -445,11 +481,18 @@ export default function Attendance() {
                 ))}
               </Select>
             </FormControl>
-          </Box>
+          </Box>)}
         </Box>
 
         <Box sx={{ p: 2 }}>
-          {loading ? (
+          {tab === 3 ? (
+            <AttendanceDrill
+              result={insights}
+              loading={insightsLoading}
+              error={insightsError}
+              windowLabel={`Academic year to date (${insightsWindow.from} to ${insightsWindow.to})`}
+            />
+          ) : loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
               <CircularProgress size={32} sx={{ color: '#0d9488' }} />
             </Box>

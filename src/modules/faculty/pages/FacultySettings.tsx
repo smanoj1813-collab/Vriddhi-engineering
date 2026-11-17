@@ -233,10 +233,11 @@ export default function FacultySettings() {
       if (fontSize === 'small') root.style.fontSize = '14px'
       else if (fontSize === 'large') root.style.fontSize = '18px'
       else root.style.fontSize = '16px'
-      if (user?.uid) {
-        await setDoc(doc(db, 'faculty', user.uid), { appearance: { accentColor, fontSize, compactMode }, updatedAt: new Date().toISOString() }, { merge: true })
-      }
-      setAppearanceMsg({ type: 'ok', text: 'Appearance saved!' })
+      // Appearance is a device preference, saved to this browser only (the same
+      // as the student portal). It is not written to Firestore: faculty cannot
+      // update their own faculty/{uid} record, which is what caused the
+      // "Missing or insufficient permissions" error.
+      setAppearanceMsg({ type: 'ok', text: 'Appearance saved on this device.' })
       setTimeout(() => setAppearanceMsg(null), 3000)
     } catch (e: any) {
       setAppearanceMsg({ type: 'err', text: e.message || 'Failed to save appearance' })

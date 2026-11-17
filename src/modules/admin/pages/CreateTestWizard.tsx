@@ -37,6 +37,11 @@ import {
   type TestTemplate,
 } from '@/shared/types/testTemplate'
 import {
+  sectionSupportsQuestions,
+  syncSectionQuestionMarks,
+} from '@/shared/utils/testQuestions'
+import SectionQuestionsDialog from '../components/SectionQuestionsDialog'
+import {
   MARKS_PRESETS,
   PENALTY_PRESETS,
   cohortLabel,
@@ -51,6 +56,7 @@ import {
   testTotals,
   validateSections,
   validateTestDetails,
+  CODING_QUESTION_MARKS,
 } from '@/shared/utils/testTemplate'
 import {
   createCollegeTest,
@@ -126,7 +132,7 @@ export default function CreateTestWizard() {
     return () => { cancelled = true }
   }, [routeId])
 
-  const draftTemplate: Omit<TestTemplate, 'id' | 'scope'> = useMemo(() => ({
+  const buildTemplate = (secs: TestSection[]): Omit<TestTemplate, 'id' | 'scope'> => ({
     title,
     testCode: normalizeTestCode(testCode),
     kind,
@@ -138,12 +144,33 @@ export default function CreateTestWizard() {
     instructions,
     cohorts,
     delivery,
-    sections,
+    sections: secs.map(syncSectionQuestionMarks),
     testStatus: 'draft',
     collegeId: author.collegeId,
     createdBy: author.uid,
     createdByName: author.name,
-  }), [title, testCode, kind, subject, program, branch, semester, description, instructions, cohorts, delivery, sections, author.collegeId, author.uid, author.name])
+  })
+
+  const draftTemplate: Omit<TestTemplate, 'id' | 'scope'> = useMemo(
+    () => buildTemplate(sections),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [title, testCode, kind, subject, program, branch, semester, description, instructions, cohorts, delivery, sections, author.collegeId, author.uid, author.name],
+  )
+
+  // Question changes from the confirmation table are saved straight away, so a
+  // reload keeps them. A failed save restores the previous sections.
+  const [questionEditIndex, setQuestionEditIndex] = useState<number | null>(null)
+  const persistSections = async (next: TestSection[]) => {
+    const previous = sections
+    setSections(next)
+    if (!savedId) return
+    try {
+      await updateCollegeTest(savedId, buildTemplate(next), author)
+    } catch (err) {
+      setSections(previous)
+      throw err
+    }
+  }
 
   const readiness = useMemo(
     () => testReadiness({ title, testCode, sections }),
@@ -152,7 +179,8 @@ export default function CreateTestWizard() {
   const totals = useMemo(() => testTotals(sections), [sections])
 
   const updateSection = (index: number, patch: Partial<TestSection>) => {
-    setSections((prev) => prev.map((section, i) => (i === index ? { ...section, ...patch } : section)))
+    // Marks and penalty are section settings: the section's questions follow them.
+    setSections((prev) => prev.map((section, i) => (i === index ? syncSectionQuestionMarks({ ...section, ...patch }) : section)))
   }
 
   const handleNextFromDetails = () => {
@@ -255,9 +283,16 @@ export default function CreateTestWizard() {
                     <TableCell align="right">{t.durationMinutes} min</TableCell>
                     <TableCell><Chip size="small" label={TEST_SECTION_TYPE_LABELS[section.type]} variant="outlined" /></TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Question attachment ships in the next round (library picker + custom editor). The section structure is saved.">
+                      <Tooltip title={sectionSupportsQuestions(section.type) ? '' : 'Descriptive sections cannot take questions here yet.'}>
                         <span>
-                          <Button size="small" startIcon={<AddIcon />} disabled>Add questions</Button>
+                          <Button
+                            size="small"
+                            startIcon={<AddIcon />}
+                            disabled={!sectionSupportsQuestions(section.type) || !savedId}
+                            onClick={() => setQuestionEditIndex(index)}
+                          >
+                            {section.questions?.length ? 'Edit questions' : 'Add questions'}
+                          </Button>
                         </span>
                       </Tooltip>
                     </TableCell>
@@ -272,6 +307,18 @@ export default function CreateTestWizard() {
           <Alert severity="info" sx={{ mb: 2 }}>
             Before this test can be scheduled: {readiness.blockers.join(' ')}
           </Alert>
+        )}
+
+        {questionEditIndex !== null && sections[questionEditIndex] && (
+          <SectionQuestionsDialog
+            open
+            section={sections[questionEditIndex]}
+            collegeId={author.collegeId}
+            author={{ uid: author.uid, name: author.name }}
+            testSubject={subject}
+            onClose={() => setQuestionEditIndex(null)}
+            onChange={(updated) => persistSections(sections.map((sec, i) => (i === questionEditIndex ? updated : sec)))}
+          />
         )}
 
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
@@ -503,6 +550,11 @@ export default function CreateTestWizard() {
                 multiline minRows={2} fullWidth
               />
 
+              {section.type === 'coding' ? (
+                <Typography variant="body2" color="text.secondary">
+                  Each coding question carries {CODING_QUESTION_MARKS} marks. Its hidden tests share them equally.
+                </Typography>
+              ) : (<>
               <Box>
                 <Typography variant="overline" color="text.secondary">Default correct marks</Typography>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1, mt: 0.5 }}>
@@ -521,7 +573,7 @@ export default function CreateTestWizard() {
                   />
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  You can set custom marks per question when you add questions.
+                  Every question in this section carries these marks.
                 </Typography>
               </Box>
 
@@ -551,6 +603,7 @@ export default function CreateTestWizard() {
                   />
                 </Stack>
               </Box>
+              </>)}
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: 'center' }}>
                 <TextField

@@ -401,6 +401,7 @@ const principalNav: SidebarEntry[] = [
       { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
+      { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" /> },
     ],
   },
 
@@ -516,6 +517,7 @@ const hodNav: SidebarEntry[] = [
       { label: "Curriculum Insights", path: "/admin/academic-insights", icon: <School fontSize="small" /> },
       { label: "Curriculum Approvals", path: "/admin/curriculum-approvals", icon: <School fontSize="small" /> },
       { label: "Academic Calendar", path: "/admin/academic-calendar", icon: <CalendarToday fontSize="small" /> },
+      { label: "Class Schedule", path: "/admin/class-schedule", icon: <CalendarToday fontSize="small" /> },
       { label: "Scheme Packs", path: "/admin/scheme-packs", icon: <AccountBalance fontSize="small" /> },
       { label: "OBE Attainment", path: "/admin/obe", icon: <TrackChanges fontSize="small" /> },
     ],

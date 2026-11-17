@@ -255,12 +255,15 @@ test('hostel and transport: operations and principal only', () => {
   }
 })
 
-test('Class Schedule Manager: operations drafts, admin edits live; principal and HOD are out', () => {
+test('Class Schedule: operations drafts, admin edits live; principal and HOD get a read-only view', () => {
   const access = { payrollRoles: ['accounts'] } as Parameters<typeof canAccessAdminPath>[2]
   assert.equal(canAccessAdminPath('operations', '/admin/class-schedule', access), true)
   assert.equal(canAccessAdminPath('admin', '/admin/class-schedule', access), true)
-  assert.equal(canAccessAdminPath('principal', '/admin/class-schedule', access), false)
-  assert.equal(canAccessAdminPath('hod', '/admin/class-schedule', access), false)
+  assert.equal(canAccessAdminPath('principal', '/admin/class-schedule', access), true)
+  assert.equal(canAccessAdminPath('hod', '/admin/class-schedule', access), true)
+  assert.equal(roleHasPermission('principal', 'schedule.manage'), false)
+  assert.equal(roleHasPermission('hod', 'schedule.manage'), false)
+  assert.equal(roleHasPermission('principal', 'schedule.view'), true)
   // Timetable Approvals stays with HOD and principal (fallback), and ops sends drafts there.
   assert.equal(canAccessAdminPath('hod', '/admin/timetable-approvals', access), true)
   assert.equal(canAccessAdminPath('principal', '/admin/timetable-approvals', access), true)
