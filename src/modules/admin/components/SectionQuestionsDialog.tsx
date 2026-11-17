@@ -50,6 +50,7 @@ import {
   type BankQuestionLike,
 } from '@/shared/utils/testQuestions';
 import { TEST_SECTION_TYPE_LABELS, type TestSection } from '@/shared/types/testTemplate';
+import { marksPerQuestion } from '@/shared/utils/testTemplate';
 import { getQuestions, createQuestion } from '../api/questionBankApi';
 import type { Question, QuestionType } from '../types/questionBank';
 
@@ -230,7 +231,7 @@ export default function SectionQuestionsDialog({
       <DialogTitle>
         {section.name || 'Section'} — questions
         <Typography variant="body2" color="text.secondary">
-          {TEST_SECTION_TYPE_LABELS[sectionType]} · {section.questions?.length ?? 0} added · {section.defaultCorrectMarks} marks each
+          {TEST_SECTION_TYPE_LABELS[sectionType]} · {section.questions?.length ?? 0} added · {marksPerQuestion(section)} marks each
         </Typography>
       </DialogTitle>
       <DialogContent dividers>
@@ -249,7 +250,7 @@ export default function SectionQuestionsDialog({
                 <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={q.text}>
                   {q.text || 'Untitled question'}
                 </Typography>
-                <Chip size="small" variant="outlined" label={`${section.defaultCorrectMarks} marks`} />
+                <Chip size="small" variant="outlined" label={`${marksPerQuestion(section)} marks`} />
                 {section.defaultPenalty > 0 && <Chip size="small" variant="outlined" label={`−${section.defaultPenalty}`} />}
                 <Tooltip title="Remove from this section">
                   <span>
@@ -313,7 +314,7 @@ export default function SectionQuestionsDialog({
                     <Box>
                       <Typography variant="body2">{q.text}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {[q.subject, q.topic, q.difficulty, `${section.defaultCorrectMarks} marks`].filter(Boolean).join(' · ')}
+                        {[q.subject, q.topic, q.difficulty, `${marksPerQuestion(section)} marks`].filter(Boolean).join(' · ')}
                       </Typography>
                     </Box>
                   }
@@ -383,7 +384,7 @@ export default function SectionQuestionsDialog({
             )}
 
             <Typography variant="caption" color="text.secondary">
-              Each question carries {section.defaultCorrectMarks} mark{section.defaultCorrectMarks === 1 ? '' : 's'}
+              Each question carries {marksPerQuestion(section)} mark{marksPerQuestion(section) === 1 ? '' : 's'}
               {section.defaultPenalty > 0 ? ` with −${section.defaultPenalty} for a wrong answer` : ''}, as set on the section.
             </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>

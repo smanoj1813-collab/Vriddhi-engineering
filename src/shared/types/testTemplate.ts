@@ -94,6 +94,12 @@ export interface TestSectionQuestion {
   options?: Array<{ id: string; text: string; isCorrect: boolean }>
   /** Stored answer for numerical / fill-in questions. */
   correctAnswer?: string | string[]
+  /**
+   * Coding questions only: the languages, starter code, sample and hidden test
+   * cases. Lives on the template (staff-only), and is copied to the scheduled
+   * test. Students never receive the hidden cases.
+   */
+  coding?: Record<string, unknown>
 }
 
 export interface TestSection {

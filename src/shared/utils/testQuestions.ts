@@ -12,14 +12,16 @@
 //   • numerical→ bank numerical, or a written numerical question
 //   • msq      → bank MCQs with two or more correct options, stored as multi_select
 //                (no written MSQ yet)
-//   • descriptive, coding → not attachable yet (coding needs its test-case config,
-//     which the snapshot does not carry)
+//   • coding   → bank coding questions. The snapshot carries the coding config
+//                (sample and hidden tests) and is worth CODING_QUESTION_MARKS (100).
+//   • descriptive → not attachable yet
 
 import type {
   TestSection,
   TestSectionQuestion,
   TestSectionType,
 } from '../types/testTemplate';
+import { CODING_QUESTION_MARKS } from './testTemplate';
 
 /** Bank question types each section type can hold. */
 export const SECTION_BANK_TYPES: Readonly<Record<TestSectionType, readonly string[]>> = {
@@ -27,7 +29,7 @@ export const SECTION_BANK_TYPES: Readonly<Record<TestSectionType, readonly strin
   msq: ['mcq'],
   numerical: ['numerical'],
   descriptive: [],
-  coding: [],
+  coding: ['coding'],
 };
 
 /** Whether the dialog can attach anything to this section type yet. */
@@ -51,6 +53,7 @@ export interface BankQuestionLike {
   topic?: string;
   options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
   correctAnswer?: string | string[];
+  coding?: unknown;
 }
 
 function correctCount(q: BankQuestionLike): number {
@@ -67,6 +70,7 @@ function correctCount(q: BankQuestionLike): number {
  */
 export function bankQuestionFits(section: Pick<TestSection, 'type'>, q: BankQuestionLike): boolean {
   if (!SECTION_BANK_TYPES[section.type].includes(q.type)) return false;
+  if (q.type === 'coding') return Boolean(q.coding) && typeof q.coding === 'object';
   if (q.type === 'mcq') {
     if ((q.options ?? []).length < 2) return false;
     const correct = correctCount(q);
@@ -91,7 +95,8 @@ export function syncSectionQuestionMarks<T extends TestSection>(section: T): T {
   const negativeMarks = section.defaultPenalty;
   return {
     ...section,
-    questions: section.questions.map((q) => ({ ...q, marks, negativeMarks })),
+    // A coding question keeps its fixed 100 marks; the section's MCQ marks don't apply.
+    questions: section.questions.map((q) => (q.type === 'coding' ? q : { ...q, marks, negativeMarks })),
   };
 }
 
@@ -103,11 +108,13 @@ export function snapshotFromBankQuestion(
 ): TestSectionQuestion {
   // A multi-correct MCQ in an MSQ section is graded as multi_select.
   const type = section.type === 'msq' && q.type === 'mcq' && correctCount(q) >= 2 ? 'multi_select' : q.type
+  const isCoding = q.type === 'coding'
   return {
     questionId: q.id,
     order,
-    marks: section.defaultCorrectMarks,
-    negativeMarks: section.defaultPenalty,
+    marks: isCoding ? CODING_QUESTION_MARKS : section.defaultCorrectMarks,
+    negativeMarks: isCoding ? 0 : section.defaultPenalty,
+    ...(isCoding && q.coding && typeof q.coding === 'object' ? { coding: q.coding as Record<string, unknown> } : {}),
     text: q.text,
     type,
     ...(q.difficulty ? { difficulty: q.difficulty } : {}),
