@@ -33,6 +33,8 @@ export type BillingCycle = "monthly" | "quarterly" | "yearly";
 
 export interface College {
   id: string;
+  /** Platform branch IDs offered by this college (see the branches registry). */
+  assignedBranchIds?: number[];
   name: string;
   code: string;
   shortName?: string;
@@ -82,6 +84,7 @@ export interface College {
 export interface CreateCollegeInput {
   name: string;
   code: string;
+  assignedBranchIds?: number[];
   shortName?: string;
   address?: string;
   city?: string;

@@ -4,6 +4,8 @@ import { useCreateCollege, useSystemConfig, useCollege, useUpdateCollege } from 
 import { useNotification } from '../../../shared/providers/NotificationProvider'
 import { Building2, ArrowLeft, Save, Loader2, Globe, MapPin, Phone, Mail } from 'lucide-react'
 import type { PlanType } from '../types/superAdmin'
+import { listBranchRegistry } from '../api/branchRegistryApi'
+import type { BranchRegistryEntry } from '../../../shared/utils/branchRegistry'
 
 interface FormData {
   name: string
@@ -18,6 +20,7 @@ interface FormData {
   email: string
   website: string
   plan: PlanType
+  assignedBranchIds: number[]
   currentStudents: number
   currentFaculty: number
   courses: number
@@ -41,6 +44,7 @@ const initialFormData: FormData = {
   email: '',
   website: '',
   plan: 'standard',
+  assignedBranchIds: [],
   currentStudents: 0,
   currentFaculty: 0,
   courses: 0,
@@ -57,6 +61,17 @@ const CreateCollege: React.FC<CreateCollegeProps> = ({ collegeId }) => {
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
   const [prefilled, setPrefilled] = useState(false)
+  const [registry, setRegistry] = useState<BranchRegistryEntry[]>([])
+  const [registryLoading, setRegistryLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    listBranchRegistry()
+      .then((list) => { if (!cancelled) setRegistry(list) })
+      .catch(() => { if (!cancelled) setRegistry([]) })
+      .finally(() => { if (!cancelled) setRegistryLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   // Prefill the form once the existing college loads (edit mode only).
   useEffect(() => {
@@ -76,12 +91,23 @@ const CreateCollege: React.FC<CreateCollegeProps> = ({ collegeId }) => {
       email: c.email || '',
       website: c.website || '',
       plan: (c.plan as PlanType) || 'standard',
+      assignedBranchIds: c.assignedBranchIds ?? [],
       currentStudents: c.currentStudents ?? 0,
       currentFaculty: c.currentFaculty ?? 0,
       courses: c.courses ?? 0,
     })
     setPrefilled(true)
   }, [isEdit, prefilled, collegeQuery.data])
+
+  const toggleBranch = (branchId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      assignedBranchIds: prev.assignedBranchIds.includes(branchId)
+        ? prev.assignedBranchIds.filter(id => id !== branchId)
+        : [...prev.assignedBranchIds, branchId].sort((a, b) => a - b),
+    }))
+    if (errors.assignedBranchIds) setErrors(prev => ({ ...prev, assignedBranchIds: undefined }))
+  }
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {}
@@ -92,6 +118,10 @@ const CreateCollege: React.FC<CreateCollegeProps> = ({ collegeId }) => {
     }
     if (formData.phone && !/^\d{10}$/.test(formData.phone.replace(/\D/g, ''))) {
       newErrors.phone = 'Enter a valid 10-digit phone number'
+    }
+    // Creating a college needs at least one branch. Existing colleges are edited as before.
+    if (!isEdit && formData.assignedBranchIds.length === 0) {
+      newErrors.assignedBranchIds = 'Assign at least one branch'
     }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -133,6 +163,7 @@ const CreateCollege: React.FC<CreateCollegeProps> = ({ collegeId }) => {
       currentStudents: formData.currentStudents,
       currentFaculty: formData.currentFaculty,
       courses: formData.courses,
+      assignedBranchIds: formData.assignedBranchIds,
     }
 
     try {
@@ -262,6 +293,32 @@ const CreateCollege: React.FC<CreateCollegeProps> = ({ collegeId }) => {
                 <option value="enterprise">Enterprise</option>
                 <option value="pro">Pro</option>
               </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className={labelClasses}>Branches offered</label>
+              {registryLoading ? (
+                <p className="text-sm text-slate-500">Loading branches…</p>
+              ) : registry.length === 0 ? (
+                <p className="text-sm text-slate-500">No branches yet. Add them on the Branches page first.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {registry.map((b) => {
+                    const on = formData.assignedBranchIds.includes(b.branchId)
+                    return (
+                      <button
+                        key={b.branchId}
+                        type="button"
+                        onClick={() => toggleBranch(b.branchId)}
+                        className={`px-3 py-1.5 rounded-lg text-sm border ${on ? 'bg-teal-600 text-white border-teal-600' : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'}`}
+                      >
+                        <span className="font-mono text-xs mr-1">{b.branchId}</span>{b.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {errors.assignedBranchIds && <p className="text-xs text-red-600 mt-1">{errors.assignedBranchIds}</p>}
             </div>
           </div>
         </div>
