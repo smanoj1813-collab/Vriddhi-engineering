@@ -140,6 +140,7 @@ import { verifyCurriculumList, reviewCurriculumApproval } from './curriculumAppr
 // ─── Assignment completion analytics (course/module/batch/division) ───
 import { getAssignmentAnalytics } from './assignmentAnalytics'
 import { getAcademicInsights } from './academicInsights'
+import { createBranch } from './branchRegistry'
 // ─── Announcements: server-authoritative targeting + per-recipient reads ───
 import {
   sendAnnouncement,
@@ -381,6 +382,7 @@ export {
   deleteCalendarEvent,
   getAssignmentAnalytics,
   getAcademicInsights,
+  createBranch,
   sendAnnouncement,
   listCollegeAnnouncements,
   deleteAnnouncement,

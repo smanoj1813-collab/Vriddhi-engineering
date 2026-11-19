@@ -4,6 +4,7 @@ if (!getApps().length) initializeApp();
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import * as admin from 'firebase-admin'
 import { verifyCaller } from './identityShared'
+import { loadBranchRegistry, resolveBranchTokens, unknownBranchMessage } from './branchIds'
 
 const MAX_BRANCHES = 20
 
@@ -60,9 +61,16 @@ export const updateFacultyBranches = onCall(
 
     const facultyId = String(request.data?.facultyId || '').trim()
     if (!facultyId) throw new HttpsError('invalid-argument', 'facultyId is required')
-    const branches = normalizeBranches(request.data?.branches)
+    const tokens = normalizeBranches(request.data?.branches)
 
     const db = getFirestore(admin.app(), 'default')
+    // Each entry is a registry ID or a branch name. Names that match nothing are rejected.
+    const registry = await loadBranchRegistry(db)
+    const { resolved, unmatched } = resolveBranchTokens(tokens, registry)
+    if (unmatched.length > 0) throw new HttpsError('invalid-argument', unknownBranchMessage(unmatched))
+    const branches = resolved.map((item) => item.name)
+    const branchIds = resolved.map((item) => item.branchId)
+
     const facultyRef = db.collection('faculty').doc(facultyId)
     const facultySnap = await facultyRef.get()
     if (!facultySnap.exists) throw new HttpsError('not-found', 'Faculty profile not found')
@@ -91,6 +99,7 @@ export const updateFacultyBranches = onCall(
 
     batch.update(facultyRef, {
       branches,
+      branchIds,
       department: branches[0],
       updatedAt: now,
     })

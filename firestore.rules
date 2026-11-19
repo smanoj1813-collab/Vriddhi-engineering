@@ -512,6 +512,14 @@ service cloud.firestore {
       allow write: if isSuperadmin();
     }
 
+    // Platform branch registry (IDs issued by the createBranch callable only).
+    // Any signed-in user may read it to label branches; nobody writes it
+    // directly. branchCounters has no rule, so clients cannot read or write it.
+    match /branches/{branchId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /colleges/{collegeId} {
       allow read: if isSignedIn() && (isSuperadmin() || collegeId() == collegeId);
       // System Management can pause onboarding at the security boundary, not

@@ -1,3 +1,4 @@
+import { loadBranchRegistry, resolveBranchTokens, unknownBranchMessage } from './branchIds'
 import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
@@ -277,6 +278,8 @@ export const bulkProvisionStaff = onCall(
 
     // ── Load college data ──
     const collegeRef = getFirestore(admin.app(), 'default').collection('colleges').doc(collegeId)
+    // One bounded registry read per import, shared by every row.
+    const branchRegistry = await loadBranchRegistry(getFirestore(admin.app(), 'default'))
     const collegeSnap = await collegeRef.get()
     if (!collegeSnap.exists) {
       throw new HttpsError('not-found', `College ${collegeId} not found`)
@@ -339,7 +342,14 @@ export const bulkProvisionStaff = onCall(
             ? 'hod'
             : 'faculty'
 
-      const branches = normalizeFacultyBranches(row)
+      // Each branch cell is a registry ID or a branch name. Unknown names fail the row.
+      const branchResolution = resolveBranchTokens(normalizeFacultyBranches(row), branchRegistry)
+      if (branchResolution.unmatched.length > 0) {
+        fail(unknownBranchMessage(branchResolution.unmatched))
+        continue
+      }
+      const branches = branchResolution.resolved.map((item) => item.name)
+      const branchIds = branchResolution.resolved.map((item) => item.branchId)
       const department = branches[0] || ''
       const facultyId = String(row.facultyId || `FAC${Date.now()}${i}`).trim()
       const password = defaultPassword ? String(defaultPassword) : generateRandomPassword()
@@ -482,6 +492,7 @@ export const bulkProvisionStaff = onCall(
           collegeCode: String(college.code || '').trim(),
           department,
           branches,
+          branchIds,
           designation: String(row.designation || (role === 'principal' ? 'Principal' : 'Assistant Professor')),
           employmentType: String(row.employmentType || 'FULL_TIME'),
           // G5: guest contract survives provisioning so the auto-mapper can
@@ -550,6 +561,7 @@ export const bulkProvisionStaff = onCall(
             collegeCode: String(college.code || '').trim(),
             department,
             branches,
+            branchIds,
             phone: String(row.phone || '').trim(),
             avatar: String(row.profilePhotoUrl || ''),
             facultyDocId: facultyId,

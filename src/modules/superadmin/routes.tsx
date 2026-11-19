@@ -14,6 +14,7 @@ const AccessProducts = lazy(() => import('./pages/AccessProducts'));
 const SuperAdminAdmins = lazy(() => import('./pages/SuperAdminAdmins'));
 const SuperAdminCollegeDetail = lazy(() => import('./pages/SuperAdminCollegeDetail'));
 const SuperAdminColleges = lazy(() => import('./pages/SuperAdminColleges'));
+const BranchRegistry = lazy(() => import('./pages/BranchRegistry'));
 const SuperAdminCurriculum = lazy(() => import('./pages/SuperAdminCurriculum'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const SuperAdminFaculty = lazy(() => import('./pages/SuperAdminFaculty'));
@@ -56,6 +57,7 @@ export const superadminRoutes: RouteObject[] = [
       // identity is created in Access Control first, then assigned here.
       { path: 'employees', element: <PlatformEmployees /> },
       { path: 'colleges', element: <SuperAdminColleges /> },
+      { path: 'branches', element: <BranchRegistry /> },
       { path: 'colleges/new', element: <CreateCollege /> },
       { path: 'colleges/:id/edit', element: <EditCollegeRoute /> },
       { path: 'colleges/:id', element: <SuperAdminCollegeDetail /> },

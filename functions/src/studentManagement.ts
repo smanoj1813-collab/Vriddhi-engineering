@@ -1,4 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore';
+import { loadBranchRegistry, resolveBranchTokens, unknownBranchMessage } from './branchIds';
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (!getApps().length) initializeApp();
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -78,6 +79,16 @@ export const bulkUpdateStudentAcademicFields = onCall(
     }
 
     const db = getFirestore(admin.app(), 'default')
+    // A branch is an ID or a name from the registry. Anything else is rejected, not stored.
+    let branchFields: { branch: string; branchId: number } | undefined
+    if (nextBranch !== undefined) {
+      const registry = await loadBranchRegistry(db)
+      const { resolved, unmatched } = resolveBranchTokens([nextBranch], registry)
+      if (unmatched.length > 0 || resolved.length === 0) {
+        throw new HttpsError('invalid-argument', unknownBranchMessage([nextBranch]))
+      }
+      branchFields = { branch: resolved[0].name, branchId: resolved[0].branchId }
+    }
     const refs = studentIds.map((id) => db.collection('students').doc(id))
     const snapshots = await db.getAll(...refs)
     const existing = snapshots.filter((snapshot) => snapshot.exists)
@@ -93,11 +104,13 @@ export const bulkUpdateStudentAcademicFields = onCall(
         const academicUpdates: Record<string, unknown> = { updatedAt: now }
         if (nextBatch !== undefined) academicUpdates.batch = nextBatch
         if (nextSemester !== undefined) academicUpdates.semester = nextSemester
-        if (nextBranch !== undefined) {
+        if (branchFields) {
           // `branch` is canonical; `department` keeps legacy roster and report
-          // queries working until all old consumers have migrated.
-          academicUpdates.branch = nextBranch
-          academicUpdates.department = nextBranch
+          // queries working until all old consumers have migrated. `branchId` is
+          // the registry ID the filters match on.
+          academicUpdates.branch = branchFields.branch
+          academicUpdates.branchId = branchFields.branchId
+          academicUpdates.department = branchFields.branch
         }
         write.update(snapshot.ref, academicUpdates)
 

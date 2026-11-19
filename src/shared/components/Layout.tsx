@@ -156,6 +156,7 @@ const navItems: NavItem[] = [
   { label: "Dashboard", path: "/superadmin/dashboard", icon: <Dashboard fontSize="small" />, roles: ["superadmin"], section: "Overview" },
   { label: "Colleges", path: "/superadmin/colleges", icon: <Business fontSize="small" />, roles: ["superadmin"], section: "Institutions" },
   { label: "Universities", path: "/superadmin/universities", icon: <AccountBalance fontSize="small" />, roles: ["superadmin"], section: "Institutions" },
+  { label: "Branches", path: "/superadmin/branches", icon: <Business fontSize="small" />, roles: ["superadmin"], section: "Institutions" },
   { label: "Create College", path: "/superadmin/colleges/new", icon: <PersonAdd fontSize="small" />, roles: ["superadmin"], section: "Institutions" },
   { label: "Admins", path: "/superadmin/admins", icon: <SupervisedUserCircle fontSize="small" />, roles: ["superadmin"], section: "User Management" },
   { label: "Create Admin", path: "/superadmin/admins/new", icon: <AdminPanelSettings fontSize="small" />, roles: ["superadmin"], section: "User Management" },
